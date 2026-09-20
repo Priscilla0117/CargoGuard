@@ -2,6 +2,8 @@
 
 Date: 20 September 2026. This is an implementation addendum to the earlier CargoGuard v2 versus HarborCheck review. It does not replace that historical comparison or claim that HarborCheck has been retested or changed.
 
+**Historical pre-deployment report.** The deployment status below records this report's original date. The independent public deployment subsequently succeeded on 21 September; see [CLOUD_RELEASE.md](CLOUD_RELEASE.md) for current hosted evidence and remaining limits.
+
 ## Bottom line
 
 CargoGuard is stronger than its previously reviewed version: the reproduced classification and port-comparison defects are fixed, decisions now retain complete revision evidence, business-tolerance settings are versioned and previewed safely, and the default application can run independently of ChatGPT Sites.

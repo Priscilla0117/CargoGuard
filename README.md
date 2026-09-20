@@ -2,6 +2,8 @@
 
 An evidence-first hackathon prototype that classifies operational emails, compares Shipping Instructions (SI) with draft Bills of Lading (BL), and keeps uncertain cases with a human.
 
+Public cloud demo: **https://cargoguard-averis.onrender.com/**. See [the verified cloud release and operating limits](docs/CLOUD_RELEASE.md). Free hosting can take 50 seconds or more to wake after inactivity.
+
 ## What you can do
 
 1. Open the app and click **Run inbox** to process all 520 organiser emails.
@@ -86,7 +88,7 @@ These are development-corpus and engineering results, not an untouched hold-out 
 | Offline evaluation | scripts/evaluate.ts; scripts/score-evaluation.py |
 | Regression/integration tests | tests/; scripts/test-api.mjs; scripts/test-hardening-api.mjs; scripts/quality-gate.mjs |
 
-The default is standard Next.js/Node.js. The prepared independent hosting target is Render Free with a persistent Turso libSQL database. Decisions, revisions, policy versions and small uploaded originals live in the external database, not Render's temporary disk. Browser OCR remains local. The legacy Worker adapter is retained separately; it is not required by the default build.
+The default is standard Next.js/Node.js, deployed on Render Free with a persistent Turso libSQL database. Decisions, revisions, policy versions and small uploaded originals live in the external database, not Render's temporary disk. Browser OCR remains local. The legacy Worker adapter is retained separately; it is not required by the default build.
 
 ## Data contract
 
@@ -100,7 +102,7 @@ The app deliberately separates **Awaiting documents** from **Verified**. The org
 
 ## Deployment
 
-Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). The new independent deployment is **prepared, not yet live**. Render/Turso account setup, secret configuration, hosted tests and restart persistence checks remain required. No paid plan is selected, no account is created by the code, and no external resource is provisioned by installation.
+The independent public deployment is **live**. Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) to reproduce it and [docs/CLOUD_RELEASE.md](docs/CLOUD_RELEASE.md) for its exact commit, hosted test evidence, restart verification and limitations. Both provider plans were verified Free. Installation itself does not create accounts or provision resources.
 
 To verify the default production build locally with the same QA database:
 
