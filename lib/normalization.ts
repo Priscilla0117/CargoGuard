@@ -10,7 +10,7 @@ export interface NormalizedValue {
   issue?: string;
 }
 const missing =
-  /^(?:[\s?_\-–—.\/]+|t\.?\s*b\.?\s*[acd]\.?|n\.?\s*\/?\s*a\.?|nil|none|null|unknown|pending|unavailable|not\s+(?:available|provided|specified|stated|known|confirmed|applicable)|to\s+be\s+(?:advised|confirmed|determined|provided|decided)|awaiting\s+(?:confirmation|details|instructions)|same\s+as\s+above)$/i;
+  /^(?:[\s?_\-–—.\/]+|[\s?_\-–—.\/]*[?_]{2,}[\s?_\-–—.\/]*(?:m\.?t\.?s?|kgs?|kilograms?|tonnes?|containers?|units?)\.?|t\.?\s*b\.?\s*[acd]\.?|n\.?\s*\/?\s*a\.?|nil|none|null|unknown|pending|unavailable|not\s+(?:available|provided|specified|stated|known|confirmed|applicable)|to\s+be\s+(?:advised|confirmed|determined|provided|decided)|awaiting\s+(?:confirmation|details|instructions)|same\s+as\s+above)$/i;
 export const sameAsConsignee = (raw: string) =>
   /^(?:same as|as per)\s+(?:the\s+)?consignee\.?$/i.test(
     raw.normalize("NFKC").trim(),
@@ -135,6 +135,48 @@ export function resolveFields(fields: Extracted): Extracted {
   return resolved;
 }
 
+const PARTY_FIELDS = new Set<Field>(["shipper", "consignee", "notify_party"]);
+const PORT_FIELDS = new Set<Field>(["port_of_loading", "port_of_discharge"]);
+const LOCODE = /\s*\(([A-Z]{2}[A-Z0-9]{3})\)$/;
+const nameLine = (raw: string) =>
+  normalize("shipper", raw.split(/\r?\n/).find((l) => l.trim()) ?? "");
+const hasAddressBlock = (raw: string) =>
+  raw.split(/\r?\n/).filter((l) => l.trim()).length > 1;
+
+/**
+ * Only RELAXES formatting-only differences; it never hides a changed name, port or code.
+ * - Party: one side gives the name only, the other gives the same name plus its address.
+ * - Port: one side adds a UN/LOCODE in brackets (or gives only the code) that the other omits.
+ */
+export function formattingOnlyDifference(
+  field: Field,
+  si: { raw: string; normalized: string | number | null },
+  bl: { raw: string; normalized: string | number | null },
+): boolean {
+  if (typeof si.normalized !== "string" || typeof bl.normalized !== "string")
+    return false;
+  if (PARTY_FIELDS.has(field)) {
+    const siAddr = hasAddressBlock(si.raw),
+      blAddr = hasAddressBlock(bl.raw);
+    if (siAddr === blAddr) return false; // both or neither carry an address: exact rule applies
+    const nameOnly = siAddr ? bl : si,
+      withAddress = siAddr ? si : bl;
+    const name = nameLine(withAddress.raw);
+    return !!name && name === nameOnly.normalized;
+  }
+  if (PORT_FIELDS.has(field)) {
+    const sa = si.normalized.match(LOCODE),
+      ba = bl.normalized.match(LOCODE);
+    if (sa && ba) return false; // both carry codes: exact rule applies
+    const coded = sa ? si.normalized : ba ? bl.normalized : null;
+    const plain = sa ? bl.normalized : ba ? si.normalized : null;
+    if (!coded || !plain) return false;
+    const m = coded.match(LOCODE)!;
+    return coded.replace(LOCODE, "").trim() === plain || m[1] === plain;
+  }
+  return false;
+}
+
 export function compareFields(si: Extracted, bl: Extracted): ComparisonRow[] {
   const a = resolveFields(si),
     b = resolveFields(bl);
@@ -145,7 +187,8 @@ export function compareFields(si: Extracted, bl: Extracted): ComparisonRow[] {
     result:
       a[field].normalized === null || b[field].normalized === null
         ? "uncertain"
-        : a[field].normalized === b[field].normalized
+        : a[field].normalized === b[field].normalized ||
+            formattingOnlyDifference(field, a[field], b[field])
           ? "match"
           : "mismatch",
   }));

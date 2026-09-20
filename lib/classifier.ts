@@ -180,14 +180,14 @@ export function classify(
       body,
     );
   const scam =
-    /bank officer.{0,100}(?:million|business proposal)|(?:reply|provide|confirm).{0,50}bank details.{0,40}(?:claim|prize)|won.{0,40}(?:lottery|prize)|(?:mailbox|account).{0,60}(?:suspend|storage|verify)|(?:pay|payment).{0,35}(?:small|delivery|parcel) fee.{0,70}(?:release|parcel|package)|guaranteed.{0,40}(?:returns|investment)/i;
+    /bank officer.{0,100}(?:million|business proposal)|(?:reply|provide|confirm).{0,50}bank details.{0,40}(?:claim|prize)|won.{0,40}(?:lottery|prize)|(?:mailbox|account).{0,60}(?:suspend|storage|verify)|(?:pay|payment).{0,35}(?:small|delivery|parcel) fee.{0,70}(?:release|parcel|package)|guaranteed.{0,40}(?:returns|investment)|limited time offer|buy now before|deal expires|\b\d{2}% off\b|unpaid customs fee|parcel will be (?:returned|destroyed)|click here to claim|claim your \$?[\d,]+ gift card|exceeded its storage limit|verify your account within/i;
   if (mode === "hybrid") {
     if (
       scam.test(body) ||
       /(?:selected|winner|won)[^.\n]{0,130}(?:draw|lottery|gift card)|(?:won|winner)[\s\S]{0,150}(?:claim|survey)[\s\S]{0,100}(?:pay|shipping)/i.test(
         body,
       ) ||
-      /lottery|claim.{0,20}prize|mailbox.{0,20}full|one weird trick|singles in your area/i.test(
+      /lottery|claim.{0,20}prize|mailbox.{0,20}full|one weird trick|singles in your area|confirm (?:your )?bank (?:details|account)|guaranteed \d+% returns|gift card.{0,20}claim/i.test(
         subject,
       )
     ) {
