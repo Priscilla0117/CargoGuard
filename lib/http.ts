@@ -7,6 +7,23 @@ export class HttpError extends Error {
     this.name = "HttpError";
   }
 }
+export function sameRequestOrigin(
+  request: Request,
+  publicOrigin?: string,
+): boolean {
+  const origin = request.headers.get("origin");
+  if (!origin) return true; // Non-browser API clients still require the workspace cookie.
+  try {
+    const url = new URL(request.url);
+    const expected = publicOrigin
+      ? new URL(publicOrigin).origin
+      : new URL(`${url.protocol}//${request.headers.get("host") ?? url.host}`)
+          .origin;
+    return new URL(origin).origin === expected;
+  } catch {
+    return false;
+  }
+}
 /** Bound the stream itself: content-length may be absent or dishonest. */
 export async function readBytes(
   request: Request,

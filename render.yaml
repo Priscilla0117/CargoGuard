@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: cargoguard
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci --include=dev --no-audit --no-fund && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_VERSION
+        value: 24.14.0
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false

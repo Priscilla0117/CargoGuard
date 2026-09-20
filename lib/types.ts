@@ -100,8 +100,11 @@ export interface CaseResult {
   processed_at: string;
   version: number;
   reviewed?: boolean;
+  source_replaced?: boolean;
   category_override?: Category;
   pipeline_version?: string;
+  policy?: import("./policy").PolicySnapshot;
+  policy_assessment?: ReturnType<typeof import("./policy").assessPolicy>;
 }
 export interface CaseSummary {
   email: Email;
@@ -115,7 +118,7 @@ export interface AuditEvent {
   detail: string;
   created_at: string;
 }
-export const PIPELINE_VERSION = "2.0.0";
+export const PIPELINE_VERSION = "3.0.0";
 export function summaryOf(result: CaseResult): CaseSummary {
   const { email, documents, comparison, ...rest } = result;
   void documents;

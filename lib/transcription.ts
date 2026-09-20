@@ -94,6 +94,7 @@ export function applyTranscript(
     documents,
     previous.duration_ms,
     previous.category_override,
+    previous.policy,
   );
   if (next.comparison.length && previous.comparison.length) {
     const rows = structuredClone(next.comparison);
@@ -111,5 +112,5 @@ export function applyTranscript(
       }
     next = deriveResult(next, recomputeRows(rows));
   }
-  return { ...next, reviewed: true };
+  return { ...next, reviewed: true, source_replaced: previous.source_replaced };
 }

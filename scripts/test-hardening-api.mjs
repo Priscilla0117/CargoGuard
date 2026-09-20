@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { createHash } from "node:crypto";
-const origin = process.argv[2] ?? "http://127.0.0.1:5174";
+const origin = process.argv[2] ?? "http://127.0.0.1:3000";
 const auth = process.env.CARGO_SITE_AUTH
   ? { "OAI-Sites-Authorization": `Bearer ${process.env.CARGO_SITE_AUTH}` }
   : {};
@@ -145,11 +145,11 @@ check(
   createHash("sha256")
     .update(Buffer.from(await original.arrayBuffer()))
     .digest("hex") === doc.sha256,
-  "R2 source hash matches actual stored bytes",
+  "source hash matches actual stored bytes",
 );
 check(
   (await request(url, undefined, other)).status === 404,
-  "R2 source isolated across workspaces",
+  "stored source isolated across workspaces",
 );
 const review = (field, value, version = r.version) =>
   call({
@@ -246,7 +246,7 @@ check(
   (await processIds([id], false)).data.results[0].defect_fields.includes(
     "gross_weight_kg",
   ),
-  "reprocess reads winning R2 replacement",
+  "reprocess reads winning stored replacement",
 );
 const oneFile = replace();
 oneFile.delete("files");
@@ -399,7 +399,7 @@ const report = {
   origin,
   generated_at: new Date().toISOString(),
   scope:
-    "Synthetic isolated-workspace Worker + D1 + R2 hardening checks; not production load certification",
+    "Synthetic isolated-workspace HTTP hardening checks against the supplied origin; not production load certification",
 };
 await fs.mkdir("work/validation", { recursive: true });
 await fs.writeFile(

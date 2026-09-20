@@ -1,4 +1,5 @@
 import { classify } from "./classifier";
+import { withPolicy, DEFAULT_POLICY, type PolicySnapshot } from "./policy";
 import {
   FIELDS,
   FIELD_LABELS,
@@ -11,7 +12,12 @@ import {
   type Extracted,
   type ComparisonRow,
 } from "./types";
-import { normalize, compareFields, resolveFields } from "./normalization";
+import {
+  normalize,
+  compareFields,
+  resolveFields,
+  equivalent,
+} from "./normalization";
 export { normalize, compareFields, recomputeRows } from "./normalization";
 const labels: [RegExp, Field | "stop"][] = [
   [/^shipper(?:\s*\/\s*exporter)?(?:\s*\([^)]*\))*\s*$/i, "shipper"],
@@ -124,7 +130,7 @@ export function extract(doc: ParsedDocument): Extracted {
       values = candidates.map((c) => normalize(field, c.raw));
     const conflicting =
       candidates.length > 1 &&
-      values.some((v) => v === null || v !== values[0]);
+      values.some((v) => !equivalent(field, v, values[0]));
     result[field] = {
       raw: conflicting
         ? candidates.map((c) => c.raw).join("\n--- alternative value ---\n")
@@ -173,6 +179,12 @@ export function deriveResult(
   base: CaseResult,
   rows: ComparisonRow[],
 ): CaseResult {
+  return withPolicy(deriveStrictResult(base, rows));
+}
+function deriveStrictResult(
+  base: CaseResult,
+  rows: ComparisonRow[],
+): CaseResult {
   const uncertain = rows.filter((r) => r.result === "uncertain"),
     defects = rows.filter((r) => r.result === "mismatch").map((r) => r.field);
   if (uncertain.length)
@@ -200,6 +212,18 @@ export function deriveResult(
   };
 }
 export function analyze(
+  email: Email,
+  documents: ParsedDocument[],
+  duration = 0,
+  categoryOverride?: Category,
+  policy: PolicySnapshot = DEFAULT_POLICY,
+): CaseResult {
+  return withPolicy(
+    analyzeCore(email, documents, duration, categoryOverride),
+    policy,
+  );
+}
+function analyzeCore(
   email: Email,
   documents: ParsedDocument[],
   duration = 0,

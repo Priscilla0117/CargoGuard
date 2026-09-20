@@ -11,7 +11,7 @@ const fetch = (url, options = {}) =>
     },
     signal: AbortSignal.timeout(45000),
   });
-const origin = process.argv[2] ?? "http://localhost:5173";
+const origin = process.argv[2] ?? "http://127.0.0.1:3000";
 const start = performance.now();
 let checks = 0;
 async function session() {
@@ -80,7 +80,7 @@ for (let i = 0; i < 520; i += 10) {
 checks += 52;
 const exported = await call("/api/cases?export=1"),
   expected = JSON.parse(
-    await fs.readFile("work/evaluation/submission.json", "utf8"),
+    await fs.readFile("work/validation/v3/original/submission.json", "utf8"),
   );
 check(exported.r.status === 200, "complete export allowed");
 assert.deepEqual(exported.data, expected);
@@ -116,6 +116,17 @@ check(
 check(
   (await call("/api/cases?id=email_001")).data.audit.length === 2,
   "failed stale write leaves no false audit event",
+);
+assert.deepEqual(
+  (await call("/api/cases?export=1&mode=baseline")).data,
+  expected,
+);
+checks++;
+check(
+  (await call("/api/cases?export=1&mode=reviewed")).data.cases.find(
+    (r) => r.email.email_id === "email_001",
+  ).reviewed === true,
+  "reviewed export discloses human intervention",
 );
 check(
   (await call("/api/cases", { action: "process", ids: ["email_001"] })).data
@@ -192,7 +203,7 @@ const report = {
   duration_ms: Math.round(performance.now() - start),
   passed: true,
   scope:
-    "Cloudflare Worker + D1 + R2 integration; isolated synthetic workspace",
+    "HTTP integration against the supplied origin; isolated synthetic workspace",
   origin,
   generated_at: new Date().toISOString(),
 };

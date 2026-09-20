@@ -14,7 +14,7 @@ scoring = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(scoring)
 sys.stdout.reconfigure(encoding="utf-8")
 truth = json.loads((organiser / "data_v2" / "ground_truth.json").read_text(encoding="utf-8"))
-evaluation = project / "work" / "evaluation"
+evaluation = project / "work" / "validation" / "v3" / "original"
 pred = json.loads((evaluation / "submission.json").read_text(encoding="utf-8"))
 results = {r["email"]["email_id"]: r for r in json.loads((evaluation / "results.json").read_text(encoding="utf-8"))}
 assert set(truth) == set(pred), "Submission IDs must match exactly"
@@ -34,14 +34,14 @@ report = {
     "note": "Measured on the supplied synthetic development data. Ground truth is read only by this offline evaluation script, not by the deployed application. This is not a forecast of unseen-document accuracy or judging results. Awaiting-document requests remain visibly unverified even where the organiser schema assigns status OK.",
 }
 evidence = project / "work" / "validation"
-if (evidence / "corpus-report.json").exists():
-    corpus = json.loads((evidence / "corpus-report.json").read_text(encoding="utf-8"))
-    report["challenge_sets"] = [{"name": d["name"], "emails": d["score"]["n_emails"], "classification_accuracy": d["score"]["stage1"]["accuracy"], "exact_defect_catch": d["score"]["end_to_end"], "output_differences": len(d["differences"]), "false_clearances": len(d["false_clearances"])} for d in corpus["datasets"]]
-    report["challenge_limitations"] = "All synthetic sets were used during development. Same generator, not an independent real-world or novel-template holdout."
+if (evidence / "v3" / "exact-evaluation.json").exists():
+    corpus = json.loads((evidence / "v3" / "exact-evaluation.json").read_text(encoding="utf-8"))
+    report["challenge_sets"] = [{"name": d["name"], "emails": d["emails"], "output_differences": len(d["differences"]), "false_clearances": len(d["false_clearances"])} for d in corpus["datasets"]]
+    report["challenge_limitations"] = corpus["limitation"]
 if (evidence / "unit-tests.log").exists():
     log = (evidence / "unit-tests.log").read_text(encoding="utf-8")
     count = re.search(r"tests (\d+)", log)
-    report["engineering"] = {"regression_tests": int(count[1]) if count else None, "unit_suite_passed": bool(re.search(r"fail 0\b", log)), "pipeline": "2.0.0"}
+    report["engineering"] = {"regression_tests": int(count[1]) if count else None, "unit_suite_passed": bool(re.search(r"fail 0\b", log)), "pipeline": "3.0.0"}
 if (evidence / "ablation.json").exists():
     report["routing_ablation"] = json.loads((evidence / "ablation.json").read_text(encoding="utf-8"))
 (project / "public" / "validation.json").write_text(json.dumps(report, indent=2))
