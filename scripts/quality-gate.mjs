@@ -13,12 +13,16 @@ const steps = [
       "tests/pipeline.test.ts",
       "tests/hardening.test.ts",
       "tests/transcription.test.ts",
+      "tests/upgrade.test.ts",
+      "tests/storage-node.test.ts",
     ],
   ],
   ["input-integrity", ["scripts/check-bundle.mjs"]],
 ];
-if (process.argv.includes("--build"))
-  steps.push(["build", ["scripts/run-framework.mjs", "build"]]);
+if (process.argv.includes("--build")) {
+  steps.push(["ocr-assets", ["scripts/stage-ocr.mjs"]]);
+  steps.push(["build", ["node_modules/next/dist/bin/next", "build", "--webpack"]]);
+}
 const report = [];
 for (const [name, args] of steps) {
   const started = performance.now();

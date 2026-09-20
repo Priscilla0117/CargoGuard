@@ -19,7 +19,7 @@ type Args = {
   cases: CaseSummary[];
   setSearch: Dispatch<SetStateAction<string>>;
   setView: Dispatch<
-    SetStateAction<"inbox" | "review" | "performance" | "activity">
+    SetStateAction<"inbox" | "review" | "performance" | "activity" | "policies">
   >;
   setFilter: Dispatch<SetStateAction<string>>;
   setCategory: Dispatch<SetStateAction<string>>;

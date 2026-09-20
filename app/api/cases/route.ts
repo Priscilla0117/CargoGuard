@@ -23,6 +23,10 @@ import {
   requireMutation,
   listCases,
   storage,
+  getPolicy,
+  revisions,
+  getRevision,
+  automaticBaselines,
   type CaseWrite,
 } from "@/lib/storage";
 import { mapLimited, processEmail } from "@/lib/processing";
@@ -43,6 +47,7 @@ const action = z.discriminatedUnion("action", [
       .max(10)
       .refine((v) => new Set(v).size === v.length),
     skipSaved: z.boolean().optional(),
+    policyVersion: z.number().int().nonnegative().optional(),
   }),
   z.object({
     action: z.literal("review"),
@@ -87,39 +92,81 @@ export async function GET(request: Request) {
     url = new URL(request.url);
   try {
     if (url.searchParams.get("export") === "1") {
-      const all = await listCases(s.id),
+      const mode = url.searchParams.get("mode") ?? "baseline";
+      if (!["baseline", "reviewed"].includes(mode))
+        throw new HttpError("Unknown export mode.");
+      const all =
+          mode === "baseline"
+            ? await automaticBaselines(s.id)
+            : await listCases(s.id),
         map = new Map(all.map((r) => [r.email.email_id, r]));
-      if (emails.some((e) => !map.has(e.email_id)))
+      if (mode === "baseline" && emails.some((e) => !map.has(e.email_id)))
         return respond(
           {
             error:
-              "Process all organiser emails before exporting the complete submission.",
+              "A complete, current-engine automatic baseline is required. Run the full inbox first. If only reviewed, replaced-source or legacy results exist, use a fresh private-browser workspace for an untouched baseline; existing reviews are retained.",
           },
           s,
           409,
         );
-      const result = Object.fromEntries(
-        emails.map((e) => [e.email_id, submissionEntry(map.get(e.email_id)!)]),
-      );
-      return new Response(JSON.stringify(result, null, 2), {
+      const result =
+        mode === "baseline"
+          ? Object.fromEntries(
+              emails.map((e) => [
+                e.email_id,
+                submissionEntry(map.get(e.email_id)!),
+              ]),
+            )
+          : null;
+      const output =
+        mode === "baseline"
+          ? result
+          : {
+              format: "cargoguard-reviewed-evidence-v3",
+              generated_at: new Date().toISOString(),
+              warning:
+                "Reviewed operational evidence, NOT untouched automatic model accuracy. Strict mismatches remain visible regardless of business policy.",
+              cases: all.map((r) => ({
+                ...r,
+                strict_verdict: submissionEntry(r),
+              })),
+            };
+      return new Response(JSON.stringify(output, null, 2), {
         headers: {
           "Content-Type": "application/json",
-          "Content-Disposition":
-            "attachment; filename=cargoguard-submission.json",
+          "Content-Disposition": `attachment; filename=cargoguard-${mode}.json`,
           "Cache-Control": "no-store",
         },
       });
     }
-    const id = url.searchParams.get("id") ?? "",
-      result = await getCase(s.id, id);
+    const id = url.searchParams.get("id") ?? "";
+    const v = url.searchParams.get("revision");
+    if (v !== null && (!/^\d+$/.test(v) || Number(v) < 1))
+      throw new HttpError("Invalid revision.");
+    const result = v
+      ? await getRevision(s.id, id, Number(v))
+      : await getCase(s.id, id);
     if (!result)
       return respond({ error: "Case has not been processed yet." }, s, 404);
-    return respond({ result, audit: await audit(s.id, id) }, s);
+    return respond(
+      {
+        result,
+        audit: await audit(s.id, id),
+        revisions: await revisions(s.id, id),
+        historical: !!v,
+      },
+      s,
+    );
   } catch (e) {
     return respond(
-      { error: e instanceof Error ? e.message : "Unable to load case." },
+      {
+        error:
+          e instanceof HttpError
+            ? e.message
+            : "Unable to load case. Retry shortly.",
+      },
       s,
-      503,
+      e instanceof HttpError ? e.status : 503,
     );
   }
 }
@@ -130,6 +177,7 @@ export async function POST(request: Request) {
     s = requireMutation(request);
     const input = action.parse(payload);
     if (input.action === "process") {
+      const policy = await getPolicy(s.id, input.policyVersion);
       const started = performance.now(),
         saved = new Map(
           (await getCases(s.id, input.ids)).map((r) => [r.email.email_id, r]),
@@ -146,7 +194,8 @@ export async function POST(request: Request) {
       await mapLimited(jobs, 2, async (job) => {
         if (
           input.skipSaved &&
-          job.previous?.pipeline_version === PIPELINE_VERSION
+          job.previous?.pipeline_version === PIPELINE_VERSION &&
+          (job.previous?.policy?.version ?? 0) === policy.version
         ) {
           cached.push(job.previous);
           return;
@@ -164,6 +213,7 @@ export async function POST(request: Request) {
             read,
             job.previous,
             !!input.skipSaved,
+            policy,
           );
           writes.push({
             result,
@@ -192,7 +242,8 @@ export async function POST(request: Request) {
           const winner = latest.find(
             (r) =>
               r.email.email_id === id &&
-              r.pipeline_version === PIPELINE_VERSION,
+              r.pipeline_version === PIPELINE_VERSION &&
+              (r.policy?.version ?? 0) === policy.version,
           );
           if (winner) cached.push(winner);
           else
@@ -257,14 +308,16 @@ export async function POST(request: Request) {
       );
     }
     if (input.action === "route") {
-      let result = {
+      let result: CaseResult = {
         ...analyze(
           previous.email,
           previous.documents,
           previous.duration_ms,
           input.category,
+          previous.policy,
         ),
         reviewed: true,
+        source_replaced: previous.source_replaced,
       };
       if (
         input.category === previous.category &&

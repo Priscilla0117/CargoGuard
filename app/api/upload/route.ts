@@ -7,6 +7,7 @@ import {
   saveCase,
   getCase,
   storage,
+  getPolicy,
 } from "@/lib/storage";
 import { z } from "zod";
 import { readForm, HttpError } from "@/lib/http";
@@ -14,8 +15,7 @@ import { readForm, HttpError } from "@/lib/http";
 export async function POST(request: Request) {
   let s = workspace(request);
   const keys: string[] = [];
-  let persistAttempted = false,
-    targetId = "";
+  let persistAttempted = false;
   try {
     const form = await readForm(request);
     s = requireMutation(request);
@@ -96,7 +96,17 @@ export async function POST(request: Request) {
         body,
         attachments: paths,
       },
-      r = analyze(email, docs, 0, previous?.category_override);
+      r = analyze(
+        email,
+        docs,
+        0,
+        previous?.category_override,
+        previous?.policy ?? (await getPolicy(s.id)),
+      );
+    if (previous) {
+      r.reviewed = true;
+      r.source_replaced = true;
+    }
     r.duration_ms = Math.round(performance.now() - started);
     const detail = JSON.stringify({
       summary: r.summary,
@@ -105,7 +115,6 @@ export async function POST(request: Request) {
       attachments: docs.map((d) => ({ name: d.name, sha256: d.sha256 })),
     });
     persistAttempted = true;
-    targetId = id;
     const result = await saveCase(
       s.id,
       r,
@@ -119,17 +128,11 @@ export async function POST(request: Request) {
     if (keys.length) {
       // A lost database response is not proof of rollback. Never delete bytes
       // that a committed case might reference; retain uncertain orphans for cleanup.
-      let safeToRemove = !persistAttempted;
-      if (persistAttempted) {
-        try {
-          const saved = await getCase(s.id, targetId);
-          safeToRemove = !saved?.email.attachments.some((p) =>
-            keys.includes(`${s.id}/${targetId}/${p.split("/").pop()}`),
-          );
-        } catch {
-          safeToRemove = false;
-        }
-      }
+      // A subsequent replacement can move the committed bytes into history.
+      // Looking only at the current case is insufficient proof of orphanhood.
+      const safeToRemove =
+        !persistAttempted ||
+        (e instanceof HttpError && [409, 429].includes(e.status));
       if (safeToRemove)
         await storage()
           .BUCKET.delete(keys)

@@ -1,4 +1,7 @@
 "use client";
+import { PolicyDesk } from "./policy-desk";
+import { DecisionHistory } from "./decision-history";
+import type { PolicySnapshot } from "@/lib/policy";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { requestJson, latencySummary } from "@/lib/client-api";
@@ -76,7 +79,7 @@ const statuses: Record<string, string> = {
   routed: "Routed",
   pending: "Not processed",
 };
-type View = "inbox" | "review" | "performance" | "activity";
+type View = "inbox" | "review" | "performance" | "activity" | "policies";
 interface ApiPayload {
   cases: CaseSummary[];
   audit: AuditEvent[];
@@ -364,6 +367,16 @@ export default function Workbench() {
     setRunning(true);
     setError("");
     setProgress({ done: 0, total: ids.length });
+    let policyVersion: number;
+    try {
+      policyVersion = (
+        await requestJson<{ policy: PolicySnapshot }>("/api/policies")
+      ).policy.version;
+    } catch (e) {
+      setError((e as Error).message);
+      setRunning(false);
+      return;
+    }
     const worker = async () => {
       while (next < ids.length && !cancel.current) {
         const batch = ids.slice(next, next + 10);
@@ -376,6 +389,7 @@ export default function Workbench() {
               action: "process",
               ids: batch,
               skipSaved: true,
+              policyVersion,
             }),
           });
           update(d.results);
@@ -437,11 +451,15 @@ export default function Workbench() {
       setBusyId("");
     }
   }
-  async function exportAll() {
+  async function exportAll(mode = "baseline") {
     try {
-      const d = await api("/api/cases?export=1");
-      download("cargoguard-submission.json", JSON.stringify(d, null, 2));
-      setNotice("Complete organiser submission downloaded.");
+      const d = await api(`/api/cases?export=1&mode=${mode}`);
+      download(`cargoguard-${mode}.json`, JSON.stringify(d, null, 2));
+      setNotice(
+        mode === "baseline"
+          ? "Untouched automatic baseline downloaded. Human corrections are excluded."
+          : "Reviewed evidence downloaded with source, policy and human-review labels.",
+      );
     } catch (e) {
       setError((e as Error).message);
     }
@@ -564,6 +582,13 @@ export default function Workbench() {
         </div>
         <nav aria-label="Workspace navigation">
           <button
+            className={view === "policies" ? "active" : ""}
+            onClick={() => nav("policies")}
+          >
+            <ShieldCheck size={19} />
+            Policy laboratory
+          </button>
+          <button
             className={view === "inbox" ? "active" : ""}
             onClick={() => nav("inbox")}
           >
@@ -648,7 +673,9 @@ export default function Workbench() {
                   ? "Review desk"
                   : view === "performance"
                     ? "Performance"
-                    : "Audit trail"}
+                    : view === "policies"
+                      ? "Policy laboratory"
+                      : "Audit trail"}
             </strong>
           </div>
           <div className="topbar-right">
@@ -699,7 +726,9 @@ export default function Workbench() {
                     ? "A human eye, where it matters."
                     : view === "performance"
                       ? "Performance & evidence"
-                      : "Every decision, accounted for."}
+                      : view === "policies"
+                        ? "Business rules, without hidden exceptions."
+                        : "Every decision, accounted for."}
               </h1>
               <p>
                 {view === "inbox"
@@ -708,7 +737,9 @@ export default function Workbench() {
                     ? "Resolve uncertain documents with the full source context."
                     : view === "performance"
                       ? "Measured outcomes from your workspace and reproducible validation."
-                      : "An append-only record of processing and human corrections."}
+                      : view === "policies"
+                        ? "Preview, justify and version every tolerance. Preserve the exact evidence."
+                        : "An append-only record of processing and human corrections."}
               </p>
             </div>
             <div className="heading-actions">
@@ -859,10 +890,21 @@ export default function Workbench() {
                       : "Select an email to inspect the comparison and its source evidence."}
                   </p>
                 </div>
-                <button className="text-button" onClick={exportAll}>
-                  <ArrowDownToLine size={16} />
-                  Export submission
-                </button>
+                <div className="case-actions">
+                  <button
+                    className="text-button"
+                    onClick={() => void exportAll("reviewed")}
+                  >
+                    Export reviewed evidence
+                  </button>
+                  <button
+                    className="text-button"
+                    onClick={() => void exportAll()}
+                  >
+                    <ArrowDownToLine size={16} />
+                    Export automatic baseline
+                  </button>
+                </div>
               </div>
               <section className="inbox-panel">
                 <div className="table-toolbar">
@@ -1116,6 +1158,7 @@ export default function Workbench() {
               </div>
             </>
           )}
+          {view === "policies" && <PolicyDesk />}
           {view === "performance" && (
             <div className="performance-grid">
               <section className="content-card">
@@ -1208,7 +1251,7 @@ export default function Workbench() {
                   </div>
                   <div>
                     <dt>Storage</dt>
-                    <dd>Cloudflare D1 + R2</dd>
+                    <dd>Persistent decision & source storage</dd>
                   </div>
                   <div>
                     <dt>Scans</dt>
@@ -1482,6 +1525,16 @@ export default function Workbench() {
                 <>
                   {selected.comparison.length ? (
                     <>
+                      <div className="policy-case-note">
+                        <strong>
+                          Exact seven-field verdict: {selected.status}
+                        </strong>
+                        <p>
+                          Policy v{selected.policy?.version ?? 0}:{" "}
+                          {selected.policy_assessment?.note ??
+                            "Exact comparison; no business exception recorded."}
+                        </p>
+                      </div>
                       <div className="comparison-head">
                         <span>SHIPMENT FIELD</span>
                         <span>
@@ -1744,6 +1797,10 @@ export default function Workbench() {
               )}
               {detailTab === "history" && (
                 <div className="timeline">
+                  <DecisionHistory
+                    key={`${selected.email.email_id}-${selected.version}`}
+                    result={selected}
+                  />
                   {caseEvents.length ? (
                     caseEvents.map((e) => (
                       <div key={e.id}>

@@ -1,13 +1,20 @@
 import { bundleBytes, emails } from "@/lib/bundle";
-import { workspace, storage, getCase } from "@/lib/storage";
+import { workspace, storage, getCase, getRevision } from "@/lib/storage";
 export async function GET(request: Request) {
   try {
     const u = new URL(request.url),
       id = u.searchParams.get("id") ?? "",
       name = u.searchParams.get("name") ?? "",
       s = workspace(request);
+    const revision = u.searchParams.get("revision");
+    if (revision !== null && (!/^\d+$/.test(revision) || Number(revision) < 1))
+      return new Response("Invalid revision", { status: 400 });
+    const saved = revision
+      ? await getRevision(s.id, id, Number(revision))
+      : await getCase(s.id, id);
     const e =
-      (await getCase(s.id, id))?.email ?? emails.find((e) => e.email_id === id);
+      saved?.email ??
+      (revision ? undefined : emails.find((e) => e.email_id === id));
     const p = e?.attachments.find((a) => a.split("/").pop() === name);
     if (!p) return new Response("Document not found", { status: 404 });
     const bytes =

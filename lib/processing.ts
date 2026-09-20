@@ -2,6 +2,7 @@ import { analyze, deriveResult, recomputeRows } from "./compare";
 import { parseDocument } from "./parsers";
 import type { CaseResult, Email, ParsedDocument } from "./types";
 import { canTranscribe, transcribeDocument } from "./transcription";
+import { DEFAULT_POLICY, type PolicySnapshot } from "./policy";
 
 export async function mapLimited<T, R>(
   items: T[],
@@ -29,6 +30,7 @@ export async function processEmail(
   read: (path: string) => Promise<Uint8Array | null>,
   previous?: CaseResult,
   preserveCorrections = false,
+  policy: PolicySnapshot = previous?.policy ?? DEFAULT_POLICY,
 ) {
   const started = performance.now();
   const docs = await mapLimited(email.attachments, 2, async (path) => {
@@ -55,7 +57,9 @@ export async function processEmail(
     docs,
     Math.round(performance.now() - started),
     previous?.category_override,
+    policy,
   );
+  result.source_replaced = previous?.source_replaced;
   if (docs.some((d) => d.transcription) || previous?.category_override)
     result.reviewed = true;
   // An engine upgrade is not permission to erase a reviewed fact. Preserve

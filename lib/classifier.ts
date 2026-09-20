@@ -180,14 +180,24 @@ export function classify(
       body,
     );
   const scam =
-    /bank officer.{0,100}(?:million|business proposal)|(?:reply|provide|confirm).{0,50}bank details.{0,40}(?:claim|prize)|won.{0,40}(?:lottery|prize)|(?:mailbox|account).{0,60}(?:suspend|storage|verify)|(?:pay|payment).{0,35}(?:small|delivery|parcel) fee.{0,70}(?:release|parcel|package)|guaranteed.{0,40}(?:returns|investment)|limited time offer|buy now before|deal expires|\b\d{2}% off\b|unpaid customs fee|parcel will be (?:returned|destroyed)|click here to claim|claim your \$?[\d,]+ gift card|exceeded its storage limit|verify your account within/i;
+    /bank officer.{0,100}(?:million|business proposal)|(?:reply|provide|confirm).{0,50}bank details.{0,40}(?:claim|prize)|won.{0,40}(?:lottery|prize)|(?:mailbox|account).{0,60}(?:suspend|storage|verify)|(?:pay|payment).{0,35}(?:small|delivery|parcel) fee.{0,70}(?:release|parcel|package)|guaranteed.{0,40}(?:returns|investment)/i;
+  // Read the current request before a stale subject. Quoted mail is excluded.
+  const billingRequest =
+    /\b(?:explain|clarify|dispute|revise|cancel|send|check|breakdown|question)\b[^.!?\n]{0,100}\b(?:invoice|billing|charges|credit note|freight fees)\b|\b(?:invoice|billing|charges)\b[^.!?\n]{0,80}\b(?:explain|clarify|breakdown|incorrect|dispute)\b/i.test(
+      body,
+    );
+  const promotion =
+    /\b(?:limited time offer|exclusive offer|\d{2,3}\s*%\s*off)\b/i.test(
+      body,
+    ) && /\b(?:buy now|deal expires|act now|subscribe now)\b/i.test(body);
   if (mode === "hybrid") {
     if (
       scam.test(body) ||
+      promotion ||
       /(?:selected|winner|won)[^.\n]{0,130}(?:draw|lottery|gift card)|(?:won|winner)[\s\S]{0,150}(?:claim|survey)[\s\S]{0,100}(?:pay|shipping)/i.test(
         body,
       ) ||
-      /lottery|claim.{0,20}prize|mailbox.{0,20}full|one weird trick|singles in your area|confirm (?:your )?bank (?:details|account)|guaranteed \d+% returns|gift card.{0,20}claim/i.test(
+      /lottery|claim.{0,20}prize|mailbox.{0,20}full|one weird trick|singles in your area/i.test(
         subject,
       )
     ) {
@@ -197,6 +207,10 @@ export function classify(
       category = "BL_COMPARISON";
       rule =
         "Current message explicitly requests document verification; takes priority over subject";
+    } else if (billingRequest) {
+      category = "INVOICE_QUERY";
+      rule =
+        "Current message requests billing clarification; takes priority over a stale subject";
     } else if (
       /\b(?:happy|prosperous) new year\b|\boffice (?:closure|resumes|holiday)\b|\blist of outstanding b\/?l\b/i.test(
         body,
