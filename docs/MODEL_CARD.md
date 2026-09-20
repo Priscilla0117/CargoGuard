@@ -1,0 +1,61 @@
+# Model and validation card
+
+## Intended use
+
+Triage shipping-related emails into BL_COMPARISON, SI_REQUEST, INVOICE_QUERY, GENERAL and SPAM; compare an SI and draft BL across seven required fields. Human staff remain responsible for final operational decisions.
+
+## AI implementation
+
+Multinomial Naive Bayes learns token likelihoods from 64 independently authored intent examples in lib/classifier.ts. It uses smoothing and a vocabulary derived only from those examples. Explicit intent rules supplement the model for operational subject conventions, reminders and scam language. These rules were refined while inspecting the supplied development corpus.
+
+This is a lightweight hybrid classifier, not a large language model. Routing scores are uncalibrated. No API key is needed. It does not call a commercial AI service, and does not claim semantic understanding of arbitrary documents. Current-message intent takes priority over misleading subject lines. Too little evidence, competing scores or contradictory SI/BL attachments trigger category review. Additional scam/administrative rules were refined against the synthetic challenge sets; those sets are consequently development evidence.
+
+An additional pretrained English Tesseract OCR model runs in the browser on image-only PDFs. Its output is a suggestion, never an automatic verification decision. Every field requires human source confirmation. Server-side comparison validates those confirmed values through the same normalizer used for text-layer extraction.
+
+## Evaluation boundary
+
+Application imports: supplied email/attachment inputs, authored examples, deterministic parser and comparison code.
+
+Offline-only evaluation: scripts/score-evaluation.py reads the organiser ground-truth key and invokes their unmodified scorer. The application never imports that key, metadata labels, generated predictions or an ID-to-answer mapping. Public validation.json contains aggregate metrics only. Renaming IDs/files does not change predictions in the regression test.
+
+The organiser explicitly clarified that the released Docker key is for participant self-evaluation and the older README restriction was outdated.
+
+## Measured development result
+
+The final tested development run matches all 520 organiser outputs:
+
+| Measure | Result |
+|---|---:|
+| Email classification accuracy / macro-F1 | 100% / 1.000 |
+| Defect precision / recall / F1 | 1.000 / 1.000 / 1.000 |
+| Exact end-to-end defect catch | 46 / 46 |
+| Review cases and review reasons | 20 / 20 |
+| Organiser automated composite score | 1.000 |
+
+These are development-corpus results, not an untouched hold-out benchmark, not real-world accuracy, and not the hackathon judging score. Rules and parser behavior were adjusted after examining errors. Never present these figures as independent evidence of generalization.
+
+Actual workflow totals: 63 verified pairs, 46 discrepancy pairs, 20 review cases, 91 awaiting-document requests, 300 messages routed elsewhere. The 91 requests have organiser status OK but are never displayed as verified documents.
+
+## Additional evidence
+
+114 regression tests cover independent field mutations; whole-expression and 400 generated compound-count checks; placeholders; duplicate labels; misleading subjects and quoted threads; correction dependencies; uncertain routing; bounded parsing; source identity; scan confirmation; and malformed requests. Run `npm run quality` for retained logs.
+
+70 local API integration checks cover all 520 records through the Worker/D1/R2 path, exact exported predictions, session isolation, cross-origin protection, new-file processing, field corrections, stale-save rejection, audit integrity, attachment replacement, reprocessing and restricted file access.
+
+These tests are engineering regression coverage, not a statistical estimate of unseen accuracy.
+
+Three additional same-generator datasets (seeds 7, 20260920, 20260921; 520 emails each) were evaluated and used for fixes. The release matches every expected output across these and the original set: 2,080 emails, 209/209 exact defect catches and 80/80 review cases. No expected defect/review case was shown as verified. This is not a novel-template or real-world holdout result. Earlier failures remain documented in the workspace's readiness audit; the resolved failures are covered by regressions.
+
+The supplied-corpus routing ablation is reproducible with `node --import tsx scripts/ablation.ts`: model-only classification accuracy 73.27%, macro-F1 0.7282; hybrid 100%, macro-F1 1.000. The hybrid uses an explicit rule for 370/520 records and model-only routing for 150/520. This demonstrates that the rules matter and prevents misrepresenting the result as learned-model-only accuracy. A rules-only baseline and independent real-world benchmark remain future evaluation work.
+
+All six image-only organiser PDFs were rendered and OCR-read with the shipped model. At 180 DPI, 36/42 candidate fields were syntactically usable; that is **candidate completeness, not transcription accuracy**. Company names, punctuation and numbers still contain errors. Mean per-page model confidence ranged 69–83/100 in this diagnostic run. Browser rendering may yield different text. No scan is cleared from confidence alone; page images, manual edits and seven explicit confirmations are required. Malformed PDFs cannot use the scan-confirmation route.
+
+## Known limitations and next evaluation
+
+- OCR is English-only, up to five pages and 5 MB, and may be slow on low-powered devices. Initial model download is several MB. Human-confirmed transcription or readable replacement is required; unattended OCR clearance is intentionally absent.
+- Unfamiliar unlabeled layouts may not extract correctly; review/unknown handling needs a much broader real-document benchmark.
+- Conservative normalization tolerates spacing, punctuation and explicit numeric units. It does not guess port aliases or accept fuzzy company-name matches.
+- Hand-authored classifier examples are small and English-focused; assess multilingual and forwarded-thread behavior before production.
+- A field correction changes extracted data, not the authoritative original file. Reviewers must actually inspect the source.
+- Benchmark synthetic inputs are clean compared with operational emails. Obtain approved, anonymized historical examples; freeze a hold-out set before further tuning; measure error by format/template/category and human review workload.
+- Extend the measured model-only/hybrid ablation with a rules-only baseline on that future hold-out set. Avoid inflated AI claims.

@@ -1,0 +1,59 @@
+export class RequestError extends Error {
+  constructor(
+    message: string,
+    readonly status = 0,
+  ) {
+    super(message);
+    this.name = "RequestError";
+  }
+}
+/** No automatic mutation retries: callers must explicitly choose idempotent resume. */
+export async function requestJson<T>(
+  url: string,
+  options: RequestInit = {},
+  fetcher: typeof fetch = fetch,
+): Promise<T> {
+  const timeout = AbortSignal.timeout(45000);
+  const signal = options.signal
+    ? AbortSignal.any([options.signal, timeout])
+    : timeout;
+  let response: Response;
+  try {
+    response = await fetcher(url, { ...options, signal });
+  } catch (error) {
+    throw new RequestError(
+      error instanceof Error && /abort|timeout/i.test(error.name)
+        ? "The request timed out. Refresh the workspace to check saved progress before retrying."
+        : "Connection interrupted. Saved decisions are retained; refresh before retrying.",
+    );
+  }
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch {
+    throw new RequestError(
+      "The server returned an unexpected response. Refresh and retry.",
+      response.status,
+    );
+  }
+  if (!response.ok) {
+    const message =
+      data &&
+      typeof data === "object" &&
+      "error" in data &&
+      typeof data.error === "string"
+        ? data.error
+        : "The request failed. Please retry.";
+    throw new RequestError(message, response.status);
+  }
+  return data as T;
+}
+export function latencySummary(samples: number[]) {
+  if (!samples.length) return null;
+  const sorted = [...samples].sort((a, b) => a - b);
+  return {
+    count: sorted.length,
+    median: Math.round(sorted[Math.floor((sorted.length - 1) / 2)]),
+    p95: Math.round(sorted[Math.ceil(sorted.length * 0.95) - 1]),
+  };
+}

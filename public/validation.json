@@ -1,0 +1,182 @@
+{
+  "generated_at": "2026-09-20T06:05:30.768080+00:00",
+  "version": "Full organiser development corpus; not a held-out benchmark",
+  "metrics": {
+    "classification_macro_f1": 1.0,
+    "defect_f1": 1.0,
+    "exact_defect_catch": 1.0,
+    "review_recall": 1.0
+  },
+  "score": {
+    "stage1": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "rule_pct": null,
+      "per": {
+        "BL_COMPARISON": {
+          "tp": 220,
+          "fp": 0,
+          "fn": 0
+        },
+        "SI_REQUEST": {
+          "tp": 125,
+          "fp": 0,
+          "fn": 0
+        },
+        "INVOICE_QUERY": {
+          "tp": 75,
+          "fp": 0,
+          "fn": 0
+        },
+        "GENERAL": {
+          "tp": 60,
+          "fp": 0,
+          "fn": 0
+        },
+        "SPAM": {
+          "tp": 40,
+          "fp": 0,
+          "fn": 0
+        }
+      },
+      "confusion": {
+        "BL_COMPARISON": {
+          "BL_COMPARISON": 220
+        },
+        "INVOICE_QUERY": {
+          "INVOICE_QUERY": 75
+        },
+        "SI_REQUEST": {
+          "SI_REQUEST": 125
+        },
+        "GENERAL": {
+          "GENERAL": 60
+        },
+        "SPAM": {
+          "SPAM": 40
+        }
+      }
+    },
+    "stage3": {
+      "defect_precision": 1.0,
+      "defect_recall": 1.0,
+      "defect_f1": 1.0,
+      "field_f1": 1.0,
+      "exact_match_rate": 1.0,
+      "doc_total": 200
+    },
+    "reliability": {
+      "escalation_recall": 1.0,
+      "escalation_precision": 1.0,
+      "escalation_f1": 1.0,
+      "gold_review": 20,
+      "pred_review": 20,
+      "per_reason": {
+        "wrong_doc_type": {
+          "total": 5,
+          "caught": 5
+        },
+        "missing_attachment": {
+          "total": 5,
+          "caught": 5
+        },
+        "unreadable": {
+          "total": 5,
+          "caught": 5
+        },
+        "missing_value": {
+          "total": 5,
+          "caught": 5
+        }
+      }
+    },
+    "end_to_end": {
+      "success": 46,
+      "total": 46,
+      "rate": 1.0
+    },
+    "weights": {
+      "stage1": 0.3,
+      "stage3": 0.2,
+      "end_to_end": 0.5
+    },
+    "final_score": 1.0,
+    "n_emails": 520
+  },
+  "note": "Measured on the supplied synthetic development data. Ground truth is read only by this offline evaluation script, not by the deployed application. This is not a forecast of unseen-document accuracy or judging results. Awaiting-document requests remain visibly unverified even where the organiser schema assigns status OK.",
+  "challenge_sets": [
+    {
+      "name": "supplied-development",
+      "emails": 520,
+      "classification_accuracy": 1.0,
+      "exact_defect_catch": {
+        "success": 46,
+        "total": 46,
+        "rate": 1.0
+      },
+      "output_differences": 0,
+      "false_clearances": 0
+    },
+    {
+      "name": "prior-challenge-seed-7",
+      "emails": 520,
+      "classification_accuracy": 1.0,
+      "exact_defect_catch": {
+        "success": 58,
+        "total": 58,
+        "rate": 1.0
+      },
+      "output_differences": 0,
+      "false_clearances": 0
+    },
+    {
+      "name": "prior-challenge-seed-20260920",
+      "emails": 520,
+      "classification_accuracy": 1.0,
+      "exact_defect_catch": {
+        "success": 51,
+        "total": 51,
+        "rate": 1.0
+      },
+      "output_differences": 0,
+      "false_clearances": 0
+    },
+    {
+      "name": "new-same-generator-seed-20260921",
+      "emails": 520,
+      "classification_accuracy": 1.0,
+      "exact_defect_catch": {
+        "success": 54,
+        "total": 54,
+        "rate": 1.0
+      },
+      "output_differences": 0,
+      "false_clearances": 0
+    }
+  ],
+  "challenge_limitations": "All synthetic sets were used during development. Same generator, not an independent real-world or novel-template holdout.",
+  "engineering": {
+    "regression_tests": 114,
+    "unit_suite_passed": true,
+    "pipeline": "2.0.0"
+  },
+  "routing_ablation": {
+    "dataset": "520 supplied development emails; not a held-out benchmark",
+    "modes": [
+      {
+        "mode": "model",
+        "accuracy": 0.7326923076923076,
+        "macro_f1": 0.7282046595616151,
+        "rule_decisions": 0,
+        "uncertain_category": 18
+      },
+      {
+        "mode": "hybrid",
+        "accuracy": 1,
+        "macro_f1": 1,
+        "rule_decisions": 370,
+        "uncertain_category": 0
+      }
+    ]
+  }
+}
