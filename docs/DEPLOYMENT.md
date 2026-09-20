@@ -1,6 +1,6 @@
 # Independent cloud deployment — CargoGuard 3
 
-Status: local production build and HTTP tests passed. No new public deployment exists yet. Account creation and hosted acceptance tests are still required. The old v2 site remains untouched.
+Status as of 21 September 2026: **live at https://cargoguard-averis.onrender.com/**. The Render build, 130 hosted API checks, upload boundary tests, browser OCR and restart-persistence checks passed. See [CLOUD_RELEASE.md](CLOUD_RELEASE.md) for exact evidence and outstanding idle-wake/capacity limitations. The old v2 site remains untouched. The steps below describe how to reproduce the deployment; do not create duplicate resources for the existing service.
 
 ## Recommended free demo setup
 
