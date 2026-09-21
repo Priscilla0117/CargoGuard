@@ -77,6 +77,30 @@ export function recoveryBudgetReason(
   return "The shared AI budget changed while reserving this request. Try again later.";
 }
 
+/** Preview only: the atomic reservation remains authoritative when sending. */
+export function recoveryRequestAvailability(
+  budget: Awaited<ReturnType<typeof recoveryBudget>>,
+  reservedTokens: number,
+  cached = false,
+) {
+  if (!Number.isSafeInteger(reservedTokens) || reservedTokens < 1)
+    throw new HttpError("Invalid AI budget estimate.", 400);
+  const allowed =
+    cached ||
+    (budget.workspaceRemaining > 0 &&
+      budget.dailyRemaining > 0 &&
+      budget.lifetimeRemaining > 0 &&
+      !budget.busy &&
+      budget.dailyTokensRemaining >= reservedTokens &&
+      budget.lifetimeTokensRemaining >= reservedTokens);
+  return {
+    allowed,
+    cached,
+    reservedTokens: cached ? 0 : reservedTokens,
+    reason: allowed ? null : recoveryBudgetReason(budget, reservedTokens),
+  };
+}
+
 export async function cachedRecovery(
   db: D1Database,
   workspace: string,

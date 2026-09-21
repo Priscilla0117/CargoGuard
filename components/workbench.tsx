@@ -1,5 +1,6 @@
 "use client";
 import { PolicyDesk } from "./policy-desk";
+import { WorkspaceGuide } from "./workspace-guide";
 import { DecisionHistory } from "./decision-history";
 import type { PolicySnapshot } from "@/lib/policy";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -631,6 +632,7 @@ export default function Workbench() {
     setCategory("all");
     setSearch("");
     closeCase();
+    window.scrollTo({ top: 0, behavior: "instant" });
   };
   useCargoTools({ cases, setSearch, setView, setFilter, setCategory });
   return (
@@ -650,6 +652,7 @@ export default function Workbench() {
         <nav aria-label="Workspace navigation">
           <button
             className={view === "operations" ? "active" : ""}
+            aria-current={view === "operations" ? "page" : undefined}
             onClick={() => nav("operations")}
             aria-label="Operations desk"
           >
@@ -658,6 +661,7 @@ export default function Workbench() {
           </button>
           <button
             className={view === "policies" ? "active" : ""}
+            aria-current={view === "policies" ? "page" : undefined}
             onClick={() => nav("policies")}
           >
             <ShieldCheck size={19} />
@@ -665,6 +669,7 @@ export default function Workbench() {
           </button>
           <button
             className={view === "inbox" ? "active" : ""}
+            aria-current={view === "inbox" ? "page" : undefined}
             onClick={() => nav("inbox")}
           >
             <Inbox size={19} />
@@ -672,6 +677,7 @@ export default function Workbench() {
           </button>
           <button
             className={view === "review" ? "active" : ""}
+            aria-current={view === "review" ? "page" : undefined}
             onClick={() => nav("review")}
           >
             <Eye size={19} />
@@ -682,6 +688,7 @@ export default function Workbench() {
           </button>
           <button
             className={view === "performance" ? "active" : ""}
+            aria-current={view === "performance" ? "page" : undefined}
             onClick={() => nav("performance")}
           >
             <BarChart3 size={19} />
@@ -689,6 +696,7 @@ export default function Workbench() {
           </button>
           <button
             className={view === "activity" ? "active" : ""}
+            aria-current={view === "activity" ? "page" : undefined}
             onClick={() => {
               nav("activity");
               void load();
@@ -771,7 +779,7 @@ export default function Workbench() {
             <span className="avatar small">OP</span>
           </div>
         </header>
-        <main>
+        <main data-workspace-view={view}>
           {error && (
             <div className="alert error" role="alert">
               <TriangleAlert size={18} />
@@ -877,7 +885,10 @@ export default function Workbench() {
               </div>
             </div>
           )}
-          {view !== "operations" && (
+          {view !== "operations" && <WorkspaceGuide view={view} />}
+          {(view === "inbox" ||
+            view === "review" ||
+            view === "performance") && (
             <div className="metric-grid">
               <button
                 className="metric"
