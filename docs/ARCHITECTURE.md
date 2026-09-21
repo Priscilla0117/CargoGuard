@@ -28,6 +28,7 @@ AI handles noisy email intent and assists unfamiliar-layout interpretation. Dete
 | GET /api/document | Retrieve a current or revision-specific source | Case/revision membership and workspace check; no arbitrary file path |
 | GET/POST /api/policies | History, preview and activate bounded weight-exception policies | Expiring server-side preview token, workspace isolation, policy/case-state CAS and reason |
 | GET /api/health | Schema/storage readiness and engine version | No credentials or detailed database errors exposed |
+| GET /api/live | Process-only probe for Render restarts | Explicitly does not check storage; startup must still verify migrations, and release acceptance requires readiness plus workspace tests |
 
 ## Storage and concurrency
 

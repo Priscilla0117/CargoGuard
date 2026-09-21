@@ -431,7 +431,7 @@ const report = {
   ...(failure ? { failure } : {}),
   limits: [
     "Synthetic smoke checks only; not production load or security certification.",
-    "Upload API permits two documents; unknown companion is reviewed and third attachment is explicitly rejected.",
+    "Multi-attachment intake retains companions and requires explicit valid SI/BL pair selection; it does not silently verify every attachment.",
     "Source bodies, workspace cookies and authentication tokens are not included in this report.",
   ],
 };

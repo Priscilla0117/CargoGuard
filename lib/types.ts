@@ -127,7 +127,7 @@ export interface AuditEvent {
   detail: string;
   created_at: string;
 }
-export const PIPELINE_VERSION = "3.2.0";
+export const PIPELINE_VERSION = "3.2.1";
 export function emailSummaryOf(email: Email): CaseSummary["email"] {
   const { email_id, from, subject, attachments } = email;
   return { email_id, from, subject, attachments };

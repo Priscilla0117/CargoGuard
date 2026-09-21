@@ -6,7 +6,7 @@ services:
     region: singapore
     buildCommand: npm ci --include=dev --no-audit --no-fund && npm run build
     startCommand: npm start
-    healthCheckPath: /api/health
+    healthCheckPath: /api/live
     autoDeployTrigger: off
     envVars:
       - key: NODE_VERSION
