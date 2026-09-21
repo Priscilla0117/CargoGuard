@@ -1,8 +1,18 @@
 # CargoGuard 3.1 — independent public cloud release
 
+## Current runtime: database outage recovery — 21 September 2026, 17:49 MYT
+
+Live runtime **`9ae3b8bb0c9a068da8fc81e76eac8343304e7c9f`**, deployment
+`dep-daofq9mk1f9s73btquig`. See [the incident and recovery record](DATABASE_INCIDENT_20260921.md)
+for the observed Turso capacity error, bounded database/health requests, read-only
+restart checks, **329 unit tests**, **200 local HTTP checks**, **nine local fault
+checks** and **47 hosted acceptance/persistence checks**. The public health endpoint
+and existing 520-case workspace were verified after recovery. The tests below are
+dated history, not evidence of uninterrupted availability.
+
 ## Laptop-first work queue and revision comparison — 21 September 2026
 
-Live runtime **`e716487660f281cdc1f0ccaa5cc237be936c8f05`**, Render deployment
+Previous runtime **`e716487660f281cdc1f0ccaa5cc237be936c8f05`**, Render deployment
 `dep-daofajad0e5s7381trog`, started **17:13:49 MYT**, succeeded after **2m51s**.
 See [LAPTOP_WORKSPACE.md](LAPTOP_WORKSPACE.md) for the current navigation, retained
 requirements, revision safeguards, **314 local regression tests**, **200 hosted

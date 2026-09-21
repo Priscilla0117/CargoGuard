@@ -82,6 +82,10 @@ ignored work/validation; workspace cookies are never printed or published.
 
 ## Release status and limits
 
+The interface below remains current, but its initial runtime was superseded by
+the [database outage recovery release](DATABASE_INCIDENT_20260921.md) at 17:49 MYT.
+The original acceptance below predates the later provider capacity failure.
+
 Live at **https://cargoguard-averis.onrender.com/**. Runtime commit
 `e716487660f281cdc1f0ccaa5cc237be936c8f05`, branch `cargoguard-v3-deploy`, Render
 deployment `dep-daofajad0e5s7381trog`. Deployment started at **17:13:49 Malaysia

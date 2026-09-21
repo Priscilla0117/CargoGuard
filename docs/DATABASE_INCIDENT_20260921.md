@@ -51,9 +51,41 @@ which is not shared across libSQL's interactive transaction connections. They we
 corrected to isolated ignored QA files before the final passing run. No live data
 was involved. No valid AI-provider request was made in these tests.
 
-Deployment and hosted recovery are **not yet confirmed**. This record will be
-updated with the exact release and hosted checks after verification. Application
-timeouts improve failure containment; they cannot create capacity at the provider.
+## Verified recovery
+
+Runtime commit **`9ae3b8bb0c9a068da8fc81e76eac8343304e7c9f`**, existing deployment
+branch `cargoguard-v3-deploy`, Render deployment **`dep-daofq9mk1f9s73btquig`**.
+Started **17:47:18 MYT**; Render confirmed **Deploy succeeded / Live** after
+**2m40s**. The new process began at 17:49:41, reported all five migrations ready
+at 17:49:45 and started Next.js at 17:49:48. No schema migration was added.
+
+- Public `/api/health` returned **200**, `ready`, engine 3.1.0 in **262 ms**.
+- **15 hosted revision-flow checks** passed at **17:50:40 MYT**: synthetic upload,
+  document replacement, persistence, immutable history, exact original/replacement
+  source retrieval, routing changes and workspace isolation.
+- **25 hosted assistant preflight checks** passed at **17:50:46 MYT**, with zero
+  provider calls. This is not a new AI-answer-quality evaluation.
+- **Seven retained-data checks** passed at **17:50:59 MYT**: unchanged saved case
+  and policy, available historical revision, exact hashes for both retained 5 MiB
+  files and denial to another workspace. No existing user data was edited.
+- The existing browser workspace reloaded **all 520 saved cases**, with the same
+  action counts and case 004's revision 3/seven fields. Historical comparison also
+  loaded. No warnings/errors appeared in the inspected browser log after recovery.
+- **Nine additional local production-build fault checks** passed against an
+  intentionally invalid synthetic database: eight simultaneous health requests
+  returned 503 and inbox loading returned controlled JSON 503, all within 447 ms
+  in that run. No valid credentials or live database were used for this fault test.
+
+This release has **47 hosted acceptance/persistence checks**, in addition to the
+200 local HTTP checks and nine local fault checks. The full 200-check
+hosted suite was intentionally not rerun immediately after a provider capacity
+incident. Hosted tests were small, isolated and made no paid AI requests.
+
+Application timeouts improve failure containment; they cannot create capacity at
+the provider. The database became accessible during recovery; the observations do
+not prove the application patch alone resolved Turso's underlying capacity condition.
+Free-tier wake-up and provider outages remain possible. No sustained-load, uptime
+or zero-bug guarantee is claimed. Later documentation commits are not new runtimes.
 
 The earlier 200-check hosted acceptance remains a dated pre-incident result, not
 a claim that this later outage did not occur. See [Render's health-check behavior](https://render.com/docs/health-checks).
