@@ -81,7 +81,7 @@ export async function reserveRecoveryAttempt(
     .run();
   if (result.meta.changes !== 1)
     throw new HttpError(
-      "AI recovery's shared demo budget or concurrency limit has been reached. Cached proposals and manual review remain available. Retry later.",
+      "The shared AI demo budget or concurrency limit has been reached. Chat and document recovery use the same allowance. Cached answers, Resolution guidance and manual review remain available. Retry later.",
       429,
     );
   return id;

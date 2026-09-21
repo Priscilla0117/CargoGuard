@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./operations.css";
+import "./assistant.css";
 
 export const metadata: Metadata = {
   title: "CargoGuard | Shipping document verification",

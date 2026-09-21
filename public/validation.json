@@ -1,6 +1,6 @@
 {
   "version": "3.1.0",
-  "generated_at": "2026-09-21T04:44:58.265Z",
+  "generated_at": "2026-09-21T05:33:36.626Z",
   "engine": "CargoGuard 3.1.0",
   "metrics": {
     "classification_macro_f1": 1,
@@ -63,48 +63,48 @@
   ],
   "challenge_limitations": "These five generator-based sets were used during development and share templates. They are not independent real-world evidence. The separate 60-message routing challenge is small, synthetic and includes unresolved errors/ambiguities.",
   "engineering": {
-    "unit_tests": 250,
-    "test_files": 15,
+    "unit_tests": 265,
+    "test_files": 16,
     "quality_steps": [
       {
         "step": "typecheck",
         "passed": true,
-        "duration_ms": 5253
+        "duration_ms": 5219
       },
       {
         "step": "lint",
         "passed": true,
-        "duration_ms": 10857
+        "duration_ms": 9934
       },
       {
         "step": "unit-tests",
         "passed": true,
-        "duration_ms": 3133
+        "duration_ms": 3357
       },
       {
         "step": "input-integrity",
         "passed": true,
-        "duration_ms": 973
+        "duration_ms": 836
       },
       {
         "step": "evaluate-organiser",
         "passed": true,
-        "duration_ms": 1909
+        "duration_ms": 1513
       },
       {
         "step": "independent-accuracy",
         "passed": true,
-        "duration_ms": 335
+        "duration_ms": 229
       },
       {
         "step": "ocr-assets",
         "passed": true,
-        "duration_ms": 161
+        "duration_ms": 123
       },
       {
         "step": "build",
         "passed": true,
-        "duration_ms": 30626
+        "duration_ms": 34721
       }
     ]
   },
