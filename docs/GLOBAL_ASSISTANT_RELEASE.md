@@ -1,5 +1,8 @@
 # Floating Ask CargoGuard — 21 September 2026
 
+This records the initial picker-first release. The newer chat-first interaction
+and its regression evidence are in [CHAT_FIRST_ASSISTANT.md](CHAT_FIRST_ASSISTANT.md).
+
 ## Scope
 
 A workspace-wide, case-scoped assistant for shipping employees. Available from every workspace view, with a case picker, in-panel verification for unprocessed cases, pinned case/revision/workflow, optional cloud AI, evidence inspection, and a no-AI Resolution fallback. A separate conversation/question is retained for up to five revisions in this tab's memory. The assistant cannot approve, release, email, change a verdict, or read another workspace.

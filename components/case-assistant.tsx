@@ -1,7 +1,6 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  MessageSquareText,
   ShieldCheck,
   ArrowUpRight,
   Send,
@@ -115,12 +114,14 @@ export function CaseAssistant({
   onFallback,
   initialMemory,
   onMemory,
+  sourceContent,
 }: {
   result: CaseResult;
   onSource: (name: string, location: string) => void;
   onFallback: () => void;
   initialMemory?: AssistantMemory;
   onMemory?: (memory: AssistantMemory) => void;
+  sourceContent?: ReactNode;
 }) {
   const [question, setQuestion] = useState(initialMemory?.question ?? "");
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -150,6 +151,7 @@ export function CaseAssistant({
   const controller = useRef<AbortController | null>(null);
   const sequence = useRef(0);
   const answerHeading = useRef<HTMLHeadingElement>(null);
+  const consentHeading = useRef<HTMLHeadingElement>(null);
   useEffect(
     () => () => {
       sequence.current++;
@@ -195,6 +197,7 @@ export function CaseAssistant({
         setPreview(response);
         setAllowance(response);
         setConsent(false);
+        requestAnimationFrame(() => consentHeading.current?.focus());
       } else {
         const response = await requestJson<{
           reply: AssistantReply;
@@ -230,260 +233,275 @@ export function CaseAssistant({
   }
   return (
     <section className="case-assistant" aria-label="Ask CargoGuard">
-      <header className="assistant-hero">
-        <div className="assistant-mark">
-          <MessageSquareText size={24} />
-        </div>
-        <div>
-          <span className="eyebrow">YOUR CASE, EXPLAINED</span>
-          <h3>Ask CargoGuard</h3>
-          <p>A second pair of eyes. Your evidence stays in control.</p>
-        </div>
-        <span className="assistant-badge">Optional cloud AI</span>
-      </header>
-      <div className="assistant-boundary">
-        <ShieldCheck size={19} />
-        <div>
-          <strong>
-            Saved result: {result.status} ·{" "}
-            {result.workflow.replaceAll("_", " ")} · Revision {result.version}
-          </strong>
-          <p>
-            AI explains; it cannot change this result, send emails or approve
-            release. Citations link to supplied evidence, but do not guarantee
-            the answer is correct.
-          </p>
-        </div>
-      </div>
-      {!reply && (
-        <div className="assistant-intro">
-          <h4>Where would you like a hand?</h4>
-          <p>
-            Understand a discrepancy, plan the next step, or prepare a draft for
-            human review.
-          </p>
-        </div>
-      )}
-      <div className="assistant-starters" aria-label="Suggested AI questions">
-        {starters.map((starter) => (
-          <button
-            key={starter.label}
-            disabled={!!busy}
-            onClick={() => editQuestion(starter.question)}
+      <div className="assistant-chat-scroll">
+        <p className="assistant-case-subject">{result.email.subject}</p>
+        {sourceContent}
+        {!reply && !preview && (
+          <div className="assistant-intro">
+            <h4>Ready to talk about this shipment.</h4>
+            <p>
+              Ask below, or try a starting point. I’ll use this case’s saved
+              evidence.
+            </p>
+          </div>
+        )}
+        {!reply && !preview && (
+          <div
+            className="assistant-starters"
+            aria-label="Suggested AI questions"
           >
-            <Sparkles size={14} />
-            {starter.label}
-            <ArrowUpRight size={14} />
-          </button>
-        ))}
-      </div>
-      {reply && (
-        <div className="assistant-conversation">
-          <h4 ref={answerHeading} tabIndex={-1}>
-            Case conversation <span>{reply.turns.length} / 3 turns</span>
-          </h4>
-          {reply.turns.map((turn, i) => (
-            <article className="assistant-turn" key={i}>
-              <div className="assistant-question">
-                <span>You asked</span>
-                <p>{turn.question}</p>
-              </div>
-              <div className="assistant-answer">
-                <span className="assistant-answer-label">
-                  CargoGuard · {turn.answer.scope.replaceAll("_", " ")}
-                </span>
-                {turn.answer.blocks.map((block, j) => (
-                  <div className={`assistant-block ${block.kind}`} key={j}>
-                    {block.kind === "draft" && (
-                      <strong className="assistant-draft-label">
-                        DRAFT ONLY · Nothing has been sent
-                      </strong>
-                    )}
-                    {block.kind === "next_step" && (
-                      <strong className="assistant-step-label">
-                        Suggested next step
-                      </strong>
-                    )}
-                    <p>{assistantDisplayText(block.text, block.citations)}</p>
-                    {!!block.citations.length && (
-                      <details className="assistant-citations">
-                        <summary>
-                          Inspect {block.citations.length} evidence reference
-                          {block.citations.length !== 1 ? "s" : ""}
-                        </summary>
-                        {block.citations.map((id) => {
-                          const fact = facts.find((item) => item.id === id);
-                          return (
-                            fact && (
-                              <div key={id}>
-                                <EvidenceFact fact={fact} onSource={onSource} />
-                                {!!relatedAssistantFacts(fact, facts)
-                                  .length && (
-                                  <div className="assistant-related">
-                                    <span>Related saved field evidence</span>
-                                    {relatedAssistantFacts(fact, facts).map(
-                                      (related) => (
-                                        <EvidenceFact
-                                          key={related.id}
-                                          fact={related}
-                                          onSource={onSource}
-                                        />
-                                      ),
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          );
-                        })}
-                      </details>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </article>
-          ))}
-          <p className="assistant-meta">
-            {reply.model} · Last answer {(reply.latency_ms / 1000).toFixed(1)}s
-            {cached ? " · Cached, no new AI call" : ""}. Check sources before
-            using any advice or draft.
-          </p>
-          <button
-            className="text-button"
-            disabled={!!busy}
-            onClick={() => {
-              setReply(null);
-              setFacts([]);
-              editQuestion("");
-            }}
+            {starters.map((starter) => (
+              <button
+                key={starter.label}
+                disabled={!!busy}
+                onClick={() => editQuestion(starter.question)}
+              >
+                <Sparkles size={14} />
+                {starter.label}
+                <ArrowUpRight size={14} />
+              </button>
+            ))}
+          </div>
+        )}
+        {reply && (
+          <div className="assistant-conversation">
+            <h4 ref={answerHeading} tabIndex={-1}>
+              Case conversation <span>{reply.turns.length} / 3 turns</span>
+            </h4>
+            {reply.turns.map((turn, i) => (
+              <article className="assistant-turn" key={i}>
+                <div className="assistant-question">
+                  <span>You asked</span>
+                  <p>{turn.question}</p>
+                </div>
+                <div className="assistant-answer">
+                  <span className="assistant-answer-label">
+                    CargoGuard · {turn.answer.scope.replaceAll("_", " ")}
+                  </span>
+                  {turn.answer.blocks.map((block, j) => (
+                    <div className={`assistant-block ${block.kind}`} key={j}>
+                      {block.kind === "draft" && (
+                        <strong className="assistant-draft-label">
+                          DRAFT ONLY · Nothing has been sent
+                        </strong>
+                      )}
+                      {block.kind === "next_step" && (
+                        <strong className="assistant-step-label">
+                          Suggested next step
+                        </strong>
+                      )}
+                      <p>{assistantDisplayText(block.text, block.citations)}</p>
+                      {!!block.citations.length && (
+                        <details className="assistant-citations">
+                          <summary>
+                            Inspect {block.citations.length} evidence reference
+                            {block.citations.length !== 1 ? "s" : ""}
+                          </summary>
+                          {block.citations.map((id) => {
+                            const fact = facts.find((item) => item.id === id);
+                            return (
+                              fact && (
+                                <div key={id}>
+                                  <EvidenceFact
+                                    fact={fact}
+                                    onSource={onSource}
+                                  />
+                                  {!!relatedAssistantFacts(fact, facts)
+                                    .length && (
+                                    <div className="assistant-related">
+                                      <span>Related saved field evidence</span>
+                                      {relatedAssistantFacts(fact, facts).map(
+                                        (related) => (
+                                          <EvidenceFact
+                                            key={related.id}
+                                            fact={related}
+                                            onSource={onSource}
+                                          />
+                                        ),
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            );
+                          })}
+                        </details>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
+            <p className="assistant-meta">
+              {reply.model} · Last answer {(reply.latency_ms / 1000).toFixed(1)}
+              s{cached ? " · Cached, no new AI call" : ""}. Check sources before
+              using any advice or draft.
+            </p>
+            <button
+              className="text-button"
+              disabled={!!busy}
+              onClick={() => {
+                setReply(null);
+                setFacts([]);
+                editQuestion("");
+              }}
+            >
+              <RotateCcw size={14} /> Start a new conversation
+            </button>
+          </div>
+        )}
+        {preview && (
+          <section
+            className="assistant-consent"
+            aria-label="AI sharing consent"
           >
-            <RotateCcw size={14} /> Start a new conversation
-          </button>
-        </div>
-      )}
-      <form
-        className="assistant-composer"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void submit("preview");
-        }}
-      >
-        <label htmlFor="assistant-question">
-          {reply ? "Ask a follow-up about this case" : "Your question"}
-        </label>
-        <textarea
-          id="assistant-question"
-          value={question}
-          maxLength={800}
-          rows={3}
-          disabled={!!busy || (reply?.turns.length ?? 0) >= 3}
-          onChange={(event) => editQuestion(event.target.value)}
-          placeholder="For example: Why is the gross weight different, and who needs to check it?"
-          aria-describedby="assistant-input-note"
-        />
-        <div className="assistant-compose-footer">
-          <small id="assistant-input-note">
-            {question.length}/800 · Do not enter passwords, API keys or
-            confidential data.
-          </small>
-          <button
-            className="button secondary"
-            type="submit"
-            disabled={
-              !!busy ||
-              question.trim().length < 3 ||
-              (reply?.turns.length ?? 0) >= 3
-            }
-          >
-            {busy === "preview"
-              ? "Preparing preview…"
-              : "Preview data to share"}
-          </button>
-        </div>
-      </form>
-      {preview && (
-        <section className="assistant-consent" aria-label="AI sharing consent">
-          <h4>Review before sending to OpenAI</h4>
-          <p>
-            Your question, the selected case facts below and any previous turns
-            in this conversation will be sent to {preview.model}. Email
-            headers/body, document filenames, other cases and credentials are
-            not automatically included. Excerpts and your own question may still
-            contain sensitive information.
-          </p>
-          <details>
-            <summary>
-              View the exact case data and conversation to be sent
-            </summary>
-            <pre className="assistant-payload">
-              {JSON.stringify(preview.packet, null, 2)}
-            </pre>
-          </details>
-          <label className="assistant-check">
-            <input
-              type="checkbox"
-              checked={consent}
-              disabled={!!busy || !preview.enabled}
-              onChange={(event) => setConsent(event.target.checked)}
-            />
-            <span>
-              I am authorized to share this preview with OpenAI. I will check
-              the evidence before using the answer.
-            </span>
-          </label>
-          {!preview.enabled && (
-            <p role="status">
-              Cloud AI is not configured. Use Resolution for guidance without an
-              AI request.
+            <h4 ref={consentHeading} tabIndex={-1}>
+              One check before sending
+            </h4>
+            <p>
+              OpenAI will receive your question, this case’s selected evidence
+              and earlier turns. Check the exact data below; excerpts may
+              contain sensitive information.
+            </p>
+            <details>
+              <summary>
+                View the exact case data and conversation to be sent
+              </summary>
+              <p>
+                Model: {preview.model}. Email headers/body, document filenames,
+                other cases and credentials are not automatically included. Your
+                own question and selected excerpts may still include sensitive
+                data.
+              </p>
+              <pre className="assistant-payload">
+                {JSON.stringify(preview.packet, null, 2)}
+              </pre>
+            </details>
+            <label className="assistant-check">
+              <input
+                type="checkbox"
+                checked={consent}
+                disabled={!!busy || !preview.enabled}
+                onChange={(event) => setConsent(event.target.checked)}
+              />
+              <span>
+                I am authorized to share this preview with OpenAI. I’ll check
+                the answer against the evidence.
+              </span>
+            </label>
+            {!preview.enabled && (
+              <p role="status">
+                Cloud AI is not configured. Use Resolution for guidance without
+                an AI request.
+              </p>
+            )}
+            <button
+              type="button"
+              className="button primary"
+              disabled={!consent || !preview.enabled || !!busy}
+              onClick={() => void submit("ask")}
+            >
+              <Send size={15} />
+              {busy === "ask" ? "Reading the evidence…" : "Send to AI"}
+            </button>
+          </section>
+        )}
+        <div aria-live="polite" aria-atomic="true">
+          {busy === "ask" && (
+            <p className="assistant-progress">
+              Checking this revision’s evidence. AI has a 25-second provider
+              timeout; a cold server can take longer. No automatic retries.
             </p>
           )}
-          <button
-            type="button"
-            className="button primary"
-            disabled={!consent || !preview.enabled || !!busy}
-            onClick={() => void submit("ask")}
-          >
-            <Send size={15} />
-            {busy === "ask" ? "Reading the evidence…" : "Send to AI"}
-          </button>
-        </section>
-      )}
-      <div aria-live="polite" aria-atomic="true">
-        {busy === "ask" && (
-          <p className="assistant-progress">
-            Checking this revision’s evidence. AI has a 25-second provider
-            timeout; a cold server can take longer. No automatic retries.
-          </p>
-        )}
-      </div>
-      {error && (
-        <div className="assistant-error" role="alert">
-          <strong>We could not complete that request</strong>
-          <p>{error}</p>
-          <button className="text-button" onClick={onFallback}>
-            Open Resolution guidance
-          </button>
         </div>
-      )}
-      <footer className="assistant-footer">
-        <p>
-          {allowance
-            ? `Shared with document recovery: ${allowance.limits.workspaceDailyCalls} requests per workspace per UTC day, ${allowance.limits.globalDailyCalls} across the demo per day, ${allowance.limits.globalLifetimeCalls} lifetime. At the last allowance check: ${allowance.budget.workspaceRemaining} workspace requests and ${allowance.budget.dailyRemaining} shared daily requests remained. `
-            : "A shared, server-enforced AI allowance applies. "}
-          Token and concurrency limits can stop requests earlier. Failed
-          requests count too. Availability is checked again when sending. Judges
-          do not need an API key.
+        {error && (
+          <div className="assistant-error" role="alert">
+            <strong>We could not complete that request</strong>
+            <p>{error}</p>
+            <button className="text-button" onClick={onFallback}>
+              Open Resolution guidance
+            </button>
+          </div>
+        )}
+        <details className="assistant-footer">
+          <summary>Privacy, AI limits & how this works</summary>
+          <p>
+            {allowance
+              ? `Shared with document recovery: ${allowance.limits.workspaceDailyCalls} requests per workspace per UTC day, ${allowance.limits.globalDailyCalls} across the demo per day, ${allowance.limits.globalLifetimeCalls} lifetime. At the last allowance check: ${allowance.budget.workspaceRemaining} workspace requests and ${allowance.budget.dailyRemaining} shared daily requests remained. `
+              : "A shared, server-enforced AI allowance applies. "}
+            Token and concurrency limits can stop requests earlier. Failed
+            requests count too. Availability is checked again when sending.
+            Judges do not need an API key.
+          </p>
+          <p>
+            Conversation cache is workspace-scoped and accessible for 30
+            minutes; expired records are cleaned up on a later chat write. New
+            conversation clears this view, not the server cache. OpenAI requests
+            use store=false; this is not a promise of zero provider retention.
+          </p>
+          <button className="text-button" onClick={onFallback}>
+            Prefer no AI? Use Evidence Navigator <ArrowUpRight size={14} />
+          </button>
+        </details>
+      </div>
+      <div className="assistant-composer-dock">
+        <form
+          className="assistant-composer"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submit("preview");
+          }}
+        >
+          <label htmlFor="assistant-question">
+            {reply ? "Ask a follow-up" : "Your question"}
+          </label>
+          <textarea
+            id="assistant-question"
+            value={question}
+            maxLength={800}
+            rows={2}
+            disabled={!!busy || (reply?.turns.length ?? 0) >= 3}
+            onChange={(event) => editQuestion(event.target.value)}
+            placeholder="What should I check in this shipment?"
+            aria-describedby="assistant-input-note"
+            onKeyDown={(event) => {
+              if (
+                event.key === "Enter" &&
+                !event.shiftKey &&
+                !event.nativeEvent.isComposing
+              ) {
+                event.preventDefault();
+                if (
+                  question.trim().length >= 3 &&
+                  (reply?.turns.length ?? 0) < 3
+                )
+                  void submit("preview");
+              }
+            }}
+          />
+          <div className="assistant-compose-footer">
+            <small id="assistant-input-note">
+              {question.length}/800 · No secrets, please.
+            </small>
+            <button
+              className="button primary"
+              type="submit"
+              disabled={
+                !!busy ||
+                question.trim().length < 3 ||
+                (reply?.turns.length ?? 0) >= 3
+              }
+            >
+              {busy === "preview" ? "Preparing…" : "Review & send"}
+              <Send size={14} />
+            </button>
+          </div>
+        </form>
+        <p className="assistant-dock-note">
+          <ShieldCheck size={13} />
+          AI can be wrong. Check evidence. Nothing is approved or emailed.
         </p>
-        <p>
-          Conversation cache is workspace-scoped and accessible for 30 minutes;
-          expired records are cleaned up on a later chat write. New conversation
-          clears this view, not the server cache. OpenAI requests use
-          store=false; this is not a promise of zero provider retention.
-        </p>
-        <button className="text-button" onClick={onFallback}>
-          Prefer no AI? Use Evidence Navigator <ArrowUpRight size={14} />
-        </button>
-      </footer>
+      </div>
     </section>
   );
 }
