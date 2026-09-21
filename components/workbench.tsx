@@ -1,6 +1,5 @@
 "use client";
 import { PolicyDesk } from "./policy-desk";
-import { WorkspaceGuide } from "./workspace-guide";
 import { DecisionHistory } from "./decision-history";
 import type { PolicySnapshot } from "@/lib/policy";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -13,7 +12,17 @@ import { ResolutionDesk } from "@/components/resolution-desk";
 import { GlobalAssistant } from "@/components/global-assistant";
 import type { AssistantMemory } from "@/components/case-assistant";
 import { EvidenceRecovery } from "@/components/evidence-recovery";
-import { OperationsDesk } from "@/components/operations-desk";
+import { WorkloadInsights } from "@/components/workload-insights";
+import { AiAvailability } from "@/components/ai-availability";
+import {
+  QUEUE_FILTERS,
+  caseDestination,
+  matchesQueue,
+  nextQueueCase,
+  workQueue,
+  type WorkspaceView,
+} from "@/lib/work-queue";
+import { laneFor, LANE_DETAILS, shiftBrief } from "@/lib/operations";
 import { canTranscribe } from "@/lib/transcription";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -59,7 +68,7 @@ import {
   Square,
   Printer,
   Info,
-  Compass,
+  Settings2,
   MessageSquareText,
 } from "lucide-react";
 import {
@@ -89,13 +98,7 @@ const statuses: Record<string, string> = {
   routed: "Routed",
   pending: "Not processed",
 };
-type View =
-  | "operations"
-  | "inbox"
-  | "review"
-  | "performance"
-  | "activity"
-  | "policies";
+type View = WorkspaceView;
 interface ApiPayload {
   cases: CaseSummary[];
   audit: AuditEvent[];
@@ -166,7 +169,7 @@ export default function Workbench() {
     [inboxReady, setInboxReady] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
-  const [view, setView] = useState<View>("operations"),
+  const [view, setView] = useState<View>("inbox"),
     [search, setSearch] = useState(""),
     [filter, setFilter] = useState("all"),
     [category, setCategory] = useState("all"),
@@ -175,6 +178,10 @@ export default function Workbench() {
     [caseEvents, setCaseEvents] = useState<AuditEvent[]>([]),
     [detailTab, setDetailTab] = useState("comparison"),
     [document, setDocument] = useState<ParsedDocument | null>(null);
+  const [resolutionOpen, setResolutionOpen] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [auditSearch, setAuditSearch] = useState("");
+  const [queueSession, setQueueSession] = useState<string[]>([]);
   const [assistant, setAssistant] = useState<{
     id: string | null;
     sequence: number;
@@ -202,6 +209,7 @@ export default function Workbench() {
   const [pagination, setPagination] = useState("");
   const [attentionOnly, setAttentionOnly] = useState(false);
   const highlighted = useRef<HTMLDivElement | null>(null);
+  const drawerBody = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     highlighted.current?.scrollIntoView({
       block: "center",
@@ -311,35 +319,32 @@ export default function Workbench() {
       (c) => c.result && c.result.pipeline_version !== PIPELINE_VERSION,
     ).length;
   const visible = useMemo(
-    () =>
-      cases
-        .filter((c) => {
-          const wf = c.result?.workflow ?? "pending";
-          if (view === "review" && wf !== "review") return false;
-          if (filter !== "all" && wf !== filter) return false;
-          if (category !== "all" && c.result?.category !== category)
-            return false;
-          return `${c.email.subject} ${c.email.from} ${c.email.email_id} ${c.result?.defect_fields.join(" ") ?? ""}`
-            .toLowerCase()
-            .includes(search.toLowerCase());
-        })
-        .sort((a, b) => {
-          const rank: Record<string, number> = {
-            discrepancy: 0,
-            review: 1,
-            verified: 2,
-            awaiting_documents: 3,
-            pending: 4,
-            routed: 5,
-          };
-          return (
-            rank[a.result?.workflow ?? "pending"] -
-              rank[b.result?.workflow ?? "pending"] ||
-            a.email.email_id.localeCompare(b.email.email_id)
-          );
-        }),
-    [cases, search, filter, category, view],
+    () => workQueue(cases, filter, category, search),
+    [cases, search, filter, category],
   );
+  const queueCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        [...QUEUE_FILTERS.map(([key]) => key), "pending", "routed"].map(
+          (key) => [key, cases.filter((row) => matchesQueue(row, key)).length],
+        ),
+      ),
+    [cases],
+  );
+  const nextId = selected
+    ? nextQueueCase(
+        queueSession,
+        selected.email.email_id,
+        cases.map((row) => row.email.email_id),
+      )
+    : null;
+  function navigateDetail(target: string) {
+    drawerBody.current?.scrollTo({ top: 0, behavior: "instant" });
+    const destination = caseDestination(target);
+    setDetailTab(destination.tab);
+    setEmailOpen(destination.email);
+    setResolutionOpen(destination.resolution);
+  }
   const update = (results: CaseResult[]) => {
     inboxRequests.current.cancel();
     setCases((prev) => mergeCaseSummaries(prev, results.map(summaryOf)));
@@ -351,7 +356,13 @@ export default function Workbench() {
       sequence: (previous?.sequence ?? 0) + 1,
     }));
   }
-  async function openCase(id: string, tab = "comparison") {
+  async function openCase(
+    id: string,
+    tab = "comparison",
+    continueQueue = false,
+  ) {
+    if (!continueQueue)
+      setQueueSession(visible.map((row) => row.email.email_id));
     closeCase();
     const request = activeRequest.current.next();
     setBusyId(id);
@@ -382,7 +393,7 @@ export default function Workbench() {
         setDocument(null);
         setSourceLocation("");
         setCaseEvents(history);
-        setDetailTab(tab);
+        navigateDetail(tab);
         setAttentionOnly(false);
       }
     } catch (e) {
@@ -543,7 +554,7 @@ export default function Workbench() {
       update([d.result]);
       if (!activeRequest.current.isCurrent(request)) return;
       setSelected(d.result);
-      setDetailTab("comparison");
+      navigateDetail("comparison");
       setCaseEvents([]);
       setUpload(false);
       setReplacement(null);
@@ -563,6 +574,10 @@ export default function Workbench() {
     setSaving(true);
     setError("");
     const fd = new FormData(event.currentTarget);
+    const advance =
+      (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value") ===
+      "next";
+    const following = nextId;
     try {
       const d = await api("/api/cases", {
         method: "POST",
@@ -584,6 +599,7 @@ export default function Workbench() {
       setNotice(
         "Correction saved. The comparison and audit trail have been updated.",
       );
+      if (advance && following) await openCase(following, "comparison", true);
     } catch (e) {
       if (activeRequest.current.isCurrent(request))
         setError((e as Error).message);
@@ -628,12 +644,15 @@ export default function Workbench() {
   }
   const nav = (v: View) => {
     setView(v);
-    setFilter("all");
-    setCategory("all");
-    setSearch("");
     closeCase();
     window.scrollTo({ top: 0, behavior: "instant" });
   };
+  function openQueue(outcome: string) {
+    setFilter(outcome);
+    setCategory("all");
+    setSearch("");
+    nav("inbox");
+  }
   useCargoTools({ cases, setSearch, setView, setFilter, setCategory });
   return (
     <SidebarProvider className="app-shell">
@@ -651,63 +670,36 @@ export default function Workbench() {
         </div>
         <nav aria-label="Workspace navigation">
           <button
-            className={view === "operations" ? "active" : ""}
-            aria-current={view === "operations" ? "page" : undefined}
-            onClick={() => nav("operations")}
-            aria-label="Operations desk"
-          >
-            <Compass size={19} />
-            Operations desk
-          </button>
-          <button
-            className={view === "policies" ? "active" : ""}
-            aria-current={view === "policies" ? "page" : undefined}
-            onClick={() => nav("policies")}
-          >
-            <ShieldCheck size={19} />
-            Policy laboratory
-          </button>
-          <button
             className={view === "inbox" ? "active" : ""}
             aria-current={view === "inbox" ? "page" : undefined}
             onClick={() => nav("inbox")}
           >
             <Inbox size={19} />
-            Verification inbox<span>{cases.length || "—"}</span>
+            Work queue<span>{cases.length || "—"}</span>
           </button>
           <button
-            className={view === "review" ? "active" : ""}
-            aria-current={view === "review" ? "page" : undefined}
-            onClick={() => nav("review")}
-          >
-            <Eye size={19} />
-            Review desk
-            {counts.review > 0 && (
-              <span className="orange-count">{counts.review}</span>
-            )}
-          </button>
-          <button
-            className={view === "performance" ? "active" : ""}
-            aria-current={view === "performance" ? "page" : undefined}
+            className={
+              view === "performance" || view === "activity" ? "active" : ""
+            }
+            aria-current={
+              view === "performance" || view === "activity" ? "page" : undefined
+            }
             onClick={() => nav("performance")}
           >
             <BarChart3 size={19} />
-            Performance
+            Reports
           </button>
           <button
-            className={view === "activity" ? "active" : ""}
-            aria-current={view === "activity" ? "page" : undefined}
-            onClick={() => {
-              nav("activity");
-              void load();
-            }}
+            className={`settings-nav ${view === "policies" ? "active" : ""}`}
+            aria-current={view === "policies" ? "page" : undefined}
+            onClick={() => nav("policies")}
           >
-            <History size={19} />
-            Audit trail
+            <Settings2 size={19} />
+            Settings
           </button>
         </nav>
         <div className="sidebar-info">
-          <span className="eyebrow">CONNECTED INBOX</span>
+          <span className="eyebrow">DEMO WORKSPACE</span>
           <div>
             <Layers3 size={16} /> Organiser sample data
           </div>
@@ -750,17 +742,11 @@ export default function Workbench() {
           <div className="breadcrumb">
             Operations <ChevronRight size={14} />
             <strong>
-              {view === "operations"
-                ? "Operations desk"
-                : view === "inbox"
-                  ? "Document verification"
-                  : view === "review"
-                    ? "Review desk"
-                    : view === "performance"
-                      ? "Performance"
-                      : view === "policies"
-                        ? "Policy laboratory"
-                        : "Audit trail"}
+              {view === "inbox"
+                ? "Work queue"
+                : view === "policies"
+                  ? "Settings"
+                  : "Reports"}
             </strong>
           </div>
           <div className="topbar-right">
@@ -803,55 +789,54 @@ export default function Workbench() {
           )}
           <div className="page-heading">
             <div>
-              <div className="eyebrow">SHIPPING OPERATIONS</div>
               <h1>
-                {view === "operations"
-                  ? "Your next action, made clear."
-                  : view === "inbox"
-                    ? "Verification inbox"
-                    : view === "review"
-                      ? "A human eye, where it matters."
-                      : view === "performance"
-                        ? "Performance & evidence"
-                        : view === "policies"
-                          ? "Business rules, without hidden exceptions."
-                          : "Every decision, accounted for."}
+                {view === "inbox"
+                  ? "Work queue"
+                  : view === "policies"
+                    ? "Workspace settings"
+                    : "Reports & evidence"}
               </h1>
               <p>
-                {view === "operations"
-                  ? "A focused workspace for shipping operations and evidence-led handoffs."
-                  : view === "inbox"
-                    ? "Catch the discrepancy. Keep the shipment moving."
-                    : view === "review"
-                      ? "Resolve uncertain documents with the full source context."
-                      : view === "performance"
-                        ? "Measured outcomes from your workspace and reproducible validation."
-                        : view === "policies"
-                          ? "Preview, justify and version every tolerance. Preserve the exact evidence."
-                          : "An append-only record of processing and human corrections."}
+                {view === "inbox"
+                  ? "Inspect the evidence. Resolve the next case."
+                  : view === "policies"
+                    ? "Versioned policies and cloud AI availability."
+                    : "Workspace results, validation and recorded decisions."}
               </p>
             </div>
-            <div className="heading-actions">
-              <button
-                className="button secondary"
-                disabled={loading || !inboxReady}
-                onClick={() => {
-                  setReplacement(null);
-                  setUpload(true);
-                }}
-              >
-                <Plus size={17} />
-                New verification
-              </button>
-              <button
-                className="button primary"
-                onClick={processAll}
-                disabled={loading || !inboxReady}
-              >
-                {running ? <Square size={14} /> : <Play size={16} />}{" "}
-                {running ? "Pause processing" : "Run inbox"}
-              </button>
-            </div>
+            {view === "inbox" && (
+              <div className="heading-actions">
+                <button
+                  className="button secondary"
+                  disabled={loading || !inboxReady}
+                  onClick={() => {
+                    setReplacement(null);
+                    setUpload(true);
+                  }}
+                >
+                  <Plus size={17} />
+                  Upload documents
+                </button>
+                <button
+                  className="button primary"
+                  onClick={processAll}
+                  disabled={
+                    loading ||
+                    !inboxReady ||
+                    (!running && counts.processed === cases.length && !outdated)
+                  }
+                >
+                  {running ? <Square size={14} /> : <Play size={16} />}{" "}
+                  {running
+                    ? "Pause processing"
+                    : counts.processed === cases.length &&
+                        !outdated &&
+                        inboxReady
+                      ? "Inbox up to date"
+                      : "Run inbox"}
+                </button>
+              </div>
+            )}
           </div>
           {!inboxReady && !loading && (
             <div className="alert warning" role="status">
@@ -885,18 +870,30 @@ export default function Workbench() {
               </div>
             </div>
           )}
-          {view !== "operations" && <WorkspaceGuide view={view} />}
-          {(view === "inbox" ||
-            view === "review" ||
-            view === "performance") && (
-            <div className="metric-grid">
+          {(view === "performance" || view === "activity") && (
+            <div className="report-switch" aria-label="Report sections">
               <button
-                className="metric"
+                className={view === "performance" ? "active" : ""}
+                aria-pressed={view === "performance"}
+                onClick={() => nav("performance")}
+              >
+                <BarChart3 size={16} /> Performance
+              </button>
+              <button
+                className={view === "activity" ? "active" : ""}
+                aria-pressed={view === "activity"}
                 onClick={() => {
-                  setView("inbox");
-                  setFilter("all");
+                  nav("activity");
+                  void load();
                 }}
               >
+                <History size={16} /> Audit trail
+              </button>
+            </div>
+          )}
+          {view === "performance" && (
+            <div className="metric-grid">
+              <button className="metric" onClick={() => openQueue("all")}>
                 <span>
                   Emails processed
                   <Inbox size={18} />
@@ -914,17 +911,14 @@ export default function Workbench() {
               </button>
               <button
                 className="metric"
-                onClick={() => {
-                  setView("inbox");
-                  setFilter("discrepancy");
-                }}
+                onClick={() => openQueue("discrepancy")}
               >
                 <span>
                   Discrepancies
                   <TriangleAlert size={18} />
                 </span>
                 <strong>
-                  {counts.discrepancy.toLocaleString()}
+                  {queueCounts.discrepancy.toLocaleString()}
                   <small>cases</small>
                 </strong>
                 <div className="orange-text">
@@ -935,103 +929,48 @@ export default function Workbench() {
                   fields need attention
                 </div>
               </button>
-              <button
-                className="metric"
-                onClick={() => {
-                  setView("inbox");
-                  setFilter("verified");
-                }}
-              >
+              <button className="metric" onClick={() => openQueue("verified")}>
                 <span>
                   Verified documents
                   <FileCheck2 size={18} />
                 </span>
                 <strong>
-                  {counts.verified.toLocaleString()}
+                  {queueCounts.verified.toLocaleString()}
                   <small>pairs</small>
                 </strong>
                 <div className="green-text">
                   <CheckCheck size={14} /> All seven fields matched
                 </div>
               </button>
-              <button
-                className="metric"
-                onClick={() => {
-                  setView("review");
-                  setFilter("all");
-                }}
-              >
+              <button className="metric" onClick={() => openQueue("review")}>
                 <span>
-                  Human review
+                  Recover evidence
                   <Eye size={18} />
                 </span>
                 <strong>
-                  {counts.review.toLocaleString()}
+                  {queueCounts.review.toLocaleString()}
                   <small>cases</small>
                 </strong>
                 <div>
-                  {counts.awaiting_documents} awaiting documents separately
+                  {queueCounts.awaiting_documents} need documents separately
                 </div>
               </button>
             </div>
           )}
-          {view === "operations" && (
-            <OperationsDesk
-              cases={cases}
-              loading={loading}
-              busyId={busyId}
-              onOpen={(id) => void openCase(id)}
-              onInbox={() => nav("inbox")}
-            />
-          )}
-          {(view === "inbox" || view === "review") && (
+          {view === "inbox" && (
             <>
-              <div className="section-top">
-                <div>
-                  <h2>
-                    {view === "review" ? "Review queue" : "Shipment requests"}
-                    <span className="count-pill">{visible.length}</span>
-                  </h2>
-                  <p>
-                    {view === "review"
-                      ? "Missing, unreadable or uncertain data stays visible until resolved."
-                      : "Select an email to inspect the comparison and its source evidence."}
-                  </p>
-                </div>
-                <div className="case-actions">
-                  <button
-                    className="text-button"
-                    onClick={() => void exportAll("reviewed")}
-                  >
-                    Export reviewed evidence
-                  </button>
-                  <button
-                    className="text-button"
-                    onClick={() => void exportAll()}
-                  >
-                    <ArrowDownToLine size={16} />
-                    Export automatic baseline
-                  </button>
-                </div>
-              </div>
               <section className="inbox-panel">
                 <div className="table-toolbar">
                   <div className="filter-tabs" aria-label="Filter by outcome">
-                    {(view === "review"
-                      ? [["all", "Needs review"]]
-                      : [
-                          ["all", "All emails"],
-                          ["discrepancy", "Discrepancies"],
-                          ["review", "Needs review"],
-                          ["verified", "Verified"],
-                        ]
-                    ).map(([key, label]) => (
+                    {QUEUE_FILTERS.map(([key, label]) => (
                       <button
                         key={key}
                         className={filter === key ? "selected" : ""}
+                        aria-pressed={filter === key}
                         onClick={() => setFilter(key)}
                       >
                         {label}
+                        <span>{loading ? "—" : queueCounts[key]}</span>
                       </button>
                     ))}
                   </div>
@@ -1068,7 +1007,35 @@ export default function Workbench() {
                         ))}
                       </select>
                     </label>
+                    <select
+                      className="other-queues"
+                      aria-label="Additional queues"
+                      value={
+                        filter === "pending" || filter === "routed"
+                          ? filter
+                          : ""
+                      }
+                      onChange={(event) =>
+                        setFilter(event.target.value || "all")
+                      }
+                    >
+                      <option value="">Other queues</option>
+                      <option value="pending">
+                        Process / recheck ({queueCounts.pending})
+                      </option>
+                      <option value="routed">
+                        Other desks ({queueCounts.routed})
+                      </option>
+                    </select>
                   </div>
+                </div>
+                <div className="queue-caption">
+                  <span>
+                    {visible.length} matching cases · action cases first
+                  </span>
+                  <span>
+                    Counts above cover this workspace · checked ≠ cargo release
+                  </span>
                 </div>
                 <div className="table-scroll">
                   <Table className="email-table">
@@ -1076,8 +1043,8 @@ export default function Workbench() {
                       <TableRow>
                         <TableHead>EMAIL / SHIPMENT</TableHead>
                         <TableHead>CATEGORY</TableHead>
-                        <TableHead>DOCUMENTS</TableHead>
-                        <TableHead>OUTCOME</TableHead>
+                        <TableHead>STATUS</TableHead>
+                        <TableHead>NEXT ACTION</TableHead>
                         <TableHead aria-label="Open case" />
                       </TableRow>
                     </TableHeader>
@@ -1127,26 +1094,6 @@ export default function Workbench() {
                             </span>
                           </TableCell>
                           <TableCell>
-                            <div className="file-tags">
-                              {c.email.attachments.length ? (
-                                <>
-                                  <Paperclip size={13} />
-                                  {[
-                                    ...new Set(
-                                      c.email.attachments.map((a) =>
-                                        a.split(".").pop()?.toUpperCase(),
-                                      ),
-                                    ),
-                                  ].map((f) => (
-                                    <span key={f}>{f}</span>
-                                  ))}
-                                </>
-                              ) : (
-                                <span className="muted">No attachments</span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
                             <Status value={c.result?.workflow ?? "pending"} />
                             {!!c.result?.defect_fields.length && (
                               <small className="field-count">
@@ -1156,6 +1103,15 @@ export default function Workbench() {
                                   : "fields differ"}
                               </small>
                             )}
+                          </TableCell>
+                          <TableCell>
+                            <span className="queue-next-action">
+                              {LANE_DETAILS[laneFor(c)].action}
+                            </span>
+                            <small className="queue-document-count">
+                              {c.email.attachments.length} documents
+                              {c.result ? ` · v${c.result.version}` : ""}
+                            </small>
                           </TableCell>
                           <TableCell>
                             {busyId === c.email.email_id ? (
@@ -1179,14 +1135,10 @@ export default function Workbench() {
                   !visible.length && (
                     <div className="empty-state">
                       <CheckCircle2 size={32} />
-                      <h3>
-                        {view === "review"
-                          ? "No cases in this review queue"
-                          : "No matching emails"}
-                      </h3>
+                      <h3>No matching cases</h3>
                       <p>
-                        {view === "review"
-                          ? "Run the inbox to find documents that need a human decision."
+                        {counts.processed < cases.length
+                          ? "Run the inbox to create results, or clear filters to see unprocessed cases."
                           : "Try another search or clear the filters."}
                       </p>
                       <button
@@ -1235,44 +1187,64 @@ export default function Workbench() {
                   </span>
                 </div>
               </section>
-              <div className="workflow-strip">
+              <details className="queue-help">
+                <summary>Help & exports</summary>
                 <div>
-                  <span>01</span>
-                  <Inbox size={17} />
-                  <strong>Classify</strong>
-                  <small>Five email categories</small>
+                  <p>
+                    Run the inbox to classify five email categories and compare
+                    all seven SI / draft BL fields. Open a case to check
+                    sources, recover unreadable evidence or prepare an
+                    amendment. Use History → What changed? after replacing
+                    corrected documents. Nothing is sent or released
+                    automatically.
+                  </p>
+                  <div className="case-actions">
+                    <button
+                      className="text-button"
+                      disabled={loading || !inboxReady}
+                      onClick={() =>
+                        download(
+                          "cargoguard-shift-brief.txt",
+                          shiftBrief(cases, new Date().toISOString()),
+                          "text/plain;charset=utf-8",
+                        )
+                      }
+                    >
+                      Export shift brief
+                    </button>
+                    <button
+                      className="text-button"
+                      onClick={() => void exportAll("reviewed")}
+                    >
+                      Export reviewed evidence
+                    </button>
+                    <button
+                      className="text-button"
+                      onClick={() => void exportAll()}
+                    >
+                      Export automatic baseline
+                    </button>
+                  </div>
                 </div>
-                <ChevronRight size={16} />
-                <div>
-                  <span>02</span>
-                  <FileText size={17} />
-                  <strong>Extract</strong>
-                  <small>Four document formats</small>
-                </div>
-                <ChevronRight size={16} />
-                <div>
-                  <span>03</span>
-                  <Layers3 size={17} />
-                  <strong>Compare</strong>
-                  <small>Seven shipment fields</small>
-                </div>
-                <ChevronRight size={16} />
-                <div>
-                  <span>04</span>
-                  <ShieldCheck size={17} />
-                  <strong>Resolve</strong>
-                  <small>Evidence & human review</small>
-                </div>
-              </div>
+              </details>
             </>
           )}
-          {view === "policies" && <PolicyDesk />}
+          {view === "policies" && (
+            <>
+              <PolicyDesk />
+              <details className="settings-ai">
+                <summary>Cloud AI availability & allowance</summary>
+                {inboxReady && !loading && <AiAvailability />}
+              </details>
+            </>
+          )}
           {view === "performance" && (
             <div className="performance-grid">
+              <WorkloadInsights cases={cases} />
               <section className="content-card">
                 <div className="card-title">
                   <BarChart3 size={19} />
-                  <h2>Current workspace</h2>
+                  <h2>Saved workflow outcomes</h2>
                 </div>
                 <div className="big-rate">
                   {counts.comparisons ? (
@@ -1287,7 +1259,8 @@ export default function Workbench() {
                 <p>
                   Compared pairs with no mismatch detected.
                   <br />
-                  This is a clean-pair rate, not an accuracy score.
+                  This is a clean-pair rate, not an accuracy score. Task queues
+                  group missing-attachment reviews under Missing documents.
                 </p>
                 <div className="distribution">
                   {[
@@ -1466,6 +1439,19 @@ export default function Workbench() {
                 <h2>Recent activity</h2>
                 <span className="count-pill">Latest 100 events</span>
               </div>
+              <label className="audit-search search-input">
+                <Search size={16} />
+                <input
+                  aria-label="Search audit trail"
+                  placeholder="Search case, reviewer or action…"
+                  value={auditSearch}
+                  onChange={(event) => setAuditSearch(event.target.value)}
+                />
+              </label>
+              <p>
+                Search covers the latest 100 workspace events. Open a case’s
+                History for its saved revisions.
+              </p>
               {!events.length ? (
                 <div className="empty-state">
                   <History size={28} />
@@ -1477,29 +1463,46 @@ export default function Workbench() {
                 </div>
               ) : (
                 <div className="timeline">
-                  {events.map((e) => (
-                    <div key={e.id}>
-                      <span className="timeline-icon">
-                        {e.action === "FIELD_CORRECTED" ? (
-                          <Eye size={16} />
-                        ) : (
-                          <Check size={16} />
-                        )}
-                      </span>
-                      <div>
-                        <strong>
-                          {e.action.replaceAll("_", " ").toLowerCase()}{" "}
-                          <span className="mono">{e.email_id}</span>
-                        </strong>
-                        <AuditDetail detail={e.detail} />
-                        <small>
-                          {e.actor} · {new Date(e.created_at).toLocaleString()}
-                        </small>
+                  {events
+                    .filter((e) =>
+                      `${e.email_id} ${e.actor} ${e.action} ${e.detail}`
+                        .toLowerCase()
+                        .includes(auditSearch.trim().toLowerCase()),
+                    )
+                    .map((e) => (
+                      <div key={e.id}>
+                        <span className="timeline-icon">
+                          {e.action === "FIELD_CORRECTED" ? (
+                            <Eye size={16} />
+                          ) : (
+                            <Check size={16} />
+                          )}
+                        </span>
+                        <div>
+                          <strong>
+                            {e.action.replaceAll("_", " ").toLowerCase()}{" "}
+                            <span className="mono">{e.email_id}</span>
+                          </strong>
+                          <AuditDetail detail={e.detail} />
+                          <small>
+                            {e.actor} ·{" "}
+                            {new Date(e.created_at).toLocaleString()}
+                          </small>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               )}
+              {!!events.length &&
+                !events.some((e) =>
+                  `${e.email_id} ${e.actor} ${e.action} ${e.detail}`
+                    .toLowerCase()
+                    .includes(auditSearch.trim().toLowerCase()),
+                ) && (
+                  <p role="status">
+                    No matching event in the latest 100. Try a shorter search.
+                  </p>
+                )}
             </section>
           )}
           <footer className="page-footer">
@@ -1532,16 +1535,24 @@ export default function Workbench() {
                 </h2>
               </div>
               <div className="drawer-tools">
-                {selected.comparison.some(
-                  (row) => row.result === "mismatch",
-                ) && (
-                  <button
-                    className="button secondary"
-                    onClick={() => setDetailTab("resolution")}
-                  >
-                    Draft amendment
-                  </button>
-                )}
+                <button
+                  className="button secondary"
+                  onClick={() => launchAssistant(selected.email.email_id)}
+                >
+                  <MessageSquareText size={16} /> Ask CargoGuard
+                </button>
+                <button
+                  className="button primary"
+                  onClick={() => navigateDetail("resolution")}
+                >
+                  {selected.comparison.some((row) => row.result === "mismatch")
+                    ? "Request correction"
+                    : selected.workflow === "awaiting_documents"
+                      ? "Request documents"
+                      : selected.workflow === "verified"
+                        ? "Prepare handoff"
+                        : "Resolve case"}
+                </button>
                 <button
                   className="icon-button"
                   onClick={() => window.print()}
@@ -1559,7 +1570,7 @@ export default function Workbench() {
                 </button>
               </div>
             </div>
-            <div className="drawer-content">
+            <div className="drawer-content" ref={drawerBody}>
               {error && (
                 <div className="alert error" role="alert">
                   {error}
@@ -1577,72 +1588,85 @@ export default function Workbench() {
                 <p>{selected.summary}</p>
                 <div className="case-meta">
                   <span>{selected.email.from}</span>
-                  <span>Engine {selected.pipeline_version ?? "legacy"}</span>
                   <span>Revision {selected.version}</span>
                 </div>
-                <div className="case-actions">
-                  <button
-                    className="button secondary"
-                    disabled={running || saving}
-                    onClick={() => {
-                      setError("");
-                      setRouteEdit(true);
-                    }}
-                  >
-                    Confirm category
-                  </button>
-                  <button
-                    className="text-button"
-                    disabled={!!busyId}
-                    onClick={() => void openCase(selected.email.email_id)}
-                  >
-                    Reload case
-                  </button>
-                </div>
+                <details className="case-advanced">
+                  <summary>Category & processing details</summary>
+                  <p>
+                    {categoryNames[selected.category]} · Engine{" "}
+                    {selected.pipeline_version ?? "legacy"}
+                  </p>
+                  <p>{selected.classification.method}</p>
+                  <div className="signal-list">
+                    {selected.classification.signals.map((s, i) => (
+                      <span key={i}>{s}</span>
+                    ))}
+                  </div>
+                  <div className="case-actions">
+                    <button
+                      className="button secondary"
+                      disabled={running || saving}
+                      onClick={() => {
+                        setError("");
+                        setRouteEdit(true);
+                      }}
+                    >
+                      Confirm category
+                    </button>
+                    <button
+                      className="text-button"
+                      disabled={!!busyId}
+                      onClick={() => void openCase(selected.email.email_id)}
+                    >
+                      Reload case
+                    </button>
+                  </div>
+                </details>
               </div>
               <div className="detail-tabs">
                 {[
-                  "comparison",
-                  "resolution",
-                  "assistant",
-                  "documents",
-                  "email",
-                  "history",
-                ].map((t) => (
+                  ["comparison", "Check"],
+                  ["documents", "Sources"],
+                  ["history", "History"],
+                ].map(([t, label]) => (
                   <button
                     key={t}
                     className={detailTab === t ? "active" : ""}
-                    onClick={() =>
-                      t === "assistant"
-                        ? launchAssistant(selected.email.email_id)
-                        : setDetailTab(t)
-                    }
+                    aria-pressed={detailTab === t}
+                    onClick={() => navigateDetail(t)}
                   >
-                    {t === "history"
-                      ? "Audit trail"
-                      : t === "assistant"
-                        ? "Ask CargoGuard"
-                        : t[0].toUpperCase() + t.slice(1)}
+                    {label}
                   </button>
                 ))}
               </div>
-              {detailTab === "resolution" && (
-                <ResolutionDesk
-                  result={selected}
-                  onNavigate={setDetailTab}
-                  onSource={(name, location) => {
-                    const source = selected.documents.find(
-                      (doc) => doc.name === name,
-                    );
-                    if (source) {
-                      setDocument(source);
-                      setSourceLocation(location);
-                      setDetailTab("documents");
-                    }
-                  }}
-                />
+              {detailTab === "comparison" && resolutionOpen && (
+                <div className="case-resolution">
+                  <div className="case-resolution-heading">
+                    <h3>Next action</h3>
+                    <button
+                      className="text-button"
+                      onClick={() => setResolutionOpen(false)}
+                    >
+                      Back to field checks
+                    </button>
+                  </div>
+                  <ResolutionDesk
+                    result={selected}
+                    onNavigate={navigateDetail}
+                    onSource={(name, location) => {
+                      const source = selected.documents.find(
+                        (doc) => doc.name === name,
+                      );
+                      if (source) {
+                        setDocument(source);
+                        setSourceLocation(location);
+                        setDetailTab("documents");
+                      }
+                    }}
+                  />
+                </div>
               )}
-              {detailTab === "comparison" && (
+              {detailTab === "comparison" && !resolutionOpen && (
                 <>
                   {selected.comparison.length ? (
                     <>
@@ -1726,16 +1750,11 @@ export default function Workbench() {
                               {(["si", "bl"] as const).map((side) => (
                                 <div className="comparison-value" key={side}>
                                   <p>{row[side].raw || "Missing value"}</p>
-                                  <small
-                                    className={
-                                      row[side].issue
-                                        ? "field-issue"
-                                        : "normalized-value"
-                                    }
-                                  >
-                                    {row[side].issue ??
-                                      `Compared as: ${row[side].normalized ?? "Needs confirmation"}`}
-                                  </small>
+                                  {row[side].issue && (
+                                    <small className="field-issue">
+                                      {row[side].issue}
+                                    </small>
+                                  )}
                                   <button
                                     className="source-link"
                                     onClick={() => {
@@ -1751,25 +1770,33 @@ export default function Workbench() {
                                     <FileText size={12} />
                                     {row[side].evidence}
                                   </button>
-                                  <button
-                                    className="edit-value"
-                                    onClick={() =>
-                                      setEdit({
-                                        field: row.field,
-                                        side,
-                                        value: row[side].raw,
-                                      })
-                                    }
-                                  >
-                                    Correct value
-                                  </button>
+                                  <details className="value-details">
+                                    <summary>Details / correct value</summary>
+                                    <small className="normalized-value">
+                                      Compared as:{" "}
+                                      {row[side].normalized ??
+                                        "Needs confirmation"}
+                                    </small>
+                                    <button
+                                      className="edit-value"
+                                      onClick={() =>
+                                        setEdit({
+                                          field: row.field,
+                                          side,
+                                          value: row[side].raw,
+                                        })
+                                      }
+                                    >
+                                      Correct value
+                                    </button>
+                                  </details>
                                 </div>
                               ))}
                             </div>
                           ))}
                       </div>
-                      <div className="info-box">
-                        <ShieldCheck size={17} />
+                      <details className="comparison-explainer">
+                        <summary>How these fields are compared</summary>
                         <p>
                           Whitespace and punctuation are normalized. Container
                           counts and weight are compared as numbers. Compound
@@ -1777,7 +1804,7 @@ export default function Workbench() {
                           valid. Missing, conflicting and ambiguous values are
                           never assumed to match.
                         </p>
-                      </div>
+                      </details>
                     </>
                   ) : (
                     <div className="review-context">
@@ -1803,22 +1830,30 @@ export default function Workbench() {
                       </button>
                     </div>
                   )}
-                  <div className="classification-card">
-                    <div>
-                      <Sparkles size={17} />
-                      <strong>{categoryNames[selected.category]}</strong>
-                    </div>
-                    <p>{selected.classification.method}</p>
-                    <div className="signal-list">
-                      {selected.classification.signals.map((s, i) => (
-                        <span key={i}>{s}</span>
-                      ))}
-                    </div>
-                  </div>
                 </>
               )}
               {detailTab === "documents" && (
                 <div className="document-view">
+                  <details
+                    className="source-email"
+                    open={emailOpen}
+                    onToggle={(event) => setEmailOpen(event.currentTarget.open)}
+                  >
+                    <summary>Original email · {selected.email.subject}</summary>
+                    <div className="email-source">
+                      <dl className="facts">
+                        <div>
+                          <dt>From</dt>
+                          <dd>{selected.email.from}</dd>
+                        </div>
+                        <div>
+                          <dt>Subject</dt>
+                          <dd>{selected.email.subject}</dd>
+                        </div>
+                      </dl>
+                      <pre>{selected.email.body}</pre>
+                    </div>
+                  </details>
                   <div className="document-select">
                     {selected.documents.map((d) => (
                       <button
@@ -1895,21 +1930,30 @@ export default function Workbench() {
                             d.lines.length > 0 &&
                             d.type !== "OTHER" &&
                             !d.transcription && (
-                              <EvidenceRecovery
-                                key={`recovery-${selected.email.email_id}-${d.name}-${selected.version}`}
-                                doc={d}
-                                result={selected}
-                                onEvidence={setSourceLocation}
-                                onSaved={(data) => {
-                                  setSelected(data.result);
-                                  setDocument(null);
-                                  update([data.result]);
-                                  setCaseEvents(data.audit);
-                                  setNotice(
-                                    "Source-linked recovery confirmed. Strict checks rerun; AI provenance and human review retained.",
-                                  );
-                                }}
-                              />
+                              <details
+                                className="source-recovery"
+                                key={`source-recovery-${selected.email.email_id}-${d.name}-${selected.version}`}
+                              >
+                                <summary>
+                                  Need help extracting these fields? Open AI
+                                  recovery
+                                </summary>
+                                <EvidenceRecovery
+                                  key={`recovery-${selected.email.email_id}-${d.name}-${selected.version}`}
+                                  doc={d}
+                                  result={selected}
+                                  onEvidence={setSourceLocation}
+                                  onSaved={(data) => {
+                                    setSelected(data.result);
+                                    setDocument(null);
+                                    update([data.result]);
+                                    setCaseEvents(data.audit);
+                                    setNotice(
+                                      "Source-linked recovery confirmed. Strict checks rerun; AI provenance and human review retained.",
+                                    );
+                                  }}
+                                />
+                              </details>
                             )}
                           {d.error ? (
                             <div className="alert warning">
@@ -1953,49 +1997,39 @@ export default function Workbench() {
                   )}
                 </div>
               )}
-              {detailTab === "email" && (
-                <div className="email-source">
-                  <dl className="facts">
-                    <div>
-                      <dt>From</dt>
-                      <dd>{selected.email.from}</dd>
-                    </div>
-                    <div>
-                      <dt>Subject</dt>
-                      <dd>{selected.email.subject}</dd>
-                    </div>
-                  </dl>
-                  <pre>{selected.email.body}</pre>
-                </div>
-              )}
               {detailTab === "history" && (
-                <div className="timeline">
+                <div className="case-history">
                   <DecisionHistory
                     key={`${selected.email.email_id}-${selected.version}`}
                     result={selected}
                   />
-                  {caseEvents.length ? (
-                    caseEvents.map((e) => (
-                      <div key={e.id}>
-                        <span className="timeline-icon">
-                          <History size={15} />
-                        </span>
-                        <div>
-                          <strong>{e.action.replaceAll("_", " ")}</strong>
-                          <AuditDetail detail={e.detail} />
-                          <small>
-                            {e.actor} ·{" "}
-                            {new Date(e.created_at).toLocaleString()}
-                          </small>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p>
-                      Processing was recorded. Reopen this case to refresh its
-                      full audit trail.
-                    </p>
-                  )}
+                  <details className="case-event-log">
+                    <summary>Case activity log</summary>
+                    <div className="timeline">
+                      {caseEvents.length ? (
+                        caseEvents.map((e) => (
+                          <div key={e.id}>
+                            <span className="timeline-icon">
+                              <History size={15} />
+                            </span>
+                            <div>
+                              <strong>{e.action.replaceAll("_", " ")}</strong>
+                              <AuditDetail detail={e.detail} />
+                              <small>
+                                {e.actor} ·{" "}
+                                {new Date(e.created_at).toLocaleString()}
+                              </small>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p>
+                          Processing was recorded. Reopen this case to refresh
+                          its full audit trail.
+                        </p>
+                      )}
+                    </div>
+                  </details>
                 </div>
               )}
             </div>
@@ -2010,10 +2044,6 @@ export default function Workbench() {
               >
                 Replace documents
               </button>
-              <span>
-                <ShieldCheck size={15} />
-                Changes are recorded in the audit trail
-              </span>
               <button
                 className="button secondary"
                 disabled={!!busyId || running}
@@ -2026,6 +2056,21 @@ export default function Workbench() {
                   <RefreshCw size={15} />
                 )}
                 Reprocess sources
+              </button>
+              <button
+                className="button primary next-case"
+                disabled={!nextId || !!busyId || saving || running || uploading}
+                title={
+                  nextId
+                    ? "Continue in the queue order captured when this case was opened. No approval is recorded."
+                    : "End of this queue"
+                }
+                onClick={() => {
+                  if (nextId) void openCase(nextId, "comparison", true);
+                }}
+              >
+                {nextId ? "Next case" : "End of queue"}
+                <ArrowRight size={16} />
               </button>
             </div>
           </SheetContent>
@@ -2293,6 +2338,17 @@ export default function Workbench() {
                 )}
                 Save correction & recompute
               </button>
+              {nextId && (
+                <button
+                  type="submit"
+                  name="afterSave"
+                  value="next"
+                  disabled={saving}
+                  className="button secondary full"
+                >
+                  Save correction & next case <ArrowRight size={16} />
+                </button>
+              )}
             </form>
           </DialogContent>
         )}

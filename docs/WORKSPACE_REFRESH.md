@@ -1,5 +1,9 @@
 # Workspace design and AI capacity — 21 September 2026
 
+The later [laptop-first refresh](LAPTOP_WORKSPACE.md) replaces the six-tab layout
+described below with a unified queue, Reports and secondary Settings. Its release
+keeps the AI limits and safeguards documented here unchanged.
+
 ## Why requests were blocked
 
 The deployed status reported 7 attempts, 13 shared daily request slots remaining,

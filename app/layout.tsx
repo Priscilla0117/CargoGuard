@@ -3,6 +3,7 @@ import "./globals.css";
 import "./operations.css";
 import "./assistant.css";
 import "./workspace-design.css";
+import "./work-queue.css";
 
 export const metadata: Metadata = {
   title: "CargoGuard | Shipping document verification",
