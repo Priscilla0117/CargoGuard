@@ -2291,6 +2291,7 @@ export default function Workbench() {
           key={assistant.sequence}
           cases={cases}
           initialCaseId={assistant.id}
+          workspaceReady={inboxReady && !loading}
           onUpdated={update}
           memories={assistantMemories}
           setMemories={setAssistantMemories}

@@ -13,20 +13,26 @@ import {
   X,
   ArrowLeft,
   ArrowUpRight,
-  ShieldCheck,
+  ChevronRight,
+  Paperclip,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "./ui/dialog";
 import { CaseAssistant, type AssistantMemory } from "./case-assistant";
+import { AssistantHome, type HomeMemory } from "./assistant-home";
 import { requestJson } from "@/lib/client-api";
 import {
   assistantAvailability,
   assistantCases,
-  assistantWorkspaceSummary,
 } from "@/lib/assistant-navigation";
-import type { CaseResult, CaseSummary } from "@/lib/types";
+import {
+  PIPELINE_VERSION,
+  type CaseResult,
+  type CaseSummary,
+} from "@/lib/types";
 
 export function GlobalAssistant({
   cases,
+  workspaceReady,
   initialCaseId,
   onOpenCase,
   onUpdated,
@@ -34,6 +40,7 @@ export function GlobalAssistant({
   setMemories,
 }: {
   cases: CaseSummary[];
+  workspaceReady: boolean;
   initialCaseId: string | null;
   onOpenCase: (id: string, tab: string) => void;
   onUpdated: (results: CaseResult[]) => void;
@@ -43,7 +50,15 @@ export function GlobalAssistant({
   const [caseId, setCaseId] = useState(initialCaseId);
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(8);
-  const [choosing, setChoosing] = useState(!initialCaseId);
+  const [choosing, setChoosing] = useState(false);
+  const [homeMemory, setHomeMemory] = useState<HomeMemory>({
+    question: "",
+    turns: [],
+  });
+  const [pendingQuestion, setPendingQuestion] = useState<{
+    id: string | null;
+    text: string;
+  } | null>(null);
   const [loaded, setLoaded] = useState<{
     id: string;
     result?: CaseResult;
@@ -58,12 +73,17 @@ export function GlobalAssistant({
   const [verifying, setVerifying] = useState(false);
   const sourceHeading = useRef<HTMLHeadingElement>(null);
   const matching = assistantCases(cases, query);
-  const counts = assistantWorkspaceSummary(cases);
   const result = loaded?.id === caseId ? loaded.result : undefined;
   const error = loaded?.id === caseId ? loaded.error : undefined;
   const memoryKey = result ? `${result.email.email_id}:${result.version}` : "";
+  const needsVerification = result
+    ? result.pipeline_version !== PIPELINE_VERSION
+    : !cases.find((row) => row.email.email_id === caseId)?.result;
   const remember = useCallback(
     (memory: AssistantMemory) => {
+      setPendingQuestion((previous) =>
+        previous?.id === caseId ? null : previous,
+      );
       setMemories((previous) => {
         // Tab-memory only, at most five case revisions. Never localStorage.
         const entries = Object.entries(previous)
@@ -72,7 +92,7 @@ export function GlobalAssistant({
         return Object.fromEntries([...entries, [memoryKey, memory]]);
       });
     },
-    [memoryKey, setMemories],
+    [memoryKey, setMemories, caseId],
   );
   useEffect(() => {
     if (!caseId || !open) return;
@@ -108,8 +128,19 @@ export function GlobalAssistant({
     setOpen(false);
   };
   const doc = result?.documents.find((item) => item.name === source?.name);
+  function selectCase(id: string) {
+    setLoaded(null);
+    setSource(null);
+    setCaseId(id);
+    setPendingQuestion((previous) => (previous ? { ...previous, id } : null));
+    setLoadSequence((n) => n + 1);
+    setChoosing(false);
+  }
   async function verifyCase() {
     if (!caseId || verifying) return;
+    const draft = memories[memoryKey]?.question;
+    if (draft)
+      setPendingQuestion((previous) => previous ?? { id: caseId, text: draft });
     setVerifying(true);
     try {
       const response = await requestJson<{
@@ -180,7 +211,7 @@ export function GlobalAssistant({
         >
           <header className="assistant-panel-header">
             <div>
-              <span className="eyebrow">YOUR SHIPPING COPILOT</span>
+              <span className="eyebrow">A HELPING HAND FOR YOUR WORKDAY</span>
               <DialogTitle>Ask CargoGuard</DialogTitle>
             </div>
             <button
@@ -195,228 +226,262 @@ export function GlobalAssistant({
             id="assistant-panel-description"
             className="assistant-panel-description"
           >
-            Find any case in this workspace. One shipment’s evidence at a time.
+            Clear answers. Traceable evidence. You stay in control.
           </p>
-          <div className="assistant-panel-scroll">
-            {choosing ? (
-              <section className="assistant-picker">
-                <div className="assistant-workspace-card">
-                  <ShieldCheck size={22} />
-                  <div>
-                    <h3>What needs attention?</h3>
-                    <p>Live workspace counts · no AI request</p>
-                  </div>
-                  <div className="assistant-workspace-counts">
-                    <span>
-                      <strong>{counts.discrepancies}</strong> discrepancies
-                    </span>
-                    <span>
-                      <strong>{counts.reviews}</strong> need review
-                    </span>
-                    <span>
-                      <strong>{counts.awaiting}</strong> awaiting documents
-                    </span>
-                  </div>
-                  <p>
-                    Check discrepancies against the SI reference. Recover
-                    unreadable evidence before deciding. Request missing
-                    documents; do not assume they match.
+          <AssistantHome
+            cases={cases}
+            workspaceReady={workspaceReady}
+            memory={homeMemory}
+            setMemory={setHomeMemory}
+            visible={!caseId && !choosing}
+            onAttach={(question, id) => {
+              setPendingQuestion(
+                question.trim() ? { id: id ?? null, text: question } : null,
+              );
+              setQuery("");
+              setLimit(8);
+              if (id) selectCase(id);
+              else setChoosing(true);
+            }}
+          />
+          {choosing ? (
+            <section className="assistant-picker">
+              <button
+                className="text-button"
+                onClick={() => setChoosing(false)}
+              >
+                <ArrowLeft size={15} />
+                Back to chat
+              </button>
+              <h3>Which shipment?</h3>
+              <p className="assistant-picker-note">
+                Attach one case. You’ll stay in this conversation.
+              </p>
+              <label htmlFor="assistant-case-search">Find a case</label>
+              <div className="assistant-case-search">
+                <Search size={18} />
+                <input
+                  id="assistant-case-search"
+                  placeholder="Search case ID, subject or sender"
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setLimit(8);
+                  }}
+                />
+              </div>
+              <p className="assistant-picker-note">
+                {matching.length} of {cases.length} cases · No AI request
+              </p>
+              {result && (
+                <button
+                  className="text-button"
+                  onClick={() => setChoosing(false)}
+                >
+                  <ArrowLeft size={14} /> Return to {result.email.email_id}
+                </button>
+              )}
+              <div className="assistant-case-list">
+                {matching.slice(0, limit).map((row) => {
+                  const unavailable = assistantAvailability(row);
+                  return (
+                    <button
+                      key={row.email.email_id}
+                      onClick={() => selectCase(row.email.email_id)}
+                    >
+                      <span>
+                        <strong>{row.email.email_id}</strong>
+                        <small>
+                          {unavailable ??
+                            `${row.result!.workflow.replaceAll("_", " ")} · Revision ${row.result!.version}`}
+                        </small>
+                      </span>
+                      <p>{row.email.subject}</p>
+                      <ChevronRight size={16} />
+                    </button>
+                  );
+                })}
+                {!matching.length && (
+                  <p role="status">
+                    No matching case in this workspace. Try a shorter ID or
+                    subject.
                   </p>
+                )}
+              </div>
+              {matching.length > limit && (
+                <button
+                  className="button secondary"
+                  disabled={verifying}
+                  onClick={() => setLimit((n) => n + 8)}
+                >
+                  Show more cases
+                </button>
+              )}
+              <p className="assistant-picker-note">
+                No case is sent automatically. You will preview the selected
+                evidence and explicitly consent before each AI request. This is
+                a shipping assistant, not an approval authority.
+              </p>
+            </section>
+          ) : caseId ? (
+            <div className="assistant-selected-chat">
+              <div className="assistant-context-bar">
+                <div>
+                  <strong>
+                    <Paperclip size={13} />
+                    {caseId}
+                  </strong>
+                  <span>
+                    {result
+                      ? `Revision ${result.version} · ${result.status} · ${result.workflow.replaceAll("_", " ")}`
+                      : error
+                        ? "Saved evidence unavailable"
+                        : "Loading saved evidence…"}
+                  </span>
                 </div>
-                <label htmlFor="assistant-case-search">
-                  Choose a case to discuss
-                </label>
-                <div className="assistant-case-search">
-                  <Search size={18} />
-                  <input
-                    id="assistant-case-search"
-                    placeholder="Search case ID, subject or sender"
-                    value={query}
-                    onChange={(e) => {
-                      setQuery(e.target.value);
-                      setLimit(8);
-                    }}
-                  />
-                </div>
-                <p className="assistant-picker-note">
-                  {matching.length} of {counts.total} cases · Search and
-                  selection do not contact OpenAI.
-                </p>
-                {result && (
+                <div className="assistant-context-actions">
                   <button
                     className="text-button"
-                    onClick={() => setChoosing(false)}
+                    disabled={verifying}
+                    onClick={() => {
+                      setCaseId(null);
+                      setLoaded(null);
+                      setSource(null);
+                      setPendingQuestion(null);
+                    }}
                   >
-                    <ArrowLeft size={14} /> Return to {result.email.email_id}
+                    Workspace chat
                   </button>
-                )}
-                <div className="assistant-case-list">
-                  {matching.slice(0, limit).map((row) => {
-                    const unavailable = assistantAvailability(row);
-                    return (
-                      <button
-                        key={row.email.email_id}
-                        onClick={() => {
-                          if (unavailable && row.result) {
-                            inspect(row.email.email_id);
-                            return;
-                          }
-                          setLoaded(null);
-                          setSource(null);
-                          setCaseId(row.email.email_id);
-                          setLoadSequence((n) => n + 1);
-                          setChoosing(false);
-                        }}
-                      >
-                        <span>
-                          <strong>{row.email.email_id}</strong>
-                          <small>
-                            {unavailable ??
-                              `${row.result!.workflow.replaceAll("_", " ")} · Revision ${row.result!.version}`}
-                          </small>
-                        </span>
-                        <p>{row.email.subject}</p>
-                        <ArrowUpRight size={16} />
-                      </button>
-                    );
-                  })}
-                  {!matching.length && (
-                    <p role="status">
-                      No matching case in this workspace. Try a shorter ID or
-                      subject.
-                    </p>
-                  )}
-                </div>
-                {matching.length > limit && (
                   <button
                     className="button secondary"
                     disabled={verifying}
-                    onClick={() => setLimit((n) => n + 8)}
-                  >
-                    Show more cases
-                  </button>
-                )}
-                <p className="assistant-picker-note">
-                  No case is sent automatically. You will preview the selected
-                  evidence and explicitly consent before each AI request. This
-                  is a shipping assistant, not an approval authority.
-                </p>
-              </section>
-            ) : (
-              <>
-                <div className="assistant-context-bar">
-                  <div>
-                    <strong>{caseId}</strong>
-                    <span>
-                      {result
-                        ? `Revision ${result.version} · ${result.status} · ${result.workflow.replaceAll("_", " ")}`
-                        : error
-                          ? "Saved evidence unavailable"
-                          : "Loading saved evidence…"}
-                    </span>
-                  </div>
-                  <button
-                    className="button secondary"
                     onClick={() => setChoosing(true)}
                   >
                     Change case
                   </button>
                 </div>
-                {error && (
-                  <div className="assistant-error" role="alert">
-                    <p>{error}</p>
-                    {!cases.find((row) => row.email.email_id === caseId)
-                      ?.result && (
-                      <button
-                        className="button primary"
-                        disabled={verifying}
-                        onClick={() => void verifyCase()}
-                      >
-                        {verifying
-                          ? "Verifying documents…"
-                          : "Verify this case · no AI request"}
-                      </button>
-                    )}
-                    <button
-                      className="text-button"
-                      onClick={() => caseId && inspect(caseId)}
-                    >
-                      Open case to verify or refresh
-                    </button>
-                  </div>
-                )}
-                {!result && !error && (
-                  <p className="assistant-picker" role="status">
-                    Loading only this case. No AI request is being made.
+              </div>
+              {(error || (result && needsVerification)) && (
+                <div className="assistant-prepare" role="status">
+                  <MessageSquareText size={26} />
+                  <h3>
+                    {needsVerification
+                      ? "Let’s prepare this case for chat"
+                      : "Could not load the evidence"}
+                  </h3>
+                  <p>
+                    {needsVerification
+                      ? "A saved, up-to-date check is needed to answer from evidence. Prepare it here, then continue your question. This does not contact OpenAI."
+                      : error}
                   </p>
-                )}
-                {result && (
-                  <>
-                    <p className="assistant-case-subject">
-                      {result.email.subject}
-                    </p>
-                    {source && doc && (
-                      <section className="assistant-source-view">
-                        <h3 ref={sourceHeading} tabIndex={-1}>
-                          Source evidence · {source.location}
-                        </h3>
-                        <p>
-                          {doc.name} · Revision {result.version}
-                        </p>
-                        <a
-                          target="_blank"
-                          rel="noreferrer"
-                          href={`/api/document?id=${encodeURIComponent(result.email.email_id)}&name=${encodeURIComponent(doc.name)}&revision=${result.version}`}
-                        >
-                          Open original document <ArrowUpRight size={14} />
-                        </a>
-                        {doc.transcription && (
-                          <p>
-                            These text lines are human-confirmed transcription,
-                            not original machine-readable text. Inspect the
-                            original image.
-                          </p>
-                        )}
-                        <div className="assistant-source-lines">
-                          {doc.lines.map((line, i) => (
-                            <p
-                              key={i}
-                              className={
-                                line.location === source.location
-                                  ? "source-highlight"
-                                  : ""
-                              }
-                            >
-                              <small>{line.location}</small>
-                              <span>{line.text}</span>
-                            </p>
-                          ))}
-                        </div>
-                        <button
-                          className="text-button"
-                          onClick={() => setSource(null)}
-                        >
-                          Close source evidence
-                        </button>
-                      </section>
+                  {needsVerification && (
+                    <button
+                      className="button primary"
+                      disabled={verifying}
+                      onClick={() => void verifyCase()}
+                    >
+                      {verifying
+                        ? "Verifying documents…"
+                        : "Prepare case & continue chat"}
+                    </button>
+                  )}
+                  {!needsVerification && (
+                    <button
+                      className="button secondary"
+                      onClick={() => {
+                        setLoaded(null);
+                        setLoadSequence((n) => n + 1);
+                      }}
+                    >
+                      Retry loading evidence
+                    </button>
+                  )}
+                  {error &&
+                    needsVerification &&
+                    error !== "Case has not been processed yet." && (
+                      <p role="alert">{error}</p>
                     )}
-                    <CaseAssistant
-                      key={memoryKey}
-                      result={result}
-                      initialMemory={memories[memoryKey]}
-                      onMemory={remember}
-                      onSource={(name, location) =>
-                        setSource({ name, location })
-                      }
-                      onFallback={() =>
-                        inspect(result.email.email_id, "resolution")
-                      }
-                    />
-                  </>
-                )}
-              </>
-            )}
-          </div>
+                </div>
+              )}
+              {!result && !error && (
+                <p className="assistant-picker" role="status">
+                  Loading only this case. No AI request is being made.
+                </p>
+              )}
+              {result && !needsVerification && (
+                <>
+                  <CaseAssistant
+                    key={memoryKey}
+                    result={result}
+                    initialMemory={
+                      pendingQuestion?.id === caseId
+                        ? {
+                            ...(memories[memoryKey] ?? {
+                              reply: null,
+                              facts: [],
+                              cached: false,
+                            }),
+                            question: pendingQuestion.text,
+                          }
+                        : memories[memoryKey]
+                    }
+                    onMemory={remember}
+                    onSource={(name, location) => setSource({ name, location })}
+                    onFallback={() =>
+                      inspect(result.email.email_id, "resolution")
+                    }
+                    sourceContent={
+                      source && doc ? (
+                        <section className="assistant-source-view">
+                          <h3 ref={sourceHeading} tabIndex={-1}>
+                            Source evidence · {source.location}
+                          </h3>
+                          <p>
+                            {doc.name} · Revision {result.version}
+                          </p>
+                          <a
+                            target="_blank"
+                            rel="noreferrer"
+                            href={`/api/document?id=${encodeURIComponent(result.email.email_id)}&name=${encodeURIComponent(doc.name)}&revision=${result.version}`}
+                          >
+                            Open original document <ArrowUpRight size={14} />
+                          </a>
+                          {doc.transcription && (
+                            <p>
+                              These text lines are human-confirmed
+                              transcription, not original machine-readable text.
+                              Inspect the original image.
+                            </p>
+                          )}
+                          <div className="assistant-source-lines">
+                            {doc.lines.map((line, i) => (
+                              <p
+                                key={i}
+                                className={
+                                  line.location === source.location
+                                    ? "source-highlight"
+                                    : ""
+                                }
+                              >
+                                <small>{line.location}</small>
+                                <span>{line.text}</span>
+                              </p>
+                            ))}
+                          </div>
+                          <button
+                            className="text-button"
+                            onClick={() => setSource(null)}
+                          >
+                            Close source evidence
+                          </button>
+                        </section>
+                      ) : null
+                    }
+                  />
+                </>
+              )}
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
     </>
