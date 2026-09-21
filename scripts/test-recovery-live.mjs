@@ -9,6 +9,7 @@ import { normalizeValue } from "../lib/normalization.ts";
 const origin = process.argv[2];
 assert.equal(process.argv[3], "--consent-synthetic-two-calls");
 assert.ok(origin?.startsWith("https://"));
+await fs.mkdir("work/validation/ai-v31", { recursive: true });
 const fixturesBytes = await fs.readFile(
   "tests/fixtures/ai-recovery-challenge.json",
 );

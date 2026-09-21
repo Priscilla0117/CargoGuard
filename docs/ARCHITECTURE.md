@@ -6,13 +6,15 @@ The browser displays the inbox, comparisons, evidence, uploads and reviewer form
 
 Version 3 defaults to standard Next.js on Node.js, independently deployed on Render Free plus persistent Turso libSQL. The server runs email classification, document parsing, normalization, comparison and API validation. Turso stores cases, immutable result revisions, policy versions, events and small original uploads. The supplied synthetic inbox is a server-side input bundle. Each browser gets a random HttpOnly workspace cookie. Local SQLite is an explicitly selected QA backend; the server refuses it on Render. Hosted API, upload and restart-persistence verification is recorded in [CLOUD_RELEASE.md](CLOUD_RELEASE.md), along with the remaining limits. The legacy Worker/D1/R2 adapter is retained as a separate optional build, not the default.
 
-Processing flow: email → learned intent classifier + explicit intent rules → document type and readability checks → seven evidence-linked fields → exact comparison plus a separate policy annotation → verified, discrepancy, review, awaiting documents or routed → atomic current result + immutable revision + audit event.
+Processing flow: email → trained TF-IDF logistic intent router with safety abstention (an agreeing rule can corroborate, never replace its category) → document type and readability checks → seven evidence-linked fields → exact comparison plus a separate policy annotation → verified, discrepancy, review, awaiting documents or routed → atomic current result + immutable revision + audit event.
+
+Version 3.1 adds optional Evidence Recovery Copilot for unfamiliar readable layouts. With explicit organiser/synthetic-data consent, Render sends bounded extracted lines to the fixed OpenAI Responses endpoint using an owner-supplied server-side key. The browser never receives the key. The LLM selects verbatim value fragments; the server validates citations and units. All seven fields and the role require explicit reviewer confirmation before a hash/revision-bound proposal can become a reviewed source revision. Persistent Turso reservations enforce the approved global usage cap, including failures. Provider errors preserve the saved decision. This is not a chatbot or an autonomous clearance agent; see [AI_UPGRADE.md](AI_UPGRADE.md).
 
 ## Why this fits Averis
 
 The work starts with an operational inbox, not a chatbot. Staff see which shipments need attention, the exact SI and BL values, and the page/line/cell supporting each value. The SI is always the reference. Staff can correct an extraction, upload a revised document pair and prepare a draft amendment request. Nothing is sent to a carrier automatically.
 
-AI handles noisy email intent. Deterministic comparison keeps shipment facts predictable and inspectable. Failure becomes a review task, not a silent success.
+AI handles noisy email intent and assists unfamiliar-layout interpretation. Deterministic comparison keeps shipment facts predictable and inspectable. Failure becomes a review task, not a silent success. A deterministic Resolution checklist and downloadable revision-pinned evidence packet help staff act on discrepancies without sending messages automatically.
 
 ## API contract
 
