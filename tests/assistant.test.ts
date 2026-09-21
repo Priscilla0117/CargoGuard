@@ -433,7 +433,7 @@ test("assistant cache is immutable, private, expiring and shares the recovery qu
       );
     await assert.rejects(
       () => reserveRecoveryAttempt(f.DB, "owner", "chat3", 1000),
-      /shared AI/,
+      /daily AI request limit/,
     );
   } finally {
     f.client.close();

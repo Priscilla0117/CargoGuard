@@ -62,7 +62,20 @@ function EvidenceFact({
   );
 }
 
-interface Preview {
+interface Allowance {
+  limits: {
+    workspaceDailyCalls: number;
+    globalDailyCalls: number;
+    globalLifetimeCalls: number;
+  };
+  budget: {
+    workspaceRemaining: number;
+    dailyRemaining: number;
+    lifetimeRemaining: number;
+    resetsAt: string;
+  };
+}
+interface Preview extends Allowance {
   requestHash: string;
   packet: unknown;
   facts: AssistantFact[];
@@ -90,23 +103,50 @@ const starters = [
       "Give the next reviewer a short handover: current result, unresolved issues and next steps. Do not claim approval.",
   },
 ];
+export interface AssistantMemory {
+  question: string;
+  reply: AssistantReply | null;
+  facts: AssistantFact[];
+  cached: boolean;
+}
 export function CaseAssistant({
   result,
   onSource,
   onFallback,
+  initialMemory,
+  onMemory,
 }: {
   result: CaseResult;
   onSource: (name: string, location: string) => void;
   onFallback: () => void;
+  initialMemory?: AssistantMemory;
+  onMemory?: (memory: AssistantMemory) => void;
 }) {
-  const [question, setQuestion] = useState("");
+  const [question, setQuestion] = useState(initialMemory?.question ?? "");
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [reply, setReply] = useState<AssistantReply | null>(null);
-  const [facts, setFacts] = useState<AssistantFact[]>([]);
+  const [reply, setReply] = useState<AssistantReply | null>(
+    initialMemory?.reply ?? null,
+  );
+  const [facts, setFacts] = useState<AssistantFact[]>(
+    initialMemory?.facts ?? [],
+  );
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState<"" | "preview" | "ask">("");
   const [error, setError] = useState("");
-  const [cached, setCached] = useState(false);
+  const [cached, setCached] = useState(initialMemory?.cached ?? false);
+  const [allowance, setAllowance] = useState<Allowance | null>(null);
+  useEffect(() => {
+    const abort = new AbortController();
+    requestJson<Allowance>("/api/assistant", { signal: abort.signal })
+      .then((value) => {
+        if (!abort.signal.aborted) setAllowance(value);
+      })
+      .catch(() => {});
+    return () => abort.abort();
+  }, []);
+  useEffect(() => {
+    onMemory?.({ question, reply, facts, cached });
+  }, [question, reply, facts, cached, onMemory]);
   const controller = useRef<AbortController | null>(null);
   const sequence = useRef(0);
   const answerHeading = useRef<HTMLHeadingElement>(null);
@@ -153,6 +193,7 @@ export function CaseAssistant({
         });
         if (current !== sequence.current) return;
         setPreview(response);
+        setAllowance(response);
         setConsent(false);
       } else {
         const response = await requestJson<{
@@ -204,7 +245,8 @@ export function CaseAssistant({
         <ShieldCheck size={19} />
         <div>
           <strong>
-            Saved result: {result.status} · Revision {result.version}
+            Saved result: {result.status} ·{" "}
+            {result.workflow.replaceAll("_", " ")} · Revision {result.version}
           </strong>
           <p>
             AI explains; it cannot change this result, send emails or approve
@@ -425,9 +467,11 @@ export function CaseAssistant({
       )}
       <footer className="assistant-footer">
         <p>
-          Shared with document recovery: 3 AI requests per browser workspace per
-          UTC day, 20 across the demo per day, 100 total. A shared token
-          allowance can stop requests earlier. Failed requests count too. Judges
+          {allowance
+            ? `Shared with document recovery: ${allowance.limits.workspaceDailyCalls} requests per workspace per UTC day, ${allowance.limits.globalDailyCalls} across the demo per day, ${allowance.limits.globalLifetimeCalls} lifetime. At the last allowance check: ${allowance.budget.workspaceRemaining} workspace requests and ${allowance.budget.dailyRemaining} shared daily requests remained. `
+            : "A shared, server-enforced AI allowance applies. "}
+          Token and concurrency limits can stop requests earlier. Failed
+          requests count too. Availability is checked again when sending. Judges
           do not need an API key.
         </p>
         <p>

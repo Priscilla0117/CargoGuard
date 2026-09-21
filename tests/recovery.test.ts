@@ -11,6 +11,7 @@ import {
   requireRecoverable,
   recoveryExtracted,
   type RecoveryProposal,
+  RECOVERY_LIMITS,
 } from "../lib/recovery-schema";
 import {
   callRecoveryProvider,
@@ -24,6 +25,8 @@ import {
   persistRecoveryProposal,
   getRecoveryProposal,
   cachedRecovery,
+  recoveryBudget,
+  recoveryBudgetReason,
 } from "../lib/recovery-storage";
 import { analyze } from "../lib/compare";
 import { saveCases } from "../lib/storage";
@@ -565,4 +568,119 @@ test("recovery endpoint requires workspace, same origin and explicit consent bef
     (await send({ cookie: `cargo_workspace=${crypto.randomUUID()}` })).status,
     400,
   );
+});
+test("AI allowance reports UTC reset and distinguishes workspace, concurrency and token bounds", async () => {
+  const f = await dbFixture();
+  try {
+    const now = new Date("2026-09-21T23:59:59Z");
+    const before = await recoveryBudget(f.DB, "owner", now);
+    assert.equal(
+      before.workspaceRemaining,
+      RECOVERY_LIMITS.workspaceDailyCalls,
+    );
+    assert.equal(before.resetsAt, "2026-09-22T00:00:00.000Z");
+    const id = await reserveRecoveryAttempt(
+      f.DB,
+      "owner",
+      "pending",
+      1000,
+      now,
+    );
+    assert.equal((await recoveryBudget(f.DB, "owner", now)).busy, true);
+    assert.equal((await recoveryBudget(f.DB, "other", now)).busy, false);
+    assert.match(
+      recoveryBudgetReason({ ...before, busy: true }, 100),
+      /already running/,
+    );
+    assert.match(
+      recoveryBudgetReason({ ...before, workspaceRemaining: 0 }, 100),
+      /workspace's daily/,
+    );
+    assert.match(
+      recoveryBudgetReason({ ...before, dailyTokensRemaining: 50 }, 100),
+      /shared daily/,
+    );
+    assert.match(
+      recoveryBudgetReason({ ...before, lifetimeTokensRemaining: 50 }, 100),
+      /lifetime/,
+    );
+    await finishRecoveryAttempt(f.DB, id, "failed");
+    const after = await recoveryBudget(f.DB, "owner", now);
+    assert.equal(
+      after.dailyTokensRemaining,
+      before.dailyTokensRemaining - 1000,
+    );
+    assert.equal(
+      after.lifetimeTokensRemaining,
+      before.lifetimeTokensRemaining - 1000,
+    );
+    const next = await recoveryBudget(
+      f.DB,
+      "owner",
+      new Date("2026-09-22T00:00:00Z"),
+    );
+    assert.equal(next.workspaceRemaining, RECOVERY_LIMITS.workspaceDailyCalls);
+    assert.equal(next.lifetimeTokensRemaining, after.lifetimeTokensRemaining);
+  } finally {
+    f.client.close();
+  }
+});
+test("lifetime token budget rejects concurrent overflow atomically across different days", async () => {
+  const f = await dbFixture();
+  try {
+    await f.client.execute({
+      sql: "INSERT INTO recovery_attempts(id,workspace,cache_key,quota_day,reserved_tokens,status,lease_until,created_at) VALUES(?,?,?,?,?,'failed',?,?)",
+      args: [
+        crypto.randomUUID(),
+        "old",
+        "old",
+        "2026-09-20",
+        RECOVERY_LIMITS.globalLifetimeReservedTokens - 1000,
+        "2026-09-20T00:00:00Z",
+        "2026-09-20T00:00:00Z",
+      ],
+    });
+    const outcomes = await Promise.allSettled(
+      ["a", "b"].map((workspace) =>
+        reserveRecoveryAttempt(
+          f.DB,
+          workspace,
+          workspace,
+          1000,
+          new Date("2026-09-21T01:00:00Z"),
+        ),
+      ),
+    );
+    assert.equal(
+      outcomes.filter((outcome) => outcome.status === "fulfilled").length,
+      1,
+    );
+    assert.match(
+      String(outcomes.find((outcome) => outcome.status === "rejected")!.reason),
+      /lifetime/,
+    );
+    assert.equal(
+      (
+        await recoveryBudget(
+          f.DB,
+          "new-cookie",
+          new Date("2026-10-01T00:00:00Z"),
+        )
+      ).lifetimeTokensRemaining,
+      0,
+    );
+    await assert.rejects(
+      () =>
+        reserveRecoveryAttempt(
+          f.DB,
+          "new-cookie",
+          "later",
+          1,
+          new Date("2026-10-01T00:00:00Z"),
+        ),
+      /lifetime/,
+    );
+  } finally {
+    f.client.close();
+  }
 });
