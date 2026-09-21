@@ -8,7 +8,7 @@ const fetch = (url, options = {}) =>
     },
     signal: AbortSignal.timeout(90000),
   });
-const origin = process.argv[2] ?? "http://127.0.0.1:3000";
+const origin = new URL(process.argv[2] ?? "http://127.0.0.1:3000").origin;
 const start = performance.now();
 let checks = 0;
 async function session() {

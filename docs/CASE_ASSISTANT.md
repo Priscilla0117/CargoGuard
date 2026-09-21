@@ -16,7 +16,7 @@ Judges need no API account or key. The server uses the owner's configured OpenAI
 ## Technical boundaries
 
 - Server builds the context from the current workspace's saved case, never a client-supplied case object. It includes saved route/result/readiness, required next steps, field comparison values and selected matching source lines.
-- Original excerpts are included only when their location matches the saved field reference. Other values are explicitly labelled saved extractions, not verified original quotations. Email headers/body, case IDs, document filenames/hashes and unrelated cases are excluded from the provider packet automatically. Values, excerpts or the question can still contain sensitive data: review the preview.
+- Original excerpts are included only when their location matches the saved field reference. Human-confirmed scan transcriptions are never labelled original quotations, and the scanned image is not sent to AI. Other values are explicitly labelled saved extractions, not verified original quotations. Email headers/body, case IDs, document filenames/hashes and unrelated cases are excluded from the provider packet automatically. Values, excerpts or the question can still contain sensitive data: review the preview.
 - Preview hash binds workspace, case, revision, selected evidence, question, parent reply, model and prompt contract. Altering these requires a fresh preview. Parent history comes from the server's workspace-scoped immutable cache, not arbitrary client messages.
 - Server checks source IDs, schema, size and completion status. This validates references, **not semantic truth or prompt-injection immunity**. Human review is mandatory.
 - No tools, browsing, email sending, database mutation capabilities or model-chosen endpoints. The API route never calls the case-write or audit-decision functions. Plain React text rendering; model text is not interpreted as HTML or executable links.
@@ -36,8 +36,8 @@ The browser view can be cleared with **Start a new conversation**. This is not a
 
 Before deployment on 21 September 2026:
 
-- Eight-step quality gate passed, including **265 tests across 16 files**, typecheck, lint, original-input integrity, independent organiser scoring, OCR staging and production build.
-- Fifteen new assistant tests cover the provider contract, source privacy, rejection of invalid references, no-key/error behavior, shared quota, cache privacy/expiry, same-origin/session/consent, preview binding, follow-ups and in-flight revision changes. Provider responses are mocked: these tests do not establish LLM answer quality.
+- Eight-step quality gate passed, including **267 tests across 16 files**, typecheck, lint, original-input integrity, independent organiser scoring, OCR staging and production build.
+- Seventeen new assistant tests cover the provider contract, source privacy, scan-transcription provenance, readable/navigable citation rendering, rejection of invalid references, no-key/error behavior, shared quota, cache privacy/expiry, same-origin/session/consent, preview binding, follow-ups and in-flight revision changes. Provider responses are mocked: these tests do not establish LLM answer quality.
 - `scripts/test-assistant-corpus.ts` checked context preparation for **2,600 development cases**, including **7,198 exact source excerpts**. Largest packet: **8,324 bytes**. No provider calls. These generator sets are not production or unseen-data evidence.
 - Local HTTP regression: 72 checks passed. Desktop 1440×1000 and mobile 390×844 inspected; no document/drawer horizontal overflow. Disabled AI, starter questions, preview reset on edits and unchecked consent behavior checked. No browser console warnings/errors observed in this test session.
 

@@ -111,7 +111,7 @@ export async function assistantContext(
       const value = row[side],
         doc = r.documents.find((d) => d.name === value.source);
       const excerpt =
-        doc?.lines
+        (doc?.transcription ? [] : (doc?.lines ?? []))
           .filter((line) => line.location === value.evidence)
           .map((line) => line.text) ?? [];
       facts.push({
@@ -123,9 +123,11 @@ export async function assistantContext(
           method: value.method,
           issue: value.issue ?? value.extraction_issue ?? null,
           original_excerpts: excerpt,
-          provenance: excerpt.length
-            ? "Saved value plus selected extracted source lines; human values may differ. Inspect the original."
-            : "Saved extraction only; original source excerpt not included. Do not call this a verified quotation.",
+          provenance: doc?.transcription
+            ? "Human-confirmed scan transcription, not an original text quotation. The scanned image is not sent to AI; inspect the original page and audit trail."
+            : excerpt.length
+              ? "Saved value plus selected extracted source lines; human values may differ. Inspect the original."
+              : "Saved extraction only; original source excerpt not included. Do not call this a verified quotation.",
         }),
         ...(doc
           ? { source: { name: doc.name, location: value.evidence } }

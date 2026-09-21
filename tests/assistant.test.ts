@@ -35,16 +35,54 @@ import {
 } from "../lib/recovery-storage";
 import { saveCases, storage, getCase } from "../lib/storage";
 import { POST, GET } from "../app/api/assistant/route";
+import type { Transcript } from "../lib/transcription";
+import {
+  assistantDisplayText,
+  assistantFieldDisplay,
+  relatedAssistantFacts,
+} from "../lib/assistant-display";
 
 const env = {
   CARGO_AI_PROVIDER: "openai",
   CARGO_AI_MODEL: "gpt-5.4-mini",
   CARGO_AI_API_KEY: "synthetic-key-for-mocked-tests",
 };
-const apiJson = async (response: Response) => (await response.json()) as {
-  requestHash: string; packet: { previous_turns: unknown[] }; cached: boolean;
-  reply: AssistantReply; error: string;
-};
+const apiJson = async (response: Response) =>
+  (await response.json()) as {
+    requestHash: string;
+    packet: { previous_turns: unknown[] };
+    cached: boolean;
+    reply: AssistantReply;
+    error: string;
+  };
+test("chat citation rendering preserves prose and makes finding references navigable", async () => {
+  assert.equal(
+    assistantDisplayText("The values differ. [shipper_result][status]", [
+      "shipper_result",
+      "status",
+    ]),
+    "The values differ.",
+  );
+  assert.equal(
+    assistantDisplayText("[uncited] [A/B]", ["status"]),
+    "[uncited] [A/B]",
+  );
+  const facts = (await assistantContext(fixture())).facts;
+  const related = relatedAssistantFacts(
+    facts.find((f) => f.id === "shipper_result")!,
+    facts,
+  );
+  assert.deepEqual(
+    related.map((f) => f.id),
+    ["shipper_si", "shipper_bl"],
+  );
+  assert.equal(assistantFieldDisplay(related[0])?.value, "Atlas Ltd");
+  assert.deepEqual(assistantFieldDisplay(related[0])?.excerpts, [
+    "Shipper: Atlas Ltd",
+  ]);
+  assert.equal(assistantFieldDisplay(facts[0]), null);
+  assert.deepEqual(relatedAssistantFacts(facts[0], facts), []);
+});
 function fixture(): CaseResult {
   const doc: ParsedDocument = {
     name: "private-filename.txt",
@@ -154,6 +192,28 @@ test("assistant transmits an allowlisted case packet, not email metadata or file
     /original source excerpt not included/,
   );
   assert.equal(JSON.stringify(r), before);
+});
+test("human scan transcriptions are never presented as original source quotations", async () => {
+  const r = fixture();
+  r.documents[0].transcription = {
+    role: "SI",
+    fields: Object.fromEntries(
+      FIELDS.map((field) => [field, { value: "confirmed", page: 1 }]),
+    ) as Transcript["fields"],
+    actor: "Private reviewer",
+    reason: "Checked scan",
+    confirmed_at: new Date().toISOString(),
+  };
+  const context = await assistantContext(r),
+    fact = context.facts.find((f) => f.id === "shipper_si")!,
+    data = JSON.parse(fact.text);
+  assert.deepEqual(data.original_excerpts, []);
+  assert.match(data.provenance, /not an original text quotation/);
+  assert.ok(
+    !JSON.stringify(assistantPacket(context, "Explain", [])).includes(
+      "Private reviewer",
+    ),
+  );
 });
 test("assistant context binds source edits and refuses stale, duplicate, inconsistent and oversized data", async () => {
   const r = fixture(),

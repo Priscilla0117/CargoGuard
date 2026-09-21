@@ -11,6 +11,56 @@ import {
 import { requestJson } from "@/lib/client-api";
 import type { CaseResult } from "@/lib/types";
 import type { AssistantFact, AssistantReply } from "@/lib/assistant";
+import {
+  assistantDisplayText,
+  assistantFieldDisplay,
+  relatedAssistantFacts,
+} from "@/lib/assistant-display";
+
+function EvidenceFact({
+  fact,
+  onSource,
+}: {
+  fact: AssistantFact;
+  onSource: (name: string, location: string) => void;
+}) {
+  const field = assistantFieldDisplay(fact);
+  return (
+    <div className="assistant-fact">
+      <strong>{fact.label}</strong>
+      {field ? (
+        <>
+          <p className="assistant-value">{field.value || "No saved value"}</p>
+          <small>
+            Saved extraction · {field.method}
+            {field.issue ? ` · ${field.issue}` : ""}
+          </small>
+          {!!field.excerpts.length && (
+            <>
+              <span className="assistant-excerpt-label">
+                Selected original excerpt
+              </span>
+              {field.excerpts.map((line, index) => (
+                <blockquote key={index}>{line}</blockquote>
+              ))}
+            </>
+          )}
+          <small>{field.provenance}</small>
+        </>
+      ) : (
+        <pre>{fact.text}</pre>
+      )}
+      {fact.source && (
+        <button
+          className="text-button"
+          onClick={() => onSource(fact.source!.name, fact.source!.location)}
+        >
+          Open source evidence <ArrowUpRight size={14} />
+        </button>
+      )}
+    </div>
+  );
+}
 
 interface Preview {
   requestHash: string;
@@ -212,7 +262,7 @@ export function CaseAssistant({
                         Suggested next step
                       </strong>
                     )}
-                    <p>{block.text}</p>
+                    <p>{assistantDisplayText(block.text, block.citations)}</p>
                     {!!block.citations.length && (
                       <details className="assistant-citations">
                         <summary>
@@ -223,22 +273,22 @@ export function CaseAssistant({
                           const fact = facts.find((item) => item.id === id);
                           return (
                             fact && (
-                              <div className="assistant-fact" key={id}>
-                                <strong>{fact.label}</strong>
-                                <pre>{fact.text}</pre>
-                                {fact.source && (
-                                  <button
-                                    className="text-button"
-                                    onClick={() =>
-                                      onSource(
-                                        fact.source!.name,
-                                        fact.source!.location,
-                                      )
-                                    }
-                                  >
-                                    Open source evidence{" "}
-                                    <ArrowUpRight size={14} />
-                                  </button>
+                              <div key={id}>
+                                <EvidenceFact fact={fact} onSource={onSource} />
+                                {!!relatedAssistantFacts(fact, facts)
+                                  .length && (
+                                  <div className="assistant-related">
+                                    <span>Related saved field evidence</span>
+                                    {relatedAssistantFacts(fact, facts).map(
+                                      (related) => (
+                                        <EvidenceFact
+                                          key={related.id}
+                                          fact={related}
+                                          onSource={onSource}
+                                        />
+                                      ),
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             )

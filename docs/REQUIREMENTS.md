@@ -12,7 +12,7 @@ Source basis: all five supplied PDFs, both organiser folders, and the user's org
 | Preliminary architecture — 15 | ARCHITECTURE.md, modular parser/classifier/API/storage | Convert key points into slides |
 | Preliminary prototype — 25 | Interactive inbox, evidence, upload, corrections, export | Rehearse live workflow |
 | Preliminary integration — 15 | Working independent cloud runtime and persistent database; explicit automatic/reviewed exports | Rehearse the hosted demo; no live corporate-email integration |
-| Preliminary validation — 15 | Original plus four development challenge sets; 265 regression tests after the case-assistant upgrade; fail-closed independent organiser-scoring gate; hosted evidence in CLOUD_RELEASE.md | Explain development-vs-hold-out distinction; do not equate the automated score with judging marks |
+| Preliminary validation — 15 | Original plus four development challenge sets; 267 regression tests after the case-assistant upgrade; fail-closed independent organiser-scoring gate; hosted evidence in CLOUD_RELEASE.md | Explain development-vs-hold-out distinction; do not equate the automated score with judging marks |
 | Problem understanding — 10 | Shipping operations workflow; no silent clearance | Validate assumptions with organiser |
 | Innovation — 10 | Source evidence, fingerprint-bound scan recovery, immutable decision replay, exact verdict plus business exception, preview/CAS policy activation | Show safe recovery and that a tolerance cannot improve the strict benchmark |
 | Practicality — 10 | Low-cost deterministic checks, manual resolution, roadmap | Use measured pilot data, not fabricated ROI |
