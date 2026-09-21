@@ -1,16 +1,15 @@
 import { bundleBytes, emails } from "@/lib/bundle";
 import { workspace, storage, getCase, getRevision } from "@/lib/storage";
+import { HttpError, revisionNumber } from "@/lib/http";
 export async function GET(request: Request) {
   try {
     const u = new URL(request.url),
       id = u.searchParams.get("id") ?? "",
       name = u.searchParams.get("name") ?? "",
       s = workspace(request);
-    const revision = u.searchParams.get("revision");
-    if (revision !== null && (!/^\d+$/.test(revision) || Number(revision) < 1))
-      return new Response("Invalid revision", { status: 400 });
+    const revision = revisionNumber(u.searchParams.get("revision"));
     const saved = revision
-      ? await getRevision(s.id, id, Number(revision))
+      ? await getRevision(s.id, id, revision)
       : await getCase(s.id, id);
     const e =
       saved?.email ??
@@ -40,7 +39,12 @@ export async function GET(request: Request) {
         "Content-Security-Policy": "sandbox",
       },
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof HttpError)
+      return new Response(error.message, {
+        status: error.status,
+        headers: { "Cache-Control": "private, no-store" },
+      });
     return new Response("Document temporarily unavailable", { status: 503 });
   }
 }

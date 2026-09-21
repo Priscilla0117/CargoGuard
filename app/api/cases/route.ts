@@ -31,7 +31,7 @@ import {
 } from "@/lib/storage";
 import { mapLimited, processEmail } from "@/lib/processing";
 import { z } from "zod";
-import { readJson, HttpError } from "@/lib/http";
+import { readJson, HttpError, revisionNumber } from "@/lib/http";
 import { applyTranscript, type Transcript } from "@/lib/transcription";
 const transcriptField = z.object({
   value: z.string().trim().min(1).max(1500),
@@ -140,11 +140,9 @@ export async function GET(request: Request) {
       });
     }
     const id = url.searchParams.get("id") ?? "";
-    const v = url.searchParams.get("revision");
-    if (v !== null && (!/^\d+$/.test(v) || Number(v) < 1))
-      throw new HttpError("Invalid revision.");
+    const v = revisionNumber(url.searchParams.get("revision"));
     const result = v
-      ? await getRevision(s.id, id, Number(v))
+      ? await getRevision(s.id, id, v)
       : await getCase(s.id, id);
     if (!result)
       return respond({ error: "Case has not been processed yet." }, s, 404);
@@ -173,8 +171,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   let s = workspace(request);
   try {
-    const payload = await readJson(request);
     s = requireMutation(request);
+    const payload = await readJson(request);
     const input = action.parse(payload);
     if (input.action === "process") {
       const policy = await getPolicy(s.id, input.policyVersion);

@@ -190,9 +190,18 @@ export function classify(
     /\b(?:limited time offer|exclusive offer|\d{2,3}\s*%\s*off)\b/i.test(
       body,
     ) && /\b(?:buy now|deal expires|act now|subscribe now)\b/i.test(body);
+  const parcelPaymentLink =
+    /\b(?:package|parcel)\b[^.!?\n]{0,90}\b(?:could not be delivered|on hold|unpaid customs fee)\b/i.test(
+      body,
+    ) &&
+    /\b(?:confirm|make|complete)\s+payment\b[^!\n]{0,140}\b(?:returned|release|24 hours)\b/i.test(
+      body,
+    ) &&
+    /https?:\/\/\S+/i.test(body);
   if (mode === "hybrid") {
     if (
       scam.test(body) ||
+      parcelPaymentLink ||
       promotion ||
       /(?:selected|winner|won)[^.\n]{0,130}(?:draw|lottery|gift card)|(?:won|winner)[\s\S]{0,150}(?:claim|survey)[\s\S]{0,100}(?:pay|shipping)/i.test(
         body,

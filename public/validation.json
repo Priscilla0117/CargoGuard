@@ -1,16 +1,16 @@
 {
-  "generated_at": "2026-09-20T15:12:33.866454+00:00",
+  "generated_at": "2026-09-21T00:02:56.454Z",
   "version": "Full organiser development corpus; not a held-out benchmark",
   "metrics": {
-    "classification_macro_f1": 1.0,
-    "defect_f1": 1.0,
-    "exact_defect_catch": 1.0,
-    "review_recall": 1.0
+    "classification_macro_f1": 1,
+    "defect_f1": 1,
+    "exact_defect_catch": 1,
+    "review_recall": 1
   },
   "score": {
     "stage1": {
-      "accuracy": 1.0,
-      "macro_f1": 1.0,
+      "accuracy": 1,
+      "macro_f1": 1,
       "rule_pct": null,
       "per": {
         "BL_COMPARISON": {
@@ -58,17 +58,17 @@
       }
     },
     "stage3": {
-      "defect_precision": 1.0,
-      "defect_recall": 1.0,
-      "defect_f1": 1.0,
-      "field_f1": 1.0,
-      "exact_match_rate": 1.0,
+      "defect_precision": 1,
+      "defect_recall": 1,
+      "defect_f1": 1,
+      "field_f1": 1,
+      "exact_match_rate": 1,
       "doc_total": 200
     },
     "reliability": {
-      "escalation_recall": 1.0,
-      "escalation_precision": 1.0,
-      "escalation_f1": 1.0,
+      "escalation_recall": 1,
+      "escalation_precision": 1,
+      "escalation_f1": 1,
       "gold_review": 20,
       "pred_review": 20,
       "per_reason": {
@@ -93,14 +93,14 @@
     "end_to_end": {
       "success": 46,
       "total": 46,
-      "rate": 1.0
+      "rate": 1
     },
     "weights": {
       "stage1": 0.3,
       "stage3": 0.2,
       "end_to_end": 0.5
     },
-    "final_score": 1.0,
+    "final_score": 1,
     "n_emails": 520
   },
   "note": "Measured on the supplied synthetic development data. Ground truth is read only by this offline evaluation script, not by the deployed application. This is not a forecast of unseen-document accuracy or judging results. Awaiting-document requests remain visibly unverified even where the organiser schema assigns status OK.",
@@ -109,38 +109,49 @@
       "name": "original",
       "emails": 520,
       "output_differences": 0,
-      "false_clearances": 0
+      "false_clearances": 0,
+      "predictions_sha256": "b0fac824010298e6bfa3b231c0490452916e50f47bc2df76df249321d659333c",
+      "ground_truth_sha256": "d2d84f55cd68e9e0e7a62f07616d49968f44be2132c7b6b69a77213adfc0babe"
     },
     {
       "name": "seed-7",
       "emails": 520,
       "output_differences": 0,
-      "false_clearances": 0
+      "false_clearances": 0,
+      "predictions_sha256": "bfb5caa47995618c107b537d99263fa364d8631fa0c6d9821c5c560065bed17e",
+      "ground_truth_sha256": "9588f4f934b6809ec8c415b82ef11f250cb05d9480e0c07fa0f7ddf6573e0084"
     },
     {
       "name": "seed-20260920",
       "emails": 520,
       "output_differences": 0,
-      "false_clearances": 0
+      "false_clearances": 0,
+      "predictions_sha256": "7b8bc62fd0406aab72ff7c9750c8cd8b7c90d0adf2518304724ba2686bd9c835",
+      "ground_truth_sha256": "1222ced5a6759f1c33f0ba6d176673591c436e05f97f575373252897080801db"
     },
     {
       "name": "seed-20260921",
       "emails": 520,
       "output_differences": 0,
-      "false_clearances": 0
+      "false_clearances": 0,
+      "predictions_sha256": "b2ff4a88315380d6f27b4eac7a4dddaa229faa1449cf944b5708842e092e21e4",
+      "ground_truth_sha256": "7b5ce64e1bf2b00e58bbe94c8dd90d540320c776deba079e204b0677a82a4dfd"
     },
     {
       "name": "seed-8675309",
       "emails": 520,
       "output_differences": 0,
-      "false_clearances": 0
+      "false_clearances": 0,
+      "predictions_sha256": "4f1b0276471327d0d78a7e4faecaa90e57a1c70b90fb0267359cab74b2969307",
+      "ground_truth_sha256": "11e9b241f75a7978b0b53571ae1374d5105378159d971acfd02ddf1cbdeec875"
     }
   ],
   "challenge_limitations": "All are supplied or same-generator synthetic development sets, not independent real-world holdouts. The comparison seed was used to diagnose the v2 error before this release.",
   "engineering": {
-    "regression_tests": 126,
+    "regression_tests": 195,
     "unit_suite_passed": true,
-    "pipeline": "3.0.0"
+    "pipeline": "3.0.1",
+    "scope": "All ten discovered test files; prior 126-test run was incomplete."
   },
   "routing_ablation": {
     "dataset": "520 supplied development emails; not a held-out benchmark",
@@ -156,9 +167,41 @@
         "mode": "hybrid",
         "accuracy": 1,
         "macro_f1": 1,
-        "rule_decisions": 387,
+        "rule_decisions": 391,
         "uncertain_category": 0
       }
     ]
+  },
+  "engine": "3.0.1",
+  "acceptance_gate": {
+    "schema_version": 1,
+    "generated_at": "2026-09-21T00:02:56.454Z",
+    "engine": "3.0.1",
+    "evidence_scope": "Exact supplied-corpus output agreement, not held-out accuracy, real-world safety or a judging score. Engine version is a caller label; hashes bind this report to its input files.",
+    "predictions_sha256": "b0fac824010298e6bfa3b231c0490452916e50f47bc2df76df249321d659333c",
+    "ground_truth_sha256": "d2d84f55cd68e9e0e7a62f07616d49968f44be2132c7b6b69a77213adfc0babe",
+    "verifier_sha256": "0ed8be3be8314b51e2d76bb7a6bdd2ab087c02f77f90fdfd816b83f6ac821ecc",
+    "passed": true,
+    "expected_records": 520,
+    "supplied_records": 520,
+    "compared_records": 520,
+    "missing_ids": 0,
+    "extra_ids": 0,
+    "exact_matches": 520,
+    "mismatched_records": 0,
+    "expected_defect_cases": 46,
+    "exact_defect_cases": 46,
+    "expected_review_cases": 20,
+    "exact_review_cases": 20,
+    "false_ok_decisions": 0,
+    "official_scorer": {
+      "sha256": "230b9a2f865b42f5996d462b49a658058a9c2859703b74326716d8308abe13a7",
+      "records": 520,
+      "composite_score": 1,
+      "classification_macro_f1": 1,
+      "defect_f1": 1,
+      "exact_defect_catch_rate": 1,
+      "review_recall": 1
+    }
   }
 }

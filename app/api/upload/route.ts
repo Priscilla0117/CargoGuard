@@ -17,8 +17,13 @@ export async function POST(request: Request) {
   const keys: string[] = [];
   let persistAttempted = false;
   try {
-    const form = await readForm(request);
     s = requireMutation(request);
+    const form = await readForm(request);
+    // FormData.get() reads the first value but Object.fromEntries() keeps the
+    // last. Reject ambiguous control fields before choosing upload vs replace.
+    for (const field of ["id", "version", "actor", "reason", "subject", "body"])
+      if (form.getAll(field).length > 1)
+        throw new HttpError(`Only one ${field} field is allowed.`);
     if (form.getAll("files").some((x) => !(x instanceof File)))
       throw new HttpError("The attachment field must contain files.");
     const files = form

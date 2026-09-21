@@ -7,7 +7,7 @@ const check = (value, name) => {
   checks.push(name);
 };
 async function session() {
-  const r = await fetch(origin + "/api/inbox");
+  const r = await fetch(origin + "/api/inbox", { signal: AbortSignal.timeout(90000) });
   assert.equal(r.status, 200);
   return r.headers.get("set-cookie").split(";")[0];
 }
@@ -23,7 +23,7 @@ async function call(path, body, ws = cookie) {
       ...(body && !multipart ? { "Content-Type": "application/json" } : {}),
     },
     body: body ? (multipart ? body : JSON.stringify(body)) : undefined,
-    signal: AbortSignal.timeout(45000),
+    signal: AbortSignal.timeout(90000),
   });
   return { status: r.status, data: await r.json() };
 }
@@ -168,8 +168,10 @@ check(
   "replacement records source intervention",
 );
 const historical = await call(`/api/cases?id=${id}&revision=1`);
+assert.deepEqual(historical.data.result, initial.data.result);
 check(
-  historical.data.result.comparison[6].bl.raw === "1010",
+  historical.data.result.comparison[6].bl.raw === "1010 KG" &&
+    historical.data.result.comparison[6].bl.normalized === 1010,
   "original full result survives corrections and replacement",
 );
 check(

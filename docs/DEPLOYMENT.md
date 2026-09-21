@@ -20,7 +20,7 @@ Checked against provider documentation on 20 September 2026. Check the account d
 3. Put this project at the root of the repository used by Render. A repo publish is a separate action; review its contents first. Do not upload `.env*`, `.git`, `.wrangler`, `.openai`, local databases, `work/`, organiser answer keys or old prediction files. Preserve the source licenses and attribution.
 4. Create a Render Blueprint from `render.yaml`, or create a Node web service with exactly these settings: Free plan, Singapore region if available, Node 24.14.0, build `npm ci --include=dev --no-audit --no-fund && npm run build`, start `npm start`, health endpoint `/api/health`.
 5. Set server secrets `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`. Never use `NEXT_PUBLIC_` for them. Do **not** set `CARGO_LOCAL_DB` on Render. Render's trusted `RENDER_EXTERNAL_URL` supports the origin check; for a custom domain set `CARGO_PUBLIC_ORIGIN=https://your-exact-domain`.
-6. Deploy. Startup applies versioned, transactional SQL migrations and starts Next.js. It fails closed if a persistent cloud database is not configured. `/api/health` must return HTTP 200 with engine `3.0.0`.
+6. Deploy. Startup applies versioned, transactional SQL migrations and starts Next.js. It fails closed if a persistent cloud database is not configured. `/api/health` must return HTTP 200 with the intended engine version (`3.0.1` for this source).
 7. Test the actual assigned HTTPS URL; do not invent or announce a URL before deployment succeeds. Judge access must not depend on your Render/Turso login.
 
 Turso's newer native engine and libSQL are distinct. The current adapter and migrations were locally tested against libSQL. Verify remote support, transaction semantics, triggers and 5-MB binary round-trips before declaring the hosted deployment ready; do not silently substitute another engine.
@@ -33,9 +33,12 @@ Run these against the real URL, with permission to create synthetic QA workspace
 node scripts/test-api.mjs https://YOUR-ASSIGNED-HOST
 node scripts/test-hardening-api.mjs https://YOUR-ASSIGNED-HOST
 node scripts/test-governance-api.mjs https://YOUR-ASSIGNED-HOST
+node scripts/test-release-api.mjs https://YOUR-ASSIGNED-HOST
 ```
 
 The baseline suite requires local `work/validation/v3/original/submission.json`, produced by `npm run evaluate`. It is not deployed as app input.
+
+Run `npm run quality -- --build` first: it now discovers all test files, checks organiser input integrity, produces predictions and independently validates them with the supplied official scorer. Set the explicit organiser paths described in [DEFENSIBILITY.md](DEFENSIBILITY.md) when needed. Independently score the retained `work/validation/http-submission.json` after hosted tests; agreement with locally produced predictions alone is not proof of organiser accuracy.
 
 Also verify: all 520 browser cases finish; PDF/DOCX/XLSX/TXT are handled; OCR assets and PDF pages render; original sources download; previews, corrections and stale writes behave correctly; automatic exports remain unchanged after human edits; and two signed-out browser workspaces cannot read each other's uploads/history. Test maximum-size uploads and quota failures on the remote service, not only localhost.
 

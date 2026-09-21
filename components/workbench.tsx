@@ -5,6 +5,8 @@ import type { PolicySnapshot } from "@/lib/policy";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { requestJson, latencySummary } from "@/lib/client-api";
+import { createRequestGate } from "@/lib/request-gate";
+import { mergeCaseSummaries } from "@/lib/case-state";
 import { ScanAssist } from "@/components/scan-assist";
 import { canTranscribe } from "@/lib/transcription";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -144,6 +146,7 @@ export default function Workbench() {
   const [cases, setCases] = useState<CaseSummary[]>([]),
     [events, setEvents] = useState<AuditEvent[]>([]),
     [loading, setLoading] = useState(true),
+    [inboxReady, setInboxReady] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
   const [view, setView] = useState<View>("inbox"),
@@ -189,12 +192,28 @@ export default function Workbench() {
     setLatencies((prev) => [...prev.slice(-199), performance.now() - t]);
     return result;
   }, []);
-  const activeRequest = useRef(0);
+  const activeRequest = useRef(createRequestGate());
+  const inboxRequests = useRef(createRequestGate());
+  function closeCase() {
+    activeRequest.current.cancel();
+    setSelected(null);
+    setDocument(null);
+    setCaseEvents([]);
+    setEdit(null);
+    setRouteEdit(false);
+    setBusyId("");
+  }
   const load = useCallback(async () => {
+    const request = inboxRequests.current.next();
+    setLoading(true);
+    setError("");
     try {
       const d = await api("/api/inbox");
-      setCases(d.cases);
-      setEvents(d.audit);
+      if (inboxRequests.current.isCurrent(request)) {
+        setCases(d.cases);
+        setEvents(d.audit);
+        setInboxReady(true);
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -203,12 +222,14 @@ export default function Workbench() {
   }, [api]);
   useEffect(() => {
     let active = true;
+    const request = inboxRequests.current.next();
     const started = performance.now();
     requestJson<ApiPayload>("/api/inbox")
       .then((d) => {
-        if (active) {
+        if (active && inboxRequests.current.isCurrent(request)) {
           setCases(d.cases);
           setEvents(d.audit);
+          setInboxReady(true);
           setLatencies((prev) => [
             ...prev.slice(-199),
             performance.now() - started,
@@ -297,19 +318,13 @@ export default function Workbench() {
         }),
     [cases, search, filter, category, view],
   );
-  const update = (results: CaseResult[]) =>
-    setCases((prev) => {
-      const changed = new Map(
-        results.map((r) => [r.email.email_id, summaryOf(r)]),
-      );
-      const next = prev.map((r) => changed.get(r.email.email_id) ?? r);
-      for (const r of results)
-        if (!prev.some((c) => c.email.email_id === r.email.email_id))
-          next.unshift(summaryOf(r));
-      return next;
-    });
+  const update = (results: CaseResult[]) => {
+    inboxRequests.current.cancel();
+    setCases((prev) => mergeCaseSummaries(prev, results.map(summaryOf)));
+  };
   async function openCase(id: string) {
-    const request = ++activeRequest.current;
+    closeCase();
+    const request = activeRequest.current.next();
     setBusyId(id);
     setError("");
     try {
@@ -333,7 +348,7 @@ export default function Workbench() {
         result = d.result;
         history = d.audit;
       }
-      if (request === activeRequest.current) {
+      if (activeRequest.current.isCurrent(request)) {
         setSelected(result);
         setDocument(null);
         setSourceLocation("");
@@ -341,13 +356,17 @@ export default function Workbench() {
         setDetailTab("comparison");
       }
     } catch (e) {
-      setError((e as Error).message);
+      if (activeRequest.current.isCurrent(request)) setError((e as Error).message);
     } finally {
-      if (request === activeRequest.current) setBusyId("");
+      if (activeRequest.current.isCurrent(request)) setBusyId("");
     }
   }
   async function processAll() {
-    if (running) return;
+    if (running) {
+      cancel.current = true;
+      return;
+    }
+    if (!inboxReady || loading) return;
     const ids = cases
       .filter(
         (c) => !c.result || c.result.pipeline_version !== PIPELINE_VERSION,
@@ -359,6 +378,8 @@ export default function Workbench() {
       );
       return;
     }
+    // This function is invoked only by the Run inbox click handler, never render.
+    // eslint-disable-next-line react-hooks/purity -- Measure elapsed time in the event handler.
     const t = performance.now();
     let next = 0,
       done = 0,
@@ -406,6 +427,7 @@ export default function Workbench() {
       }
     };
     await Promise.all([worker(), worker()]);
+    // eslint-disable-next-line react-hooks/purity -- Completion of the same click-triggered async operation.
     setBatchMs(Math.round(performance.now() - t));
     await load();
     setRunning(false);
@@ -422,7 +444,10 @@ export default function Workbench() {
   }
   async function reprocess() {
     if (!selected) return;
+    const request = activeRequest.current.next();
+    const id = selected.email.email_id;
     setBusyId(selected.email.email_id);
+    setError("");
     try {
       const d = await api("/api/cases", {
         method: "POST",
@@ -437,18 +462,20 @@ export default function Workbench() {
           d.errors?.[0]?.error ??
             "Reprocessing failed. The prior result is retained.",
         );
+      update(d.results);
+      if (!activeRequest.current.isCurrent(request)) return;
       setSelected(d.results[0]);
       setDocument(null);
-      update(d.results);
-      const history = await api(`/api/cases?id=${selected.email.email_id}`);
+      const history = await api(`/api/cases?id=${encodeURIComponent(id)}`);
+      if (!activeRequest.current.isCurrent(request)) return;
       setCaseEvents(history.audit);
       setNotice(
         "Reprocessed from current sources and confirmed scan transcripts. Field edits reset; prior corrections remain in the audit trail.",
       );
     } catch (e) {
-      setError((e as Error).message);
+      if (activeRequest.current.isCurrent(request)) setError((e as Error).message);
     } finally {
-      setBusyId("");
+      if (activeRequest.current.isCurrent(request)) setBusyId("");
     }
   }
   async function exportAll(mode = "baseline") {
@@ -466,6 +493,7 @@ export default function Workbench() {
   }
   async function uploadCase(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const request = activeRequest.current.next();
     setUploading(true);
     setError("");
     try {
@@ -481,6 +509,7 @@ export default function Workbench() {
         })(),
       });
       update([d.result]);
+      if (!activeRequest.current.isCurrent(request)) return;
       setSelected(d.result);
       setDetailTab("comparison");
       setCaseEvents([]);
@@ -489,7 +518,7 @@ export default function Workbench() {
       setDocument(null);
       setNotice("Documents processed and securely saved to your workspace.");
     } catch (e) {
-      setError((e as Error).message);
+      if (activeRequest.current.isCurrent(request)) setError((e as Error).message);
     } finally {
       setUploading(false);
     }
@@ -497,6 +526,7 @@ export default function Workbench() {
   async function saveEdit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected || !edit) return;
+    const request = activeRequest.current.next();
     setSaving(true);
     setError("");
     const fd = new FormData(event.currentTarget);
@@ -513,15 +543,16 @@ export default function Workbench() {
           reason: fd.get("reason"),
         }),
       });
-      setSelected(d.result);
       update([d.result]);
+      if (!activeRequest.current.isCurrent(request)) return;
+      setSelected(d.result);
       setCaseEvents(d.audit);
       setEdit(null);
       setNotice(
         "Correction saved. The comparison and audit trail have been updated.",
       );
     } catch (e) {
-      setError((e as Error).message);
+      if (activeRequest.current.isCurrent(request)) setError((e as Error).message);
     } finally {
       setSaving(false);
     }
@@ -529,6 +560,7 @@ export default function Workbench() {
   async function saveRoute(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected) return;
+    const request = activeRequest.current.next();
     setSaving(true);
     setError("");
     const fd = new FormData(event.currentTarget);
@@ -545,15 +577,16 @@ export default function Workbench() {
           reason: fd.get("reason"),
         }),
       });
-      setSelected(d.result);
       update([d.result]);
+      if (!activeRequest.current.isCurrent(request)) return;
+      setSelected(d.result);
       setCaseEvents(d.audit);
       setRouteEdit(false);
       setNotice(
         "Category confirmed. Documents were checked using the confirmed routing.",
       );
     } catch (e) {
-      setError((e as Error).message);
+      if (activeRequest.current.isCurrent(request)) setError((e as Error).message);
     } finally {
       setSaving(false);
     }
@@ -563,7 +596,7 @@ export default function Workbench() {
     setFilter("all");
     setCategory("all");
     setSearch("");
-    setSelected(null);
+    closeCase();
   };
   useCargoTools({ cases, setSearch, setView, setFilter, setCategory });
   return (
@@ -745,6 +778,7 @@ export default function Workbench() {
             <div className="heading-actions">
               <button
                 className="button secondary"
+                disabled={loading || !inboxReady}
                 onClick={() => {
                   setReplacement(null);
                   setUpload(true);
@@ -755,16 +789,19 @@ export default function Workbench() {
               </button>
               <button
                 className="button primary"
-                onClick={() =>
-                  running ? (cancel.current = true) : void processAll()
-                }
-                disabled={loading}
+                onClick={processAll}
+                disabled={loading || !inboxReady}
               >
                 {running ? <Square size={14} /> : <Play size={16} />}{" "}
                 {running ? "Pause processing" : "Run inbox"}
               </button>
             </div>
           </div>
+          {!inboxReady && !loading && (
+            <div className="alert warning" role="status">
+              Load the workspace before creating or processing cases. Use Refresh to retry.
+            </div>
+          )}
           {!!outdated && (
             <div className="alert warning">
               <Info size={18} />
@@ -1403,10 +1440,7 @@ export default function Workbench() {
       <Sheet
         open={!!selected}
         onOpenChange={(v) => {
-          if (!v) {
-            setSelected(null);
-            setDocument(null);
-          }
+          if (!v) closeCase();
         }}
       >
         {selected && (
@@ -1461,7 +1495,7 @@ export default function Workbench() {
                 <button
                   className="icon-button"
                   aria-label="Close details"
-                  onClick={() => setSelected(null)}
+                  onClick={closeCase}
                 >
                   <X size={21} />
                 </button>
@@ -1717,7 +1751,7 @@ export default function Workbench() {
                               target="_blank"
                               rel="noreferrer"
                               className="text-button"
-                              href={`/api/document?id=${selected.email.email_id}&name=${encodeURIComponent(d.name)}`}
+                              href={`/api/document?id=${encodeURIComponent(selected.email.email_id)}&name=${encodeURIComponent(d.name)}&revision=${selected.version}`}
                             >
                               Open original <ExternalLink size={14} />
                             </a>
@@ -1893,6 +1927,11 @@ export default function Workbench() {
           <p>
             Upload an SI and draft BL. The same pipeline used for the organiser
             inbox will process your files.
+          </p>
+          <p className="info-box">
+            Hackathon demo: use organiser or synthetic files only, never
+            confidential shipments. Reviewer names are self-declared. Keep this
+            browser’s cookies to retain access to your workspace.
           </p>
           <form onSubmit={uploadCase}>
             {error && (

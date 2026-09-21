@@ -59,6 +59,49 @@ function fieldLabel(text: string): Field | "stop" | null {
     )?.[1] ?? null
   );
 }
+
+/** A header's unit is part of the source value, not disposable label decoration. */
+function weightWithLabel(
+  raw: string,
+  label: string,
+): { raw: string; issue?: string } {
+  const annotations = [...label.normalize("NFKC").matchAll(/\(([^)]*)\)/g)]
+    .map((match) => match[1].replace(/^\s*毛重\s*/, "").trim())
+    .filter(Boolean);
+  const unit = (value: string) =>
+    /^(?:kgs?|kilograms?)$/i.test(value)
+      ? "KG"
+      : /^(?:mt|metric tonnes?|tonnes?)$/i.test(value)
+        ? "MT"
+        : null;
+  const headerUnits = annotations.map(unit);
+  if (!headerUnits.length) return { raw };
+  if (headerUnits.some((value) => !value || value !== headerUnits[0]))
+    return {
+      raw,
+      issue:
+        "The weight label contains unsupported or conflicting units. Confirm the weight in kilograms.",
+    };
+  const suffix = raw
+    .normalize("NFKC")
+    .trim()
+    .match(/([a-z]+(?:\s+[a-z]+)*)$/i)?.[1];
+  if (suffix) {
+    if (unit(suffix) && unit(suffix) !== headerUnits[0])
+      return {
+        raw,
+        issue:
+          "The weight label and value specify conflicting units. Confirm the source weight in kilograms.",
+      };
+    return { raw };
+  }
+  // Only augment a complete number. Missing values and unsupported expressions
+  // remain uncertain, and the evidence still points to the original label/value.
+  return normalize("gross_weight_kg", raw) !== null
+    ? { raw: `${raw} ${headerUnits[0]}` }
+    : { raw };
+}
+
 export function extract(doc: ParsedDocument): Extracted {
   if (doc.transcription) {
     return resolveFields(
@@ -93,6 +136,8 @@ export function extract(doc: ParsedDocument): Extracted {
     raw: string;
     location: string;
     total: boolean;
+    label: string;
+    issue?: string;
   };
   const segments: Segment[] = [];
   let current: Segment | null = null;
@@ -110,6 +155,7 @@ export function extract(doc: ParsedDocument): Extracted {
               raw: split ? split[2].trim() : "",
               location: line.location,
               total: /^total\s+gross/i.test(text),
+              label: split ? split[1] : text,
             };
       if (current) segments.push(current);
     } else if (current) {
@@ -121,6 +167,9 @@ export function extract(doc: ParsedDocument): Extracted {
         current = null;
     }
   }
+  for (const segment of segments)
+    if (segment.field === "gross_weight_kg")
+      Object.assign(segment, weightWithLabel(segment.raw, segment.label));
   for (const field of FIELDS) {
     let candidates = segments.filter((s) => s.field === field && s.raw.trim());
     if (field === "gross_weight_kg" && candidates.some((s) => s.total))
@@ -131,6 +180,7 @@ export function extract(doc: ParsedDocument): Extracted {
     const conflicting =
       candidates.length > 1 &&
       values.some((v) => !equivalent(field, v, values[0]));
+    const issue = candidates.find((candidate) => candidate.issue)?.issue;
     result[field] = {
       raw: conflicting
         ? candidates.map((c) => c.raw).join("\n--- alternative value ---\n")
@@ -139,9 +189,10 @@ export function extract(doc: ParsedDocument): Extracted {
       evidence: candidates.map((c) => c.location).join("; "),
       source: doc.name,
       method: doc.method,
-      ...(conflicting
+      ...(conflicting || issue
         ? {
             extraction_issue:
+              issue ??
               "Conflicting repeated field labels. Confirm the authoritative value from the source.",
           }
         : {}),
@@ -162,14 +213,20 @@ export function extract(doc: ParsedDocument): Extracted {
         const m = next.text.match(
           /[:：]\s*(\d[\d ,.]*\s*(?:kgs?|mt|tonnes?)?)\s*$/i,
         );
-        if (m && normalize("gross_weight_kg", m[1]) !== null)
+        if (m && normalize("gross_weight_kg", m[1]) !== null) {
+          const recovered = weightWithLabel(
+            m[1].trim(),
+            `${line.text} ${next.text.split(/[:：]/)[0]}`,
+          );
           result.gross_weight_kg = {
-            raw: m[1].trim(),
+            raw: recovered.raw,
             normalized: null,
             evidence: line.location,
             source: doc.name,
             method: `${doc.method}; same-baseline total`,
+            ...(recovered.issue ? { extraction_issue: recovered.issue } : {}),
           };
+        }
       }
     }
   }
@@ -323,10 +380,10 @@ function analyzeCore(
         .map((d) => `${d.name}: ${d.error}`)
         .join(" "),
     );
-  if (documents.some((d) => d.type === "OTHER"))
+  if (documents.some((d) => d.type === "OTHER" || d.type === "UNKNOWN"))
     return review(
       "wrong_doc_type",
-      "An attachment is an invoice, packing list or another document type. A draft BL is required.",
+      "An attachment is an invoice, packing list or an unrecognized document type. Confirm every attachment and provide exactly one SI and one draft BL before comparing.",
     );
   const sis = documents.filter((d) => d.type === "SI"),
     bls = documents.filter((d) => d.type === "BL");

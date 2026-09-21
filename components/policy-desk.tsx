@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { requestJson } from "@/lib/client-api";
 import {
   DEFAULT_POLICY,
@@ -21,16 +21,31 @@ export function PolicyDesk() {
   const [actor, setActor] = useState(""),
     [reason, setReason] = useState(""),
     [busy, setBusy] = useState(false),
+    [loadingPolicy, setLoadingPolicy] = useState(false),
+    [loaded, setLoaded] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
+  const loadInFlight = useRef(false);
   async function load() {
-    const d = await requestJson<{
-      policy: PolicySnapshot;
-      history: PolicySnapshot[];
-    }>("/api/policies");
-    setPolicy(d.policy);
-    setRules(d.policy.rules);
-    setHistory(d.history);
+    // The ref closes the gap before React renders a disabled retry button.
+    // An older retry must not outlive the first successful load and editor use.
+    if (loadInFlight.current) return;
+    loadInFlight.current = true;
+    setLoadingPolicy(true);
+    try {
+      const d = await requestJson<{
+        policy: PolicySnapshot;
+        history: PolicySnapshot[];
+      }>("/api/policies");
+      setPolicy(d.policy);
+      setRules(d.policy.rules);
+      setHistory(d.history);
+      setLoaded(true);
+      setError("");
+    } finally {
+      loadInFlight.current = false;
+      setLoadingPolicy(false);
+    }
   }
   useEffect(() => {
     let active = true;
@@ -42,6 +57,7 @@ export function PolicyDesk() {
           setPolicy(d.policy);
           setRules(d.policy.rules);
           setHistory(d.history);
+          setLoaded(true);
         }
       })
       .catch((e: Error) => {
@@ -91,7 +107,7 @@ export function PolicyDesk() {
         a shipment.
       </p>
       <p>
-        Active policy: <strong>v{policy.version}</strong>. Each result retains
+        Active policy: <strong>{loaded ? `v${policy.version}` : "not yet loaded"}</strong>. Each result retains
         the policy used when it was processed. Reviewer names are self-declared
         in this demo—not authenticated staff identities.
       </p>
@@ -101,12 +117,18 @@ export function PolicyDesk() {
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
+      {!loaded && !error && <p role="status">Loading the saved policy…</p>}
+      {!loaded && error && (
+        <button className="button secondary" disabled={loadingPolicy} onClick={() => void load().catch((e: Error) => setError(e.message))}>
+          {loadingPolicy ? "Loading policy…" : "Retry loading policy"}
+        </button>
+      )}
       <div className="policy-inputs">
         <label>
           Weight tolerance (kg; 0 disables)
           <input
             type="number"
-            disabled={busy}
+            disabled={busy || !loaded}
             min="0"
             max="5000"
             step="0.001"
@@ -121,7 +143,7 @@ export function PolicyDesk() {
           Weight tolerance (% of SI; 0 disables)
           <input
             type="number"
-            disabled={busy}
+            disabled={busy || !loaded}
             min="0"
             max="5"
             step="0.01"
@@ -143,7 +165,7 @@ export function PolicyDesk() {
       <div className="case-actions">
         <button
           className="button secondary"
-          disabled={busy}
+          disabled={busy || !loaded}
           onClick={() => void act("preview")}
         >
           Preview impact
@@ -211,7 +233,7 @@ export function PolicyDesk() {
         </div>
       )}
       <h3>Version history</h3>
-      {[...history, DEFAULT_POLICY].map((p) => (
+      {(loaded ? [...history, DEFAULT_POLICY] : []).map((p) => (
         <details key={p.version}>
           <summary>
             v{p.version} · {p.actor} · {p.reason}

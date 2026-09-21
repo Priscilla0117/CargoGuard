@@ -11,6 +11,8 @@ export interface NormalizedValue {
 }
 const missing =
   /^(?:[\s?_\-–—.\/]+|t\.?\s*b\.?\s*[acd]\.?|n\.?\s*\/?\s*a\.?|nil|none|null|unknown|pending|unavailable|not\s+(?:available|provided|specified|stated|known|confirmed|applicable)|to\s+be\s+(?:advised|confirmed|determined|provided|decided)|awaiting\s+(?:confirmation|details|instructions)|same\s+as\s+above)$/i;
+const unitPlaceholder =
+  /^(?:[?_\-–—.\s]+)\s*(?:kgs?|kilograms?|mt|metric tonnes?|tonnes?)$/i;
 export const sameAsConsignee = (raw: string) =>
   /^(?:same as|as per)\s+(?:the\s+)?consignee\.?$/i.test(
     raw.normalize("NFKC").trim(),
@@ -24,9 +26,14 @@ export function normalizeValue(field: Field, raw: string): NormalizedValue {
     .trim();
   if (
     !value ||
+    !/[\p{L}\p{N}]/u.test(value) ||
     value
       .split(/\r?\n/)
-      .some((line) => line.trim() && missing.test(line.trim()))
+      .some(
+        (line) =>
+          line.trim() &&
+          (missing.test(line.trim()) || unitPlaceholder.test(line.trim())),
+      )
   ) {
     return {
       value: null,
