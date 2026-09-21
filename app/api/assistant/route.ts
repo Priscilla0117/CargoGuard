@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { refersToAnotherCase } from "@/lib/assistant-navigation";
 import { HttpError, readJson } from "@/lib/http";
 import {
   workspace,
@@ -25,6 +26,7 @@ import { assistantReply, persistAssistantReply } from "@/lib/assistant-storage";
 import {
   reserveRecoveryAttempt,
   finishRecoveryAttempt,
+  recoveryBudget,
 } from "@/lib/recovery-storage";
 
 const common = {
@@ -45,16 +47,37 @@ const inputSchema = z.discriminatedUnion("action", [
     .strict(),
 ]);
 export async function GET(request: Request) {
-  return respond(
-    { ...recoveryConfig(), assistantLimits: ASSISTANT_LIMITS },
-    workspace(request),
-  );
+  const session = workspace(request);
+  try {
+    return respond(
+      {
+        ...recoveryConfig(),
+        assistantLimits: ASSISTANT_LIMITS,
+        budget: await recoveryBudget(storage().DB, session.id),
+      },
+      session,
+    );
+  } catch {
+    return respond(
+      {
+        error:
+          "AI allowance is temporarily unavailable. Guidance without AI is still available.",
+      },
+      session,
+      503,
+    );
+  }
 }
 export async function POST(request: Request) {
   let session = workspace(request);
   try {
     session = requireMutation(request);
     const input = inputSchema.parse(await readJson(request, 6000));
+    if (refersToAnotherCase(input.question, input.id))
+      throw new HttpError(
+        "Your question names a different case. Use Change case to select it first. Questions cannot combine shipments; no AI request was sent.",
+        409,
+      );
     const config = recoveryConfig(),
       db = storage().DB;
     const current = await getCase(session.id, input.id);
@@ -107,6 +130,8 @@ export async function POST(request: Request) {
           facts: context.facts,
           enabled: config.enabled,
           model: config.model,
+          limits: config.limits,
+          budget: await recoveryBudget(db, session.id),
         },
         session,
       );

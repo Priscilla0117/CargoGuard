@@ -44,6 +44,19 @@ const input = {
 };
 const config = await call("/api/assistant");
 check(config.status === 200, "public AI configuration responds");
+check(
+  typeof config.data.budget.workspaceRemaining === "number" &&
+    !!config.data.budget.resetsAt,
+  "allowance and UTC reset are available without a paid request",
+);
+const wrongCase = await call("/api/assistant", {
+  ...input,
+  question: "Explain email_005 instead",
+});
+check(
+  wrongCase.status === 409 && wrongCase.data.error.includes("different case"),
+  "wrong-case identifier rejected before provider",
+);
 check(config.data.model === "gpt-5.4-mini", "model unchanged");
 check(
   config.data.limits.globalDailyCalls === 20 &&

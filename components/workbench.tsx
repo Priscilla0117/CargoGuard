@@ -9,7 +9,8 @@ import { createRequestGate } from "@/lib/request-gate";
 import { mergeCaseSummaries } from "@/lib/case-state";
 import { ScanAssist } from "@/components/scan-assist";
 import { ResolutionDesk } from "@/components/resolution-desk";
-import { CaseAssistant } from "@/components/case-assistant";
+import { GlobalAssistant } from "@/components/global-assistant";
+import type { AssistantMemory } from "@/components/case-assistant";
 import { EvidenceRecovery } from "@/components/evidence-recovery";
 import { OperationsDesk } from "@/components/operations-desk";
 import { canTranscribe } from "@/lib/transcription";
@@ -58,6 +59,7 @@ import {
   Printer,
   Info,
   Compass,
+  MessageSquareText,
 } from "lucide-react";
 import {
   CATEGORIES,
@@ -154,6 +156,9 @@ function download(name: string, data: string, type = "application/json") {
 }
 
 export default function Workbench() {
+  const [assistantMemories, setAssistantMemories] = useState<
+    Record<string, AssistantMemory>
+  >({});
   const [cases, setCases] = useState<CaseSummary[]>([]),
     [events, setEvents] = useState<AuditEvent[]>([]),
     [loading, setLoading] = useState(true),
@@ -169,6 +174,10 @@ export default function Workbench() {
     [caseEvents, setCaseEvents] = useState<AuditEvent[]>([]),
     [detailTab, setDetailTab] = useState("comparison"),
     [document, setDocument] = useState<ParsedDocument | null>(null);
+  const [assistant, setAssistant] = useState<{
+    id: string | null;
+    sequence: number;
+  } | null>(null);
   const [running, setRunning] = useState(false),
     [progress, setProgress] = useState({ done: 0, total: 0 }),
     [busyId, setBusyId] = useState(""),
@@ -334,7 +343,14 @@ export default function Workbench() {
     inboxRequests.current.cancel();
     setCases((prev) => mergeCaseSummaries(prev, results.map(summaryOf)));
   };
-  async function openCase(id: string) {
+  function launchAssistant(id: string | null = null) {
+    closeCase();
+    setAssistant((previous) => ({
+      id,
+      sequence: (previous?.sequence ?? 0) + 1,
+    }));
+  }
+  async function openCase(id: string, tab = "comparison") {
     closeCase();
     const request = activeRequest.current.next();
     setBusyId(id);
@@ -365,7 +381,7 @@ export default function Workbench() {
         setDocument(null);
         setSourceLocation("");
         setCaseEvents(history);
-        setDetailTab("comparison");
+        setDetailTab(tab);
         setAttentionOnly(false);
       }
     } catch (e) {
@@ -1585,7 +1601,11 @@ export default function Workbench() {
                   <button
                     key={t}
                     className={detailTab === t ? "active" : ""}
-                    onClick={() => setDetailTab(t)}
+                    onClick={() =>
+                      t === "assistant"
+                        ? launchAssistant(selected.email.email_id)
+                        : setDetailTab(t)
+                    }
                   >
                     {t === "history"
                       ? "Audit trail"
@@ -1594,23 +1614,6 @@ export default function Workbench() {
                         : t[0].toUpperCase() + t.slice(1)}
                   </button>
                 ))}
-              </div>
-              <div hidden={detailTab !== "assistant"}>
-                <CaseAssistant
-                  key={`${selected.email.email_id}:${selected.version}`}
-                  result={selected}
-                  onFallback={() => setDetailTab("resolution")}
-                  onSource={(name, location) => {
-                    const source = selected.documents.find(
-                      (doc) => doc.name === name,
-                    );
-                    if (source) {
-                      setDocument(source);
-                      setSourceLocation(location);
-                      setDetailTab("documents");
-                    }
-                  }}
-                />
               </div>
               {detailTab === "resolution" && (
                 <ResolutionDesk
@@ -2283,6 +2286,26 @@ export default function Workbench() {
           </DialogContent>
         )}
       </Dialog>
+      {assistant ? (
+        <GlobalAssistant
+          key={assistant.sequence}
+          cases={cases}
+          initialCaseId={assistant.id}
+          onUpdated={update}
+          memories={assistantMemories}
+          setMemories={setAssistantMemories}
+          onOpenCase={(id, tab) => void openCase(id, tab)}
+        />
+      ) : (
+        <button
+          className="assistant-fab"
+          aria-label="Open Ask CargoGuard"
+          onClick={() => launchAssistant()}
+        >
+          <MessageSquareText size={23} />
+          <span>Ask CargoGuard</span>
+        </button>
+      )}
     </SidebarProvider>
   );
 }

@@ -20,6 +20,8 @@ export const RECOVERY_LIMITS = {
   globalDailyCalls: 20,
   globalLifetimeCalls: 100,
   globalDailyReservedTokens: 100000,
+  // Conservative lifetime reservation; does not reset on deployment or cookie changes.
+  globalLifetimeReservedTokens: 1000000,
   concurrentCalls: 2,
   proposalMinutes: 30,
 } as const;

@@ -4,14 +4,18 @@ This is a real optional OpenAI LLM feature, separate from the fixed Evidence Nav
 
 ## Judge / employee journey
 
-1. Process the inbox and open a case, for example organiser `email_004`.
-2. Open **Ask CargoGuard**. The saved exact result and revision remain visible.
+1. Select the floating **Ask CargoGuard** button from any workspace screen. Search by case ID, subject or sender, for example organiser `email_004`. No external AI request is made by searching or selecting.
+2. Select the case. If it has not been processed, explicitly choose **Verify this case · no AI request** inside the panel. The saved exact result, workflow and revision remain visible. Existing case details also provide an **Ask CargoGuard** shortcut to this same panel.
 3. Select a suggested question or type your own. **Preview data to share** makes no provider call.
 4. Inspect the exact outgoing case packet. Confirm authorization using the initially unchecked checkbox, then select **Send to AI**.
-5. Inspect each answer's evidence references and use **Open source evidence** to read the original. AI wording can be wrong even when its citation IDs are valid.
+5. Inspect each answer's evidence references and use **Open source evidence** to inspect the parsed lines and original document link inside the panel. Transcriptions are explicitly labelled. AI wording can be wrong even when its citation IDs are valid.
 6. Ask a follow-up, with a fresh preview and consent. Each conversation is limited to three turns. Drafts are visibly draft-only; nothing is sent or saved as a case decision.
 
 Judges need no API account or key. The server uses the owner's configured OpenAI key. If AI is unavailable, **Resolution → Evidence Navigator** and all manual/verification features remain usable.
+
+The panel starts with deterministic workspace counts and guidance, not an invented AI summary. **Change case** searches only the inbox supplied to this browser workspace. A question naming another standard `email_…` or uploaded-case UUID is rejected by the server before contacting OpenAI; this is an identifier guard, not semantic detection of every possible indirect reference. Cross-case synthesis is intentionally unsupported.
+
+Up to five case/revision conversations and unsent questions remain in React memory while this tab stays loaded, including when visiting Resolution. No browser localStorage is used. Closing/reopening or switching cases clears the preview and consent; answers and questions remain separated by case/revision. Reloading the whole page clears this tab memory. Each reopen fetches current case data; a new revision starts fresh. The server still checks freshness, history binding and expiry before an AI request.
 
 ## Technical boundaries
 
@@ -26,7 +30,9 @@ Judges need no API account or key. The server uses the owner's configured OpenAI
 
 ## Cost and retention
 
-Chat and evidence recovery use **the same persistent `recovery_attempts` ledger**: 3 calls/workspace/UTC day, 20 globally/UTC day, 100 globally over the database lifetime, 100,000 conservative reserved tokens/day, two concurrent calls, one pending call per workspace. Cookie changes do not reset global limits. Failed calls consume allowance. No allowance was raised or reset for this feature.
+Chat and evidence recovery use **the same persistent `recovery_attempts` ledger**: 3 calls/workspace/UTC day, 20 globally/UTC day, 100 globally over the database lifetime, 100,000 conservative reserved tokens/day, 1,000,000 reserved tokens over the database lifetime, two concurrent calls, one pending call per workspace. Cookie changes and deployment restarts do not reset global limits. Failed calls consume allowance. The additional lifetime token guard only tightens the existing limits. Increasing the paid-test/demo allowance is pending the owner's separate bounded spending confirmation; no increase or ledger reset is included in this release.
+
+The interface reads the actual configured limits from the API instead of hardcoded copy. Quota rejection distinguishes lifetime, workspace/day, global/day, and concurrent-request causes; daily reset timestamps are UTC. Displayed remaining counts are a snapshot, not a reservation: the atomic SQL guard runs again before every provider request. Token limits can be exhausted before request-count limits. No billing balance, API key or other workspace's case content is exposed.
 
 Questions are at most 800 characters. The combined case/history/question packet is limited to 24,000 UTF-8 bytes; oversized requests are rejected, not silently truncated. Provider responses are bounded to 40,000 bytes. Identical accepted question/parent/revision requests reuse the cache without another provider call. Conservative byte-based token reservations are a cost guard, not billed token counts or a tokenizer estimate.
 
