@@ -1,6 +1,28 @@
 # CargoGuard 3.1 — independent public cloud release
 
-## Current 3.1.0 release — 21 September 2026
+## Current Operations experience release — 21 September 2026
+
+Live at **https://cargoguard-averis.onrender.com/**. Runtime commit `ea7d8707dec99cee9db85a57c711d4ab27ee36f1`, deployment `dep-daobdnrtqb8s73elpfc0`, branch `cargoguard-v3-deploy`. Render started at 12:47:27 Malaysia time and reported **Deploy succeeded / Live** after 2m12s. Engine remains 3.1.0: the comparison pipeline, learned router, recovery provider contract and database schema were not changed. Later documentation-only commits are not silently claimed as deployed runtime code.
+
+The new landing view is Operations desk. It adds action queues, field-pattern insights and a shift brief. Resolution now contains the case-aware Evidence Navigator and checked Amendment Studio; Comparison has an optional differences/uncertainty focus. See [OPERATIONS_UPGRADE.md](OPERATIONS_UPGRADE.md) for the user value and explicit boundaries.
+
+| Operations-release check | Observed result |
+| --- | --- |
+| Complete local gate | All eight steps passed; **250/250 tests across 15 files**, zero skips; typecheck, lint, 770-input integrity, independent organiser scoring, OCR staging and production build |
+| New read-only workflow transformations | **25,058 assertions across 2,600 existing development outputs**, including all bounded navigator answers, complete/partial/blocked drafts and non-mutation; not a new held-out model evaluation |
+| Final deployed HTTP regression | **72 baseline + 35 hardening + 23 governance + 30 release = 160 passed**, completed at approximately 12:51 Malaysia time |
+| Actual hosted automatic export | **520/520 exact**, 46/46 defect cases, 20/20 review cases, zero false-OK in this supplied corpus; independent scorer 1.0 at 12:51:24 Malaysia time; same `b0fac824...` prediction hash as the prior release |
+| Hosted low-volume hardening latency | Median 265 ms / p95 452 ms over 73 requests; not sustained-load or cold-start performance |
+| Restart persistence | All seven rechecks passed at 12:50:35: saved case, historical revision, saved policy and both exact 5 MiB source fingerprints retained; cross-workspace reads denied |
+| Browser acceptance | Local desktop at 1440×1000 and phone width 390×844 inspected. Phone document/client widths and drawer widths matched (no horizontal overflow). Five case-question paths, source citation navigation, focus mode (2/7 for mismatch; 0/7 plus explicit empty message for matching case), search, 12→24 pagination, lane switching and acknowledgement reset on reload checked |
+| Actual downloads | Browser-downloaded `email_004-r1-amendment.txt` and `cargoguard-shift-brief.txt` checked from disk for exact reference/current values, no-send marker, revision and correct 520-case queue counts. The browser download-event waiter timed out despite the file being saved; filesystem verification was used, not a false claim of event success |
+| Live browser smoke | Retained workspace: 63 verified, 46 discrepancy, 20 review, 91 awaiting, 300 routed. New action lanes: 46 amend, 15 recover, 96 request, 63 complete, 300 other desks. `email_004` revision 3 retained; two focused rows and two evidence findings, unchecked download disabled, Line 6 citation opened the correct SI text. No saved-case mutation; no console warnings/errors observed |
+| Existing AI configuration | Public non-secret recovery status still enabled: OpenAI `gpt-5.4-mini`, 20 global calls/day, 100 lifetime, three/workspace/day and existing additional input/token/concurrency bounds. Health returned HTTP 200, status ready |
+| Extra AI cost / disclosure | **Zero additional provider requests** for this upgrade. Navigator and drafts are deterministic, not new LLM conversations. Existing recovery consent, quotas and server-side key are unchanged |
+
+These are development and low-volume acceptance results, not proof of employee time savings, production readiness, accessibility compliance, zero bugs or first place. Free-host wake-up, shared allowances, token expiry, absent corporate authentication and model-generalization limits below remain applicable.
+
+## Initial 3.1.0 AI release — 21 September 2026
 
 Public demo: **https://cargoguard-averis.onrender.com/**. Judges need no OpenAI, Render, Turso or ChatGPT account. The optional LLM uses the owner's server-side OpenAI key after explicit organiser/synthetic-text consent. No paid hosting upgrade, credit purchase or automatic top-up was enabled.
 
