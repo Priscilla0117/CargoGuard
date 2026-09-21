@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { requestJson } from "@/lib/client-api";
+import { createRequestGate } from "@/lib/request-gate";
 import { FIELD_LABELS, type CaseResult } from "@/lib/types";
 type Revision = {
   version: number;
@@ -13,9 +14,12 @@ type Revision = {
 export function DecisionHistory({ result }: { result: CaseResult }) {
   const [history, setHistory] = useState<Revision[]>([]),
     [snapshot, setSnapshot] = useState<CaseResult | null>(null),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [loadingVersion, setLoadingVersion] = useState<number | null>(null);
+  const requests = useRef(createRequestGate());
   useEffect(() => {
     let current = true;
+    const gate = requests.current;
     requestJson<{ revisions: Revision[] }>(
       `/api/cases?id=${encodeURIComponent(result.email.email_id)}`,
     )
@@ -27,17 +31,23 @@ export function DecisionHistory({ result }: { result: CaseResult }) {
       });
     return () => {
       current = false;
+      gate.cancel();
     };
   }, [result.email.email_id, result.version]);
   async function inspect(version: number) {
+    const request = requests.current.next();
     setError("");
+    setSnapshot(null);
+    setLoadingVersion(version);
     try {
       const d = await requestJson<{ result: CaseResult }>(
         `/api/cases?id=${encodeURIComponent(result.email.email_id)}&revision=${version}`,
       );
-      setSnapshot(d.result);
+      if (requests.current.isCurrent(request)) setSnapshot(d.result);
     } catch (e) {
-      setError((e as Error).message);
+      if (requests.current.isCurrent(request)) setError((e as Error).message);
+    } finally {
+      if (requests.current.isCurrent(request)) setLoadingVersion(null);
     }
   }
   return (
@@ -48,6 +58,7 @@ export function DecisionHistory({ result }: { result: CaseResult }) {
         changes the live case. Latest 100 revisions are listed.
       </p>
       {error && <p role="alert">{error}</p>}
+      {loadingVersion !== null && <p role="status">Loading historical v{loadingVersion}…</p>}
       <div className="revision-list">
         {history.map((r) => (
           <button

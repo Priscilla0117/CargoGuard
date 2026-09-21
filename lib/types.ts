@@ -118,7 +118,7 @@ export interface AuditEvent {
   detail: string;
   created_at: string;
 }
-export const PIPELINE_VERSION = "3.0.0";
+export const PIPELINE_VERSION = "3.0.1";
 export function summaryOf(result: CaseResult): CaseSummary {
   const { email, documents, comparison, ...rest } = result;
   void documents;

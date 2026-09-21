@@ -4,6 +4,8 @@ An evidence-first hackathon prototype that classifies operational emails, compar
 
 Public cloud demo: **https://cargoguard-averis.onrender.com/**. See [the verified cloud release and operating limits](docs/CLOUD_RELEASE.md). Free hosting can take 50 seconds or more to wake after inactivity.
 
+Version 3.0.1 adds adversarial correctness fixes and a fail-closed acceptance gate. See [the technical defensibility record](docs/DEFENSIBILITY.md), including explicit limits and reproducible commands. Check the cloud release record for hosted verification.
+
 ## What you can do
 
 1. Open the app and click **Run inbox** to process all 520 organiser emails.
@@ -60,7 +62,7 @@ Latest verified engineering evidence:
 
 - 520/520 organiser output objects match on the supplied development corpus.
 - 46/46 discrepancy cases and 20/20 review cases identified.
-- 126 regression tests, including 400 generated compound-count checks, passed.
+- 195 regression tests across all ten discovered test files, including 400 generated compound-count checks, passed. The earlier 126-test gate omitted an inherited file; see the defensibility record.
 - 72 original-inbox and baseline-export HTTP checks passed on the independent Node build.
 - 35 additional local hardening checks passed across 73 requests: concurrent saves/replacements, idempotent resume, scan confirmation, bounded requests, per-workspace file access and atomic upload quotas.
 - TypeScript validation, full lint and production build passed. Run `npm run quality` to reproduce the static/unit/input-integrity gate; `-- --build` adds a production build.

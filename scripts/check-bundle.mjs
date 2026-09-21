@@ -3,7 +3,10 @@ import path from "node:path";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 const bundle = JSON.parse(await fs.readFile("data/bundle.json", "utf8"));
-const roots = ["../sdoc-hackathon-bundle", "../sdoc-hackathon-docker/data_v2"];
+const roots = [
+  process.env.CARGO_ORGANISER_BUNDLE ?? "../sdoc-hackathon-bundle",
+  process.env.CARGO_ORGANISER_DOCKER_DATA ?? "../sdoc-hackathon-docker/data_v2",
+];
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 let records = 0,
   documents = 0;

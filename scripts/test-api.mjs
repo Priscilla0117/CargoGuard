@@ -4,12 +4,9 @@ const fetch = (url, options = {}) =>
   globalThis.fetch(url, {
     ...options,
     headers: {
-      ...(process.env.CARGO_SITE_AUTH
-        ? { "OAI-Sites-Authorization": `Bearer ${process.env.CARGO_SITE_AUTH}` }
-        : {}),
       ...options.headers,
     },
-    signal: AbortSignal.timeout(45000),
+    signal: AbortSignal.timeout(90000),
   });
 const origin = process.argv[2] ?? "http://127.0.0.1:3000";
 const start = performance.now();
@@ -84,6 +81,10 @@ const exported = await call("/api/cases?export=1"),
   );
 check(exported.r.status === 200, "complete export allowed");
 assert.deepEqual(exported.data, expected);
+await fs.mkdir("work/validation", { recursive: true });
+// Retain the actual HTTP output for independent answer-key scoring afterwards.
+// This is offline QA evidence, never runtime input or a public answer endpoint.
+await fs.writeFile("work/validation/http-submission.json", JSON.stringify(exported.data, null, 2));
 checks++;
 check(
   (await call("/api/inbox", null, other)).data.cases.every(

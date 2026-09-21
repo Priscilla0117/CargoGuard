@@ -75,10 +75,10 @@ export async function readJson(
   }
 }
 export async function readForm(request: Request): Promise<FormData> {
-  const bytes = await readBytes(request, 11 * 1024 * 1024);
   const type = request.headers.get("content-type") ?? "";
-  if (!type.startsWith("multipart/form-data;"))
+  if (!/^multipart\/form-data\s*;/i.test(type))
     throw new HttpError("Use a multipart document upload.", 415);
+  const bytes = await readBytes(request, 11 * 1024 * 1024);
   try {
     return await new Request(request.url, {
       method: "POST",
@@ -90,4 +90,13 @@ export async function readForm(request: Request): Promise<FormData> {
       "The upload is incomplete or malformed. Select the files and retry.",
     );
   }
+}
+
+/** Do not let malformed or rounded history selectors reach the database. */
+export function revisionNumber(value: string | null): number | undefined {
+  if (value === null) return undefined;
+  const version = Number(value);
+  if (!/^\d+$/.test(value) || !Number.isSafeInteger(version) || version < 1)
+    throw new HttpError("Invalid revision.");
+  return version;
 }

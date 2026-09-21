@@ -13,7 +13,9 @@ export async function requestJson<T>(
   options: RequestInit = {},
   fetcher: typeof fetch = fetch,
 ): Promise<T> {
-  const timeout = AbortSignal.timeout(45000);
+  // Render Free can take 50+ seconds to wake. Do not abort a normal cold start
+  // after 45 seconds, especially when the server may already have saved a write.
+  const timeout = AbortSignal.timeout(90000);
   const signal = options.signal
     ? AbortSignal.any([options.signal, timeout])
     : timeout;
