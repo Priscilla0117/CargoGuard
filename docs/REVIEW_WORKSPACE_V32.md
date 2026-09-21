@@ -1,6 +1,6 @@
 # CargoGuard 3.2 — evidence-aware review workspace
 
-Status: release candidate; hosted acceptance is recorded separately in CLOUD_RELEASE.md. Changes are independently implemented; HarborCheck was a workflow/comparison reference, not copied source. This is a stronger hackathon prototype, not a championship, zero-bug or production-readiness guarantee.
+Status: **3.2.1 deployed on the independent Render demo**, 21 September 2026, 19:37:58 MYT. Runtime `15ccb25d737bc233bc15912631a55f954b3f5e50`; 177 hosted acceptance/persistence checks and the exact 520-case cloud export are recorded in [CLOUD_RELEASE.md](CLOUD_RELEASE.md). Changes are independently implemented; HarborCheck was a workflow/comparison reference, not copied source. This is a stronger hackathon prototype, not a championship, zero-bug or production-readiness guarantee.
 
 ## What staff can do
 
@@ -33,7 +33,7 @@ Two main pages remain: Work queue and Reports; Settings stays secondary. Compact
 
 ## Validation and limits
 
-The 3.2.1 local release gate passed all eight steps: typecheck, lint, **350 unit tests / zero skips**, 770-file organiser-input integrity, supplied-corpus evaluation, independent organiser scorer, OCR asset staging and production build. **228 local HTTP checks** passed on the 3.2 feature build (72 core, 35 hardening, 23 governance, 30 release, 25 assistant preflight, 15 revision and 28 new intake/review checks). The subsequent process-health patch has twelve additional local production-build fault checks. No valid external AI request was made. Use `public/validation.json`, `work/validation/quality-gate.json`, and CLOUD_RELEASE.md for timestamps and separately dated hosted acceptance.
+The 3.2.1 local release gate passed all eight steps: typecheck, lint, **350 unit tests / zero skips**, 770-file organiser-input integrity, supplied-corpus evaluation, independent organiser scorer, OCR asset staging and production build. **228 local HTTP checks** passed again on the final 3.2.1 build (72 core, 35 hardening, 23 governance, 30 release, 25 assistant preflight, 15 revision and 28 new intake/review checks). The process-health patch has twelve additional local production-build fault checks. No valid external AI request was made. Use `public/validation.json`, `work/validation/quality-gate.json`, and CLOUD_RELEASE.md for timestamps and separately dated hosted acceptance.
 
 The test suite includes 20 new unit checks for the repaired ambiguities, preview/save equivalence, dependent fields, pair fingerprints, source changes, history, isolation, compact summaries and bounded retries. The final browser walkthrough checked **1366×768 and 1280×720** layouts: four-file intake, pair selection with explicit exclusions, preview-only linked-field changes, rejected ambiguous values, save matching the preview, unchanged revision after cancelling, history, retained work after restart, and direct floating chat. The two-column dialog fits within the measured laptop viewport, without horizontal overflow. No warning/error appeared in the inspected final browser console. These observations are not a comprehensive accessibility audit or employee usability study.
 
