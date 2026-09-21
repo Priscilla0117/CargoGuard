@@ -2,7 +2,6 @@ import { emails, bundleBytes } from "@/lib/bundle";
 import {
   analyze,
   deriveResult,
-  normalize,
   recomputeRows,
   submissionEntry,
 } from "@/lib/compare";
@@ -33,12 +32,23 @@ import { mapLimited, processEmail } from "@/lib/processing";
 import { z } from "zod";
 import { readJson, HttpError, revisionNumber } from "@/lib/http";
 import { applyTranscript, type Transcript } from "@/lib/transcription";
+import { correctField } from "@/lib/corrections";
+import { selectedDocuments } from "@/lib/document-selection";
 const transcriptField = z.object({
   value: z.string().trim().min(1).max(1500),
   page: z.number().int().min(1).max(5),
   confirmed: z.literal(true),
 });
 const action = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("select_documents"),
+    id: z.string().min(1).max(80),
+    version: z.number().int().positive(),
+    si: z.string().min(1).max(180),
+    bl: z.string().min(1).max(180),
+    actor: z.string().trim().min(2).max(80),
+    reason: z.string().trim().min(5).max(2000),
+  }),
   z.object({
     action: z.literal("process"),
     ids: z
@@ -141,9 +151,7 @@ export async function GET(request: Request) {
     }
     const id = url.searchParams.get("id") ?? "";
     const v = revisionNumber(url.searchParams.get("revision"));
-    const result = v
-      ? await getRevision(s.id, id, v)
-      : await getCase(s.id, id);
+    const result = v ? await getRevision(s.id, id, v) : await getCase(s.id, id);
     if (!result)
       return respond({ error: "Case has not been processed yet." }, s, 404);
     return respond(
@@ -274,6 +282,68 @@ export async function POST(request: Request) {
     const previous = await getCase(s.id, input.id);
     if (!previous || previous.version !== input.version)
       throw new HttpError("Case changed. Refresh it before saving.", 409);
+    if (input.action === "select_documents") {
+      if (previous.category !== "BL_COMPARISON")
+        throw new HttpError(
+          "Confirm the BL comparison category before selecting a document pair.",
+          422,
+        );
+      const selection = {
+        si: {
+          name: input.si,
+          sha256:
+            previous.documents.find((d) => d.name === input.si)?.sha256 ?? "",
+        },
+        bl: {
+          name: input.bl,
+          sha256:
+            previous.documents.find((d) => d.name === input.bl)?.sha256 ?? "",
+        },
+        actor: input.actor,
+        reason: input.reason,
+        selected_at: new Date().toISOString(),
+      };
+      selectedDocuments(previous.documents, selection);
+      if (
+        previous.document_selection?.si.name === input.si &&
+        previous.document_selection?.bl.name === input.bl
+      )
+        throw new HttpError(
+          "This pair is already selected. Existing corrections have been retained.",
+          422,
+        );
+      const result = {
+        ...analyze(
+          previous.email,
+          previous.documents,
+          previous.duration_ms,
+          previous.category_override,
+          previous.policy,
+          selection,
+        ),
+        reviewed: true,
+        source_replaced: previous.source_replaced,
+      };
+      const updated = await saveCase(
+        s.id,
+        result,
+        input.version,
+        "DOCUMENT_PAIR_SELECTED",
+        input.actor,
+        JSON.stringify({
+          selection,
+          excluded: previous.documents
+            .filter((d) => ![input.si, input.bl].includes(d.name))
+            .map((d) => d.name),
+          previousSelection: previous.document_selection,
+          correctionsReset: previous.reviewed === true,
+        }),
+      );
+      return respond(
+        { result: updated, audit: await audit(s.id, input.id) },
+        s,
+      );
+    }
     if (input.action === "transcribe") {
       const transcript: Transcript = {
         role: input.role,
@@ -313,6 +383,7 @@ export async function POST(request: Request) {
           previous.duration_ms,
           input.category,
           previous.policy,
+          previous.document_selection,
         ),
         reviewed: true,
         source_replaced: previous.source_replaced,
@@ -344,31 +415,10 @@ export async function POST(request: Request) {
         s,
       );
     }
-    if (!previous.comparison.length)
-      throw new HttpError(
-        "This case requires readable SI and BL documents before field correction.",
-        422,
-      );
-    const rows = structuredClone(previous.comparison),
-      row = rows.find((r) => r.field === input.field)!;
-    if (normalize(input.field, input.value) === null)
-      throw new HttpError(
-        "Enter a complete, unambiguous field value. Use kilograms for ambiguous weights.",
-        422,
-      );
-    const old = row[input.side].raw;
-    row[input.side] = {
-      ...row[input.side],
-      raw: input.value,
-      extraction_issue: undefined,
-      issue: undefined,
-      method: `Human correction by ${input.actor}`,
-      evidence: `Reviewer confirmed; original source: ${row[input.side].evidence}`,
-    };
-    const result = deriveResult(
-      { ...previous, reviewed: true, pipeline_version: PIPELINE_VERSION },
-      recomputeRows(rows),
-    );
+    const old = previous.comparison.find((r) => r.field === input.field)?.[
+      input.side
+    ].raw;
+    const result = correctField(previous, input, input.actor);
     const updated = await saveCase(
       s.id,
       result,

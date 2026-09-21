@@ -1,6 +1,11 @@
 import { runtimeBindings } from "@/lib/runtime";
 import { NextResponse } from "next/server";
-import { PIPELINE_VERSION, type CaseResult, type AuditEvent } from "./types";
+import {
+  PIPELINE_VERSION,
+  type CaseResult,
+  type CaseSummary,
+  type AuditEvent,
+} from "./types";
 import { HttpError, sameRequestOrigin } from "./http";
 import { DEFAULT_POLICY, withPolicy, type PolicySnapshot } from "./policy";
 type Bindings = { DB: D1Database; BUCKET: R2Bucket };
@@ -92,6 +97,24 @@ export interface CaseWrite {
   actor: string;
   detail: string;
 }
+/** Strip email body, source text and seven-field evidence before remote transfer.
+ * Full case payloads remain available through the workspace-scoped detail API.
+ */
+export async function listCaseSummaries(
+  ws: string,
+  db = storage().DB,
+): Promise<CaseSummary[]> {
+  const rows = await db
+    .prepare(
+      "SELECT json_remove(payload, '$.documents', '$.comparison', '$.email.body') AS payload, version FROM cases WHERE workspace=? ORDER BY email_id",
+    )
+    .bind(ws)
+    .all<{ payload: string; version: number }>();
+  return rows.results.map((row) => {
+    const { email, ...result } = JSON.parse(row.payload);
+    return { email, result: { ...result, version: row.version } };
+  });
+}
 export async function saveCases(
   ws: string,
   writes: CaseWrite[],
@@ -107,6 +130,7 @@ export async function saveCases(
       !w.result.reviewed &&
       !w.result.source_replaced &&
       !w.result.category_override &&
+      !w.result.document_selection &&
       !w.result.documents.some((d) => d.transcription || d.recovery) &&
       ["PROCESSED", "REPROCESSED", "UPLOADED"].includes(w.action)
         ? "automatic"

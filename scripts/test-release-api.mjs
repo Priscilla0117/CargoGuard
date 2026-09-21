@@ -291,18 +291,18 @@ try {
     assert.notEqual(response.data.result.workflow, "verified");
   });
   await check(
-    "third extra attachment is rejected, never silently discarded",
+    "third extra attachment is retained and requires explicit pair selection",
     async () => {
       const data = form();
       data.append(
         "files",
         new File(["Unidentified extra evidence"], "extra.txt"),
       );
-      errorResponse(
-        await request("/api/upload", { cookie, body: data }),
-        400,
-        /at most two files/,
-      );
+      const response = await request("/api/upload", { cookie, body: data });
+      assert.equal(response.status, 200);
+      assert.equal(response.data.result.documents.length, 3);
+      assert.equal(response.data.result.status, "NEEDS_REVIEW");
+      assert.equal(response.data.result.comparison.length, 0);
     },
   );
 

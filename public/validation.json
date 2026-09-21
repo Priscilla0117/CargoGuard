@@ -1,7 +1,7 @@
 {
-  "version": "3.1.0",
-  "generated_at": "2026-09-21T09:43:59.689Z",
-  "engine": "CargoGuard 3.1.0",
+  "version": "3.2.0",
+  "generated_at": "2026-09-21T11:13:23.095Z",
+  "engine": "CargoGuard 3.2.0",
   "metrics": {
     "classification_macro_f1": 1,
     "defect_f1": 1,
@@ -63,55 +63,55 @@
   ],
   "challenge_limitations": "These five generator-based sets were used during development and share templates. They are not independent real-world evidence. The separate 60-message routing challenge is small, synthetic and includes unresolved errors/ambiguities.",
   "engineering": {
-    "unit_tests": 329,
-    "test_files": 22,
+    "unit_tests": 349,
+    "test_files": 23,
     "quality_steps": [
       {
         "step": "typecheck",
         "passed": true,
-        "duration_ms": 5057
+        "duration_ms": 7661
       },
       {
         "step": "lint",
         "passed": true,
-        "duration_ms": 12984
+        "duration_ms": 12683
       },
       {
         "step": "unit-tests",
         "passed": true,
-        "duration_ms": 4862
+        "duration_ms": 5791
       },
       {
         "step": "input-integrity",
         "passed": true,
-        "duration_ms": 1026
+        "duration_ms": 368
       },
       {
         "step": "evaluate-organiser",
         "passed": true,
-        "duration_ms": 1461
+        "duration_ms": 1101
       },
       {
         "step": "independent-accuracy",
         "passed": true,
-        "duration_ms": 260
+        "duration_ms": 329
       },
       {
         "step": "ocr-assets",
         "passed": true,
-        "duration_ms": 91
+        "duration_ms": 119
       },
       {
         "step": "build",
         "passed": true,
-        "duration_ms": 34042
+        "duration_ms": 31927
       }
     ]
   },
   "ablation": {
-    "scope": "Supplied corpus is development evidence. The additional separately authored synthetic challenge is small and not representative of production. Learned weights/features were fixed before challenge evaluation. The final consensus wrapper is development policy, not independently validated on an untouched holdout. Rules-only metrics are conditional on coverage, not whole-corpus accuracy.",
+    "scope": "Supplied corpus and the separately authored synthetic challenge are development evidence, not representative of production or an untouched holdout. Version 3.2 adds independently authored security-incident training examples after targeted diagnostic failures. Rules-only metrics are conditional on coverage, not whole-corpus accuracy.",
     "hashes": {
-      "lib/routing-model.json": "4d20c503c67e65ca28eef50e2db8c12a767cf468ce196a9e812c372eff7228da",
+      "lib/routing-model.json": "25b36b744cc49e09b383d01bbc2c6560fe984e4cf1670dc02b674ce5b526be2a",
       "lib/routing-features.ts": "975b10b8d6b2ba1e9b006a5996c52fde0d0681746c685c98360121d4c362f1e5",
       "lib/routing.ts": "26e68c48777dc7bf2f020605a6d6db5e2ac388951edd9f58deb77dd0ef1eb1d6",
       "lib/classifier.ts": "4693274cdeed377745ed47caa0a0e3830b04fbea882e11edd263eaf5f319286e"
@@ -255,11 +255,11 @@
         "clear": 50,
         "category_accuracy": 0.96,
         "category_macro_f1": 0.9599498746867168,
-        "accepted_clear": 38,
+        "accepted_clear": 40,
         "accepted_errors": 0,
-        "clear_review": 12,
+        "clear_review": 10,
         "ambiguous": 10,
-        "ambiguous_sent_to_review": 8,
+        "ambiguous_sent_to_review": 9,
         "rule_involved": 0
       },
       {
@@ -268,12 +268,12 @@
         "clear": 50,
         "category_accuracy": 0.96,
         "category_macro_f1": 0.9599498746867168,
-        "accepted_clear": 38,
+        "accepted_clear": 41,
         "accepted_errors": 0,
-        "clear_review": 12,
+        "clear_review": 9,
         "ambiguous": 10,
-        "ambiguous_sent_to_review": 8,
-        "rule_involved": 0
+        "ambiguous_sent_to_review": 9,
+        "rule_involved": 1
       }
     ],
     "challenge_sha256": "4a1317e59866dfca485eb9a3e99efeda4aa1ec3d8b3a04f3e743814c625f9537"

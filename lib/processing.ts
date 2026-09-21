@@ -4,6 +4,7 @@ import type { CaseResult, Email, ParsedDocument } from "./types";
 import { canTranscribe, transcribeDocument } from "./transcription";
 import { DEFAULT_POLICY, type PolicySnapshot } from "./policy";
 import { recoverDocument } from "./recovery";
+import { selectionStillMatches } from "./document-selection";
 
 export async function mapLimited<T, R>(
   items: T[],
@@ -70,11 +71,13 @@ export async function processEmail(
     Math.round(performance.now() - started),
     previous?.category_override,
     policy,
+    selectionStillMatches(docs, previous?.document_selection),
   );
   result.source_replaced = previous?.source_replaced;
   if (
     docs.some((d) => d.transcription || d.recovery) ||
-    previous?.category_override
+    previous?.category_override ||
+    result.document_selection
   )
     result.reviewed = true;
   // An engine upgrade is not permission to erase a reviewed fact. Preserve

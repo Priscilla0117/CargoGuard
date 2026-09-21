@@ -1,4 +1,6 @@
-# CargoGuard 3.1 — AI evidence recovery and learned routing
+# CargoGuard — AI evidence recovery and learned routing
+
+Current 3.2 changes and release evidence are in [REVIEW_WORKSPACE_V32.md](REVIEW_WORKSPACE_V32.md) and [CLOUD_RELEASE.md](CLOUD_RELEASE.md). The provider acceptance below is dated history, not a claim of new live model testing in 3.2.
 
 Release status: deployed on the public Render service, 21 September 2026. Runtime commit `02462456f08c5916c53e6e7d0335ed76adf9e61b`, engine 3.1.0, recovery contract `evidence-selectors-v3`. The real OpenAI connection and 75 recovery-workflow checks passed on two synthetic unfamiliar-layout documents; a third organiser document was checked through the UI. See [CLOUD_RELEASE.md](CLOUD_RELEASE.md) for scope, earlier failures and limitations. Mocked adapter tests are not proof of model quality.
 
@@ -8,7 +10,7 @@ The organiser requires AI as a key component, not an LLM specifically. The old N
 
 The replacement is an offline-trained multinomial logistic regression model using TF-IDF word, word-pair and character features in separate subject, opening-request and body channels. Training uses independently authored synthetic examples, not organiser labels. It ships explicit, inspectable weights; inference needs no external API, embedding service or answer lookup. The legacy model remains available for reproducible ablation, not as the ordinary router.
 
-The model artifact is `lib/routing-model.json`, SHA-256 `4d20c503c67e65ca28eef50e2db8c12a767cf468ce196a9e812c372eff7228da`. It has 8,935 features and is approximately 751 KB as JSON. Training: 875 rows; grouped-by-body validation: 175 rows, 174 correct. Those rows are generated combinations of authored material, not 1,050 independent real emails. Scores are explicitly uncalibrated. The model is English-focused.
+The current model artifact is `lib/routing-model.json`, SHA-256 `25b36b744cc49e09b383d01bbc2c6560fe984e4cf1670dc02b674ce5b526be2a`. It has 9,244 features and is 776,816 bytes as JSON. Training: 910 rows; grouped-by-body validation: 182 rows, 181 correct. These are generated combinations of authored material, not 1,092 independent real emails. Version 3.2 adds security-incident reporting examples after a targeted failure. Scores are explicitly uncalibrated; the model is English-focused.
 
 Model-only supplied-set category accuracy and macro-F1 are 1.0, with no category-rule override. This is still development evidence. Safety gates abstain on weak evidence, negated verification and competing workflows. A moderate learned choice may be corroborated by an agreeing explicit intent rule, but a rule cannot replace the learned category or bypass a hard ambiguity gate.
 
@@ -56,7 +58,7 @@ node --import tsx scripts/evaluate-routing.ts /path/to/ground_truth.json tests/f
 npm run quality -- --build
 ```
 
-The 60-case challenge was authored separately: 50 clear and 10 deliberately ambiguous messages. The initial learned model classified 48/50 clear cases correctly; both incorrect choices were escalated with safety gates. Eight of ten ambiguous messages were escalated. The trained weights were fixed before evaluation. The final consensus/coverage policy is development work; do not represent its later reruns as a new untouched holdout. This small synthetic challenge is not a statistically representative production benchmark.
+The 60-case challenge was authored separately: 50 clear and 10 deliberately ambiguous messages. The 3.2 rerun classified 48/50 clear cases correctly; both incorrect choices were escalated by the safety wrapper. Nine of ten ambiguous messages were escalated. Retraining and policy refinement followed development diagnostics, so these repeated results are not an untouched holdout or a statistically representative production benchmark.
 
 The first live provider test of prompt v1 returned labels inside values and omitted party addresses. Numerical validators blocked confirmation; no case was approved. Prompt v2 explicitly requests value-only substrings and complete party/address blocks. Its SI recovery passed, but the transposed BL returned a full unit heading (`total gross kilograms`) that the overly narrow validator rejected. Contract v3 allows a finite, explicit gross-unit heading grammar while still rejecting negation, net/tare units, alternatives, assumptions and conflicting source units. These corrections use development feedback: later reruns are not held-out evidence.
 

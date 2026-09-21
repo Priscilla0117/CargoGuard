@@ -98,7 +98,7 @@ export async function assistantContext(
     {
       id: "coverage",
       label: "Evidence coverage",
-      text: `Saved comparison rows: ${r.comparison.length} of seven expected. Document roles: ${r.documents.map((d) => `${d.type}${d.error ? " (unreadable)" : ""}`).join(", ") || "none"}. Only selected field excerpts are provided; this is not the complete document or email. Absent evidence never means a match.`,
+      text: `Saved comparison rows: ${r.comparison.length} of seven expected. Document roles: ${r.documents.map((d) => `${d.type}${d.error ? " (unreadable)" : ""}`).join(", ") || "none"}. ${r.document_selection ? `Human-selected pair: SI ${r.document_selection.si.name}; BL ${r.document_selection.bl.name}. The other ${r.documents.length - 2} attachments are retained but NOT verified. ` : ""}Only selected field excerpts are provided; this is not the complete document or email. Absent evidence never means a match.`,
     },
   ];
   for (const row of r.comparison) {

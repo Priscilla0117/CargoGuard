@@ -1,0 +1,4 @@
+COMMERCIAL INVOICE
+Invoice number: SYNTHETIC-DEMO-ONLY
+Total: USD 100
+This is fictional data for testing email intake, not a shipping instruction or bill of lading.

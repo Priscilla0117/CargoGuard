@@ -111,7 +111,7 @@ const report = {
   generated_at: new Date().toISOString(),
   hashes,
   scope:
-    "Supplied corpus is development evidence. The additional separately authored synthetic challenge is small and not representative of production. Learned weights/features were fixed before challenge evaluation. The final consensus wrapper is development policy, not independently validated on an untouched holdout. Rules-only metrics are conditional on coverage, not whole-corpus accuracy.",
+    "Supplied corpus and the separately authored synthetic challenge are development evidence, not representative of production or an untouched holdout. Version 3.2 adds independently authored security-incident training examples after targeted diagnostic failures. Rules-only metrics are conditional on coverage, not whole-corpus accuracy.",
   development: evaluate(development),
   ...(challengeBytes
     ? {

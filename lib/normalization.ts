@@ -18,6 +18,42 @@ export const sameAsConsignee = (raw: string) =>
     raw.normalize("NFKC").trim(),
   );
 
+/** Two unexplained legal entities are not a confirmed party, even on both documents.
+ * Wrapped names and address lines remain intact; this is an ambiguity gate, not
+ * a name extractor. Explicit agency relationships are left for exact comparison.
+ */
+function ambiguousParty(value: string) {
+  const names = new Set<string>();
+  const blocks = value.split(/[;|]+/);
+  for (const block of blocks) {
+    // Join wrapped names before checking their endings, including numeric names
+    // such as "3S PAPER ...". The original value is never altered by this gate.
+    const plain = block
+      .split(/\r?\n/)
+      .filter(
+        (line) =>
+          !/\b(?:on behalf of|as agents? for|care of)\b|\bc\s*\/\s*o\b/i.test(
+            line,
+          ),
+      )
+      .join(" ")
+      .toUpperCase()
+      .replace(/[.,]/g, "")
+      .trim();
+    const endings =
+      /\b(?:SDN BHD|PTE LTD|PTY LTD|LIMITED|LTD|INCORPORATED|INC|CORPORATION|CORP|LLC|GMBH)\b/g;
+    let start = 0;
+    for (const match of plain.matchAll(endings)) {
+      const name = plain.slice(start, match.index + match[0].length).trim();
+      const prefix = plain.slice(start, match.index).trim();
+      // A suffix on a wrapped line is not another company name.
+      if (/[A-Z]/.test(prefix)) names.add(name.replace(/\s+/g, " "));
+      start = match.index + match[0].length;
+    }
+  }
+  return names.size > 1;
+}
+
 /** Consume the whole expression. A valid prefix must never hide a conflicting suffix. */
 export function normalizeValue(field: Field, raw: string): NormalizedValue {
   const value = raw
@@ -104,6 +140,15 @@ export function normalizeValue(field: Field, raw: string): NormalizedValue {
           issue: "Gross weight must be a positive, finite shipment weight.",
         };
   }
+  if (
+    ["shipper", "consignee", "notify_party"].includes(field) &&
+    ambiguousParty(value)
+  )
+    return {
+      value: null,
+      issue:
+        "Multiple possible company names appear in this party field. Confirm the intended party from the source; identical ambiguity in both documents is not a match.",
+    };
   return {
     value: value
       .toUpperCase()

@@ -80,6 +80,11 @@ export function revisionDiff(before: CaseResult, after: CaseResult) {
     );
   const previous = rows(before),
     current = rows(after);
+  const pair = (r: CaseResult) =>
+    JSON.stringify([
+      r.document_selection?.si ?? null,
+      r.document_selection?.bl ?? null,
+    ]);
   const changes: FieldChange[] = FIELDS.map((field) => {
     const a = previous.get(field),
       b = current.get(field);
@@ -114,6 +119,7 @@ export function revisionDiff(before: CaseResult, after: CaseResult) {
     categoryChanged: before.category !== after.category,
     engineChanged: before.pipeline_version !== after.pipeline_version,
     policyChanged: before.policy?.version !== after.policy?.version,
+    documentPairChanged: pair(before) !== pair(after),
     remaining: changes.filter((r) => !checked(r.after)).length,
   };
 }

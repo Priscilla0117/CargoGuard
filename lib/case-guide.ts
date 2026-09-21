@@ -92,7 +92,7 @@ export function answerCase(
         paragraphs: [
           ...prefix,
           comparisonComplete(r)
-            ? "All seven fields match in the current saved revision. Inspect the original sources and any human changes before handoff. CargoGuard does not approve cargo release, customs clearance, payments or legal compliance."
+            ? `${r.document_selection ? `Only the human-selected SI/BL pair is checked; ${r.documents.length - 2} other attachments are NOT verified. ` : ""}All seven fields match in the current saved revision. Inspect the original sources and any human changes before handoff. CargoGuard does not approve cargo release, customs clearance, payments or legal compliance.`
             : "Routing, a draft amendment, a policy tolerance or an AI proposal does not clear a case. Resolve the blockers and compare the corrected documents again.",
           `This is revision ${r.version}, processed ${r.processed_at}. Reload the case to check for changes made since it was opened.`,
         ],
@@ -195,6 +195,11 @@ export function amendmentDraft(r: CaseResult): {
       "",
       "Please check the following differences against the authoritative Shipping Instruction and return a corrected draft Bill of Lading.",
       "Values below are copied from the current saved comparison. If the SI itself is wrong, obtain an authorized revised SI; do not silently change the reference.",
+      ...(r.document_selection
+        ? [
+            `Scope: human-selected SI ${r.document_selection.si.name} and BL ${r.document_selection.bl.name} only. Other attachments are retained but not verified.`,
+          ]
+        : []),
       ...differences.flatMap((row, i) => [
         "",
         `${i + 1}. ${FIELD_LABELS[row.field]}`,

@@ -92,10 +92,18 @@ export function RevisionComparison({
       {(diff.referenceChanged ||
         diff.categoryChanged ||
         diff.engineChanged ||
+        diff.documentPairChanged ||
         diff.policyChanged) && (
         <div className="revision-warning" role="status">
           <TriangleAlert size={18} />
           <div>
+            {diff.documentPairChanged && (
+              <p>
+                <strong>Comparison pair changed.</strong> Inspect the SI and BL
+                used at each revision. Unchanged field values do not mean the
+                same source files were checked.
+              </p>
+            )}
             {diff.referenceChanged && (
               <p>
                 <strong>SI reference values changed.</strong> A new match is not

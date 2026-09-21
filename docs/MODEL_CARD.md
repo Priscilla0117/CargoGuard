@@ -1,6 +1,6 @@
 # Model and validation card
 
-**Version note:** The sections below document the released 3.0.1 baseline. The 3.1 local candidate replaces its router and adds optional external AI. See [AI_UPGRADE.md](AI_UPGRADE.md) for the current architecture, evaluation boundary and pending live-provider checks. Historical metrics below are not tests of the new LLM.
+**Version note:** The sections below are the **historical 3.0.1 baseline**, not the current model. The current 3.2 engine uses the learned TF-IDF logistic router, optional external AI, and the safety changes described in [AI_UPGRADE.md](AI_UPGRADE.md) and [REVIEW_WORKSPACE_V32.md](REVIEW_WORKSPACE_V32.md). See CLOUD_RELEASE.md for dated live-provider tests. Historical 73%/391-rule metrics below do not describe the default current router. No version claims perfect unseen-input accuracy.
 
 ## Intended use
 

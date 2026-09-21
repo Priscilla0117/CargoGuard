@@ -95,6 +95,7 @@ export function applyTranscript(
     previous.duration_ms,
     previous.category_override,
     previous.policy,
+    previous.document_selection,
   );
   if (next.comparison.length && previous.comparison.length) {
     const rows = structuredClone(next.comparison);

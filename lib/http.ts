@@ -74,11 +74,11 @@ export async function readJson(
     throw new HttpError("Request must contain valid UTF-8 JSON.");
   }
 }
-export async function readForm(request: Request): Promise<FormData> {
+export async function readForm(request: Request, limit = 11 * 1024 * 1024): Promise<FormData> {
   const type = request.headers.get("content-type") ?? "";
   if (!/^multipart\/form-data\s*;/i.test(type))
     throw new HttpError("Use a multipart document upload.", 415);
-  const bytes = await readBytes(request, 11 * 1024 * 1024);
+  const bytes = await readBytes(request, limit);
   try {
     return await new Request(request.url, {
       method: "POST",

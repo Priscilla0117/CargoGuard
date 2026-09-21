@@ -61,3 +61,45 @@ export function latencySummary(samples: number[]) {
     p95: Math.round(sorted[Math.ceil(sorted.length * 0.95) - 1]),
   };
 }
+
+/** Only the idempotent inbox read gets one transient retry. Never replay writes.
+ * One shared deadline includes both attempts and the retry delay.
+ */
+export async function requestInbox<T>(
+  signal?: AbortSignal,
+  fetcher: typeof fetch = fetch,
+): Promise<T> {
+  const deadline = AbortSignal.timeout(90000);
+  const bounded = signal ? AbortSignal.any([signal, deadline]) : deadline;
+  try {
+    return await requestJson<T>(
+      "/api/inbox",
+      { signal: bounded, cache: "no-store" },
+      fetcher,
+    );
+  } catch (error) {
+    if (
+      bounded.aborted ||
+      !(error instanceof RequestError) ||
+      ![0, 502, 503, 504].includes(error.status)
+    )
+      throw error;
+    await new Promise<void>((resolve, reject) => {
+      const abort = () => {
+        clearTimeout(timer);
+        reject(error);
+      };
+      const timer = setTimeout(() => {
+        bounded.removeEventListener("abort", abort);
+        resolve();
+      }, 350);
+      bounded.addEventListener("abort", abort, { once: true });
+      if (bounded.aborted) abort();
+    });
+    return requestJson<T>(
+      "/api/inbox",
+      { signal: bounded, cache: "no-store" },
+      fetcher,
+    );
+  }
+}

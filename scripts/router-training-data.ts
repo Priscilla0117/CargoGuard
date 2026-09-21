@@ -159,6 +159,9 @@ export const ROUTER_TRAINING: Record<
       "Pending BL release status",
       "Team announcement",
       "Reminder - submit SI and AED for all pending shipments",
+      "Security incident report",
+      "Suspicious email reported to IT",
+      "Phishing awareness update",
     ],
     bodies: [
       "Please find the weekly shipment status summary for reference. Loading is complete and documents will follow.",
@@ -191,6 +194,12 @@ export const ROUTER_TRAINING: Record<
       "The process completed message confirms that the invoice automation ran successfully; no finance question remains.",
       "Attached is the outstanding documentation list for all shipments. Kindly take note of the team's workload.",
       "A public holiday reminder for all employees: the office is closed and normal service returns the following day.",
+      "I am reporting a suspected phishing email to our IT security team. It claims my mailbox is full. Please investigate the suspicious message; I have not clicked the link.",
+      "For the incident register: an external sender asked for my email password. I reported the message as phishing and need the security desk to investigate.",
+      "Security awareness notice for colleagues: never enter your credentials after receiving a mailbox suspension warning. Report suspicious messages to our IT team.",
+      "An employee reported a fake parcel fee email. This internal incident report asks IT to investigate the suspicious payment link, not to pay it.",
+      "Please investigate this security incident. A suspicious message promised an unexpected prize and asked for bank details. I am forwarding a report to the security team.",
+      "Our weekly cybersecurity briefing includes reports of phishing attempts and fraudulent account-verification messages. This is an internal awareness update.",
     ],
   },
   SPAM: {

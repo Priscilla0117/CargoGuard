@@ -1,4 +1,5 @@
 import { classify } from "./classifier";
+import { selectedDocuments } from "./document-selection";
 import { recoveryExtracted } from "./recovery-schema";
 import { withPolicy, DEFAULT_POLICY, type PolicySnapshot } from "./policy";
 import {
@@ -12,6 +13,7 @@ import {
   type CaseResult,
   type Extracted,
   type ComparisonRow,
+  type DocumentSelection,
 } from "./types";
 import {
   normalize,
@@ -276,9 +278,10 @@ export function analyze(
   duration = 0,
   categoryOverride?: Category,
   policy: PolicySnapshot = DEFAULT_POLICY,
+  selection?: DocumentSelection,
 ): CaseResult {
   return withPolicy(
-    analyzeCore(email, documents, duration, categoryOverride),
+    analyzeCore(email, documents, duration, categoryOverride, selection),
     policy,
   );
 }
@@ -287,6 +290,7 @@ function analyzeCore(
   documents: ParsedDocument[],
   duration = 0,
   categoryOverride?: Category,
+  selection?: DocumentSelection,
 ): CaseResult {
   const classification = classify(email),
     base: CaseResult = {
@@ -302,6 +306,8 @@ function analyzeCore(
       defect_fields: [],
       summary: "",
       documents,
+      document_selection: selection,
+      reviewed: selection ? true : undefined,
       comparison: [],
       duration_ms: duration,
       processed_at: new Date().toISOString(),
@@ -363,6 +369,25 @@ function analyzeCore(
     review_reason: reason,
     summary,
   });
+  if (selection) {
+    try {
+      const [si, bl] = selectedDocuments(documents, selection);
+      const result = deriveResult(
+        base,
+        compareFields(extract(si), extract(bl)),
+      );
+      const excluded = documents.length - 2;
+      return {
+        ...result,
+        summary: `${result.summary} Human-selected pair only; ${excluded} other attachment${excluded === 1 ? " is" : "s are"} retained but not verified.`,
+      };
+    } catch {
+      return review(
+        "wrong_doc_type",
+        "The selected SI/BL pair is no longer valid. Confirm the current source documents before comparing.",
+      );
+    }
+  }
   if (documents.length < 2) {
     if (
       documents.length === 0 &&
@@ -393,14 +418,16 @@ function analyzeCore(
   if (documents.some((d) => d.type === "OTHER" || d.type === "UNKNOWN"))
     return review(
       "wrong_doc_type",
-      "An attachment is an invoice, packing list or an unrecognized document type. Confirm every attachment and provide exactly one SI and one draft BL before comparing.",
+      documents.length > 2
+        ? "This email contains additional attachments. In Sources, choose the readable SI and draft BL to compare. Every other attachment will be retained but not verified."
+        : "An attachment is an invoice, packing list or an unrecognized document type. Confirm every attachment and provide exactly one SI and one draft BL before comparing.",
     );
   const sis = documents.filter((d) => d.type === "SI"),
     bls = documents.filter((d) => d.type === "BL");
   if (sis.length !== 1 || bls.length !== 1)
     return review(
       "wrong_doc_type",
-      "Could not identify exactly one Shipping Instruction and one draft Bill of Lading. Confirm document roles.",
+      "Could not identify exactly one Shipping Instruction and one draft Bill of Lading. Confirm document roles; for multiple drafts, choose the comparison pair in Sources.",
     );
   return deriveResult(base, compareFields(extract(sis[0]), extract(bls[0])));
 }
