@@ -1,5 +1,31 @@
 # CargoGuard 3.1 — independent public cloud release
 
+## Current case-assistant release — 21 September 2026
+
+Live at **https://cargoguard-averis.onrender.com/**. Final runtime commit `5d5d867d8a32beed1fed766378c97c96c8a89143`, deployment `dep-daocb76k1f9s73bgu86g`, branch `cargoguard-v3-deploy`. Render started at **13:50:20 Malaysia time** and reported **Deploy succeeded / Live** after **2m19s**. All five migrations, including `0004_case_assistant.sql`, were reported ready. Later documentation-only commits are not claimed as deployed runtime changes.
+
+Open a case → **Ask CargoGuard**. This is real optional OpenAI conversation with a case-data preview, explicit consent, related SI/BL evidence, draft-only suggestions and a deterministic fallback. It cannot alter case decisions, send messages or approve release. See [CASE_ASSISTANT.md](CASE_ASSISTANT.md) for the workflow, architecture, cost and privacy boundaries. The comparison engine and learned router remain 3.1.0.
+
+| Final assistant-release check | Observed result |
+| --- | --- |
+| Local complete release gate | All eight steps passed; **267/267 tests across 16 files**, zero skips; typecheck, lint, 770-input integrity, organiser evaluation, independent scorer, OCR staging and production build |
+| Context and source-reference integrity | **2,600 development cases**, **7,198 exact source excerpts**, largest outgoing case packet 8,324 bytes; no provider calls. Context construction is not LLM accuracy testing |
+| Existing operations regression | **25,058 assertions across 2,600 saved development cases** passed again; no change to comparison decisions |
+| Final hosted API tests | **72 baseline + 35 hardening + 23 governance + 30 release + 20 assistant preflight = 180 passed**, completed around 13:54 Malaysia time. Assistant preflight made zero valid provider requests |
+| Final actual hosted automatic export | **520/520 exact**, 46/46 defect cases, 20/20 review cases, zero false-OK on this supplied development corpus. Independent scorer 1.0, checked at 13:56:02. Prediction hash remains `b0fac824010298e6bfa3b231c0490452916e50f47bc2df76df249321d659333c` |
+| Low-volume hardening latency | Median 369 ms, p95 1,103 ms across 73 requests while other acceptance suites were running. Not sustained-load or cold-start performance |
+| Restart persistence | Seven checks passed at 13:54:55: saved case, historic revision, policy, two exact 5 MiB source hashes and cross-workspace source denial |
+| Actual OpenAI chat | One new provider call on organiser `email_004`, revision 3. `gpt-5.4-mini-2026-03-17`, displayed latency **3.3s**. It correctly identified consignee and notify-party differences (SI EAST BRIGHT FZ-LLC versus BL UAB NOVAKOPA), retained MISMATCH and recommended issuer correction/recomparison. This is one inspected case, not broad model validation |
+| Cache and evidence navigation | The same question/revision was retrieved after redeployment with **Cached, no new AI call**. Related SI/BL field references rendered as readable values and excerpts. Consignee SI opened `email_004_SI.txt`, **Line 6**. Returning to chat retained the conversation. Revision stayed 3 |
+| Follow-up test limit | A second live test submission combined a correction-draft request with forbidden approval/other-workspace requests. **The shared AI budget/concurrency reservation rejected it before any OpenAI call.** Therefore live multi-turn drafting and that adversarial model response remain unverified; mocked history/isolation tests passed. No cap was raised, ledger reset, cookie workaround or provider retry was used |
+| Browser acceptance | Desktop 1440×1000 and phone 390×844 checked, including the actual generated answer. Document and drawer widths showed no horizontal overflow. Starter questions, unchecked consent, preview reset on question edits, source navigation, cached answer and controlled quota error observed. No browser console warnings/errors observed in the inspected session |
+
+The initial live answer exposed cluttered inline citation IDs, so the final UI removes only redundant validated markers and offers related saved SI/BL evidence. A provenance review also caught that human-confirmed scan lines must not be labelled original source quotations; that distinction now has a regression test. An initial baseline test invocation with a trailing slash failed its upload assertion; the test runner now normalizes the origin, and the final hosted 72-check run passed with that same trailing-slash invocation. These issues were corrected and tested, not counted as initial passes.
+
+**Important operating limit:** fresh AI requests may be unavailable when an existing shared cap is reached. Chat and document recovery share three attempts/workspace/UTC day, twenty globally/day, one hundred globally/lifetime, and an additional conservative token/concurrency allowance. The quota error does not identify which bound rejected the request, so this test does not establish an exact reset time or remaining balance. Cached responses and non-AI Resolution/manual verification remain available. No new AI balance purchase, paid hosting or permission expansion was made.
+
+This remains a hackathon prototype, not a zero-bug, production, semantic-grounding, prompt-injection-immunity or first-place guarantee. In particular, passing the 520-case automatic comparison benchmark does not establish the reliability of the new chatbot. Independent unseen cases, operator feedback and broader approved live-LLM evaluations remain useful next validation steps.
+
 ## Current Operations experience release — 21 September 2026
 
 Live at **https://cargoguard-averis.onrender.com/**. Runtime commit `ea7d8707dec99cee9db85a57c711d4ab27ee36f1`, deployment `dep-daobdnrtqb8s73elpfc0`, branch `cargoguard-v3-deploy`. Render started at 12:47:27 Malaysia time and reported **Deploy succeeded / Live** after 2m12s. Engine remains 3.1.0: the comparison pipeline, learned router, recovery provider contract and database schema were not changed. Later documentation-only commits are not silently claimed as deployed runtime code.
