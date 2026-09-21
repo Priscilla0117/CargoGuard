@@ -62,7 +62,7 @@ Latest verified engineering evidence:
 
 - 520/520 organiser output objects match on the supplied development corpus.
 - 46/46 discrepancy cases and 20/20 review cases identified.
-- 195 regression tests across all ten discovered test files, including 400 generated compound-count checks, passed. The earlier 126-test gate omitted an inherited file; see the defensibility record.
+- 197 regression tests across all eleven discovered test files, including 400 generated compound-count checks and isolated PDF resource loading, passed. The earlier 126-test gate omitted an inherited file; see the defensibility record.
 - 72 original-inbox and baseline-export HTTP checks passed on the independent Node build.
 - 35 additional local hardening checks passed across 73 requests: concurrent saves/replacements, idempotent resume, scan confirmation, bounded requests, per-workspace file access and atomic upload quotas.
 - TypeScript validation, full lint and production build passed. Run `npm run quality` to reproduce the static/unit/input-integrity gate; `-- --build` adds a production build.
