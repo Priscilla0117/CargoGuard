@@ -5,7 +5,7 @@ Verified 21 September 2026, Malaysia time. Public demo: **https://cargoguard-ave
 ## Deployed configuration
 
 - Repository: `Priscilla0117/CargoGuard`, branch `cargoguard-v3-deploy`.
-- Running application commit: `95244a0ef14a8defd7069e3745d90b106b56dd86`, engine `3.0.1`. Render deployment `dep-dao7fon40ujc73e6trc0` went live at **08:20:45 Malaysia time, 21 September 2026**, after a 2m03s deployment.
+- Running application commit: `45dea6b11bb7a3f49b5e1b97c777a07dfe0efe8c`, engine `3.0.1`. Render deployment `dep-dao7lnrtqb8s73e7rif0` went live at **08:33:33 Malaysia time, 21 September 2026**, after a 2m06s deployment.
 - Existing `main` was preserved at `c069b3a4a009212be0f1f281b2ce9776136dc72e`; its separate classifier/normalization edits were not overwritten there.
 - Render: `cargoguard-averis`, service `srv-dao05suk1f9s73a6qsm0`, **Free**, Singapore, Node `24.14.0`, manual deployments, health path `/api/health`.
 - Turso: organisation `priscilla`, database `cargoguard`, **Free**, libSQL, Mumbai. No paid upgrade was selected on either service.
@@ -16,23 +16,29 @@ Verified 21 September 2026, Malaysia time. Public demo: **https://cargoguard-ave
 
 The existing Free service was updated, not replaced. No access/visibility changes or paid upgrades were made. The GitHub branch received the code commit above; subsequent documentation-only commits do not change the manually deployed runtime.
 
+An initial 3.0.1 deployment (`95244a0`) was followed by the resource-packaging correction above after PDF font diagnostics were investigated. The final commit passed the full local gate and the complete hosted suites again; its last hosted scoring report is timestamped **08:35:13 Malaysia time**. All five development-set output hashes stayed unchanged after the resource correction.
+
 | Check | Observed result |
 | --- | --- |
 | Anonymous live health | HTTP 200, ready, engine 3.0.1 |
 | Render clean install/build/start | Successful on the expected branch and commit; all three database migrations ready |
 | Baseline HTTP suite | 72 checks passed; actual public-host automatic export retained |
-| Hardening HTTP suite | 35 checks / 73 requests passed; median 257 ms, p95 435 ms in this run |
+| Hardening HTTP suite | 35 checks / 73 requests passed; median 253 ms, p95 459 ms in this run |
 | Governance HTTP suite | 23 checks passed, including complete original snapshot equality after corrections/replacement |
 | Additional release HTTP suite | 30 checks / 31 requests passed: unit-label handling, duplicate fields, invalid revisions, review concurrency, historical-source hashes and isolation |
 | Independent hosted-export scoring | 520/520 exact records, all 46 defect cases and 20 review cases, zero false-OK decisions; unmodified organiser composite scorer 1.0 |
 | Existing-data persistence after this redeployment | Seven checks passed: unchanged saved case and policy, available history, exact hashes of both 5 MiB files, and denial to another workspace |
 | Browser inbox upgrade | All 520 existing sample cases upgraded to 3.0.1; counts stayed 63 verified, 46 discrepancy, 20 review, 91 awaiting documents and 300 routed |
+| Browser source/review workflow | Initial mutation buttons disabled while loading; historical v1 retained engine 3.0.0 with revision-pinned original links; policy preview did not activate; scanned `email_512_SI.pdf` rendered/OCR-completed with all seven confirmations unchecked and Save disabled |
+| Final browser reload | All saved counts retained; no warnings/errors in the checked browser log entries |
 | Local final release gate | All eight steps passed: typecheck, lint, 197/197 tests with no skips, 770-input integrity check, evaluation, independent scoring, OCR staging and production build |
-| Dependency audit | Production dependencies: zero known advisories. Full tree: four moderate and two low development-tool findings; zero high/critical. See DEFENSIBILITY.md for scope and precautions. |
+| Dependency audit | npm audit detected zero production-package advisories. Full tree: four moderate and two low development-tool findings; zero high/critical. Vendored PDF code required a separate scripting-path assessment; see DEFENSIBILITY.md. |
 
 That is **160 live HTTP acceptance checks plus seven redeployment-persistence checks**. Timing is low-volume synthetic evidence, not a capacity promise. The exact hosted prediction SHA-256 is `b0fac824010298e6bfa3b231c0490452916e50f47bc2df76df249321d659333c`; scorer, answer-key and verifier hashes are retained in `work/validation/hosted-accuracy-gate.json`. Same-generator challenge runs total 2,600 exact development outputs; none is a real-world holdout.
 
 The final gate and HTTP reports are under the deployment checkout's ignored `work/validation/` directory. The pre-existing private persistence probe remains only in the original workspace's ignored `work/validation/v3/cloud/`; never publish its cookie. Source changes were also synchronized into the original `cargoguard` folder, preserving unrelated edits. The original folder's older installed dependencies/build outputs were not promoted as the tested deployment; use `npm ci` and rebuild when running that copy.
+
+The PDF resource regression and five-corpus rerun produced no missing-font/CMap warnings. Intentionally malformed PDFs still emit recovery diagnostics and remain human-review cases. This release does not claim warning-free parsing of arbitrary files or safe execution of PDF JavaScript; document scripting is not used.
 
 ## Historical 3.0.0 public-host evidence
 
