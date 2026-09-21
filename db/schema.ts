@@ -74,3 +74,14 @@ export const attachmentBlobs = sqliteTable("attachment_blobs", {
   bytes: blob("bytes", { mode: "buffer" }).notNull(),
   size: integer("size").notNull(),
 });
+export const recoveryProposals = sqliteTable("recovery_proposals", {
+  id: text("id").primaryKey(), workspace: text("workspace").notNull(),
+  cacheKey: text("cache_key").notNull(), payload: text("payload").notNull(),
+  expiresAt: text("expires_at").notNull(),
+});
+export const recoveryAttempts = sqliteTable("recovery_attempts", {
+  id: text("id").primaryKey(), workspace: text("workspace").notNull(),
+  cacheKey: text("cache_key").notNull(), quotaDay: text("quota_day").notNull(),
+  reservedTokens: integer("reserved_tokens").notNull(), status: text("status").notNull(),
+  leaseUntil: text("lease_until").notNull(), createdAt: text("created_at").notNull(),
+});

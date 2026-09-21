@@ -107,7 +107,7 @@ export async function saveCases(
       !w.result.reviewed &&
       !w.result.source_replaced &&
       !w.result.category_override &&
-      !w.result.documents.some((d) => d.transcription) &&
+      !w.result.documents.some((d) => d.transcription || d.recovery) &&
       ["PROCESSED", "REPROCESSED", "UPLOADED"].includes(w.action)
         ? "automatic"
         : "reviewed";

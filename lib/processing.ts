@@ -3,6 +3,7 @@ import { parseDocument } from "./parsers";
 import type { CaseResult, Email, ParsedDocument } from "./types";
 import { canTranscribe, transcribeDocument } from "./transcription";
 import { DEFAULT_POLICY, type PolicySnapshot } from "./policy";
+import { recoverDocument } from "./recovery";
 
 export async function mapLimited<T, R>(
   items: T[],
@@ -48,6 +49,17 @@ export async function processEmail(
     const original = previous?.documents.find(
       (d) => d.name === doc.name && d.sha256 && d.sha256 === doc.sha256,
     );
+    if (original?.recovery) {
+      try {
+        return await recoverDocument(doc, original.recovery);
+      } catch {
+        return {
+          ...doc,
+          error:
+            "Previously confirmed recovery no longer matches the parsed source. Review or replace the document again.",
+        };
+      }
+    }
     return original?.transcription && canTranscribe(doc)
       ? transcribeDocument(doc, original.transcription)
       : doc;
@@ -60,7 +72,10 @@ export async function processEmail(
     policy,
   );
   result.source_replaced = previous?.source_replaced;
-  if (docs.some((d) => d.transcription) || previous?.category_override)
+  if (
+    docs.some((d) => d.transcription || d.recovery) ||
+    previous?.category_override
+  )
     result.reviewed = true;
   // An engine upgrade is not permission to erase a reviewed fact. Preserve
   // corrections only when every source fingerprint is unchanged.

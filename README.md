@@ -4,7 +4,7 @@ An evidence-first hackathon prototype that classifies operational emails, compar
 
 Public cloud demo: **https://cargoguard-averis.onrender.com/**. See [the verified cloud release and operating limits](docs/CLOUD_RELEASE.md). Free hosting can take 50 seconds or more to wake after inactivity.
 
-Version 3.0.1 adds adversarial correctness fixes and a fail-closed acceptance gate. See [the technical defensibility record](docs/DEFENSIBILITY.md), including explicit limits and reproducible commands. Check the cloud release record for hosted verification.
+Version 3.1 is a local release candidate adding a substantially stronger learned router, optional source-linked OpenAI evidence recovery and an operational evidence handoff. Read [the AI upgrade and honest evaluation boundaries](docs/AI_UPGRADE.md). Hosted 3.0.1 evidence in [the cloud release record](docs/CLOUD_RELEASE.md) must not be represented as a live test of this new version.
 
 ## What you can do
 

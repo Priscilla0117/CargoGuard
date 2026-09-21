@@ -53,6 +53,7 @@ export interface ParsedDocument {
   sha256?: string;
   page_count?: number;
   transcription?: import("./transcription").Transcript;
+  recovery?: import("./recovery-schema").ConfirmedRecovery;
 }
 export interface FieldValue {
   raw: string;
@@ -118,7 +119,7 @@ export interface AuditEvent {
   detail: string;
   created_at: string;
 }
-export const PIPELINE_VERSION = "3.0.1";
+export const PIPELINE_VERSION = "3.1.0";
 export function summaryOf(result: CaseResult): CaseSummary {
   const { email, documents, comparison, ...rest } = result;
   void documents;
