@@ -1,6 +1,57 @@
-# CargoGuard 3.1 — independent public cloud release
+# CargoGuard — independent public cloud releases
 
-## Current runtime: database outage recovery — 21 September 2026, 17:49 MYT
+## Current runtime: evidence-aware review workspace 3.2.1 — 21 September 2026
+
+Public demo: **https://cargoguard-averis.onrender.com/**. Runtime commit
+**`15ccb25d737bc233bc15912631a55f954b3f5e50`**, branch `cargoguard-v3-deploy`,
+Render deployment **`dep-daohd12jnfac738vvae0`**. Started **19:35:32 MYT**;
+Render reported **Deploy succeeded / Live** after **2m25s**, with its service-live
+log at **19:37:58**. All five existing schema migrations were ready. No migration,
+paid plan, account permission, AI allowance or credential change was added.
+Documentation-only commits after this runtime are not new deployed code.
+
+See [REVIEW_WORKSPACE_V32.md](REVIEW_WORKSPACE_V32.md) for manual email intake,
+explicit SI/BL selection from multiple attachments, source-fingerprint safeguards,
+correction-impact previews, linked-field consequences and the simpler laptop UI.
+Useful workflow concepts from HarborCheck were independently implemented; no
+HarborCheck source was copied, and no Gmail/SSO integration is claimed.
+
+| Final 3.2.1 check | Observed result |
+| --- | --- |
+| Local full release gate | Eight steps passed; **350 unit tests, zero skips**, typecheck, lint, integrity of 770 organiser files, supplied evaluation, independent organiser scorer, OCR asset staging and production build |
+| Local production HTTP tests | **228 passed** again on the final 3.2.1 build at about 19:36 MYT: 72 core, 35 hardening, 23 governance, 30 release, 15 revision, 25 assistant preflight and 28 intake/review checks |
+| Controlled storage-outage simulation | **12 local production-build checks** passed: application shell and process liveness stay available; eight readiness calls and inbox fail with controlled 503. Invalid synthetic DB settings, no actual provider or credentials |
+| Final hosted HTTP acceptance | **170 passed**: 72 core, 30 release, 15 revision, 25 assistant preflight and 28 new intake/review checks. Run sequentially, completed by **19:41:49 MYT**. No valid AI-provider calls; the separate 35 hardening and 23 governance suites were tested locally in this release, not relabelled as current hosted tests |
+| Actual cloud export, independently scored | **520/520 exact**, all **46 defect** and **20 review** cases, zero false-OK on the supplied development corpus; organiser composite 1.0. Actual HTTP prediction SHA-256 `b0fac824010298e6bfa3b231c0490452916e50f47bc2df76df249321d659333c` |
+| Retained data after deployment | **Seven checks** passed at **19:40:55 MYT**: unchanged saved case and policy, historical revision, exact hashes for both retained 5 MiB source files, and cross-workspace source denial. 170 + 7 = **177 hosted checks** |
+| Additional development sets | Four same-generator sets rerun on 3.2.1: 520 each. Together with the original, 2,600 exact outputs. These share generator templates and are not independent real-world holdouts |
+| Laptop workflow and layout | Local 1366×768 and 1280×720 walkthroughs covered four-file intake, explicit pair selection/exclusions, preview/save equivalence, rejected ambiguity, cancellation without saving, history and direct floating chat. The two-column correction dialog fits on a 720-pixel-high laptop screen |
+| Actual public browser walkthrough | Measured **1280×720**, document width 1265 (no horizontal overflow). Existing 520-case workspace upgraded to 3.2.1 with outcome counts preserved. One clearly labelled synthetic four-file demo was then added: selecting the latest BL changed review → human-reviewed selected-pair OK at revision 2, automatically opening Check. Previewing another consignee showed two new problems including linked notify party; ambiguous party text disabled save. Cancelling kept revision 2, and History showed the original unselected revision and selected-pair evidence. Floating chat opened directly; no console warnings/errors in the inspected new browser tab |
+
+The initial 3.2.0 deployment `eeafff2` was marked live but then hit a database-readiness
+failure and Render restart loop. Its first hosted test stopped on the initial inbox
+502; it is **not** counted as a successful release. The additional 3.2.1 fix
+separates `/api/live` (process only, explicitly `database_checked: false`) from
+`/api/health` (real database check, still 503 on failure). Render's saved probe path
+was verified as `/api/live`. Startup still verifies the schema before starting the
+HTTP server; release acceptance still requires readiness and real workspace tests.
+See [the incident record](DATABASE_INCIDENT_20260921.md) for evidence and boundaries.
+
+The persistence script initially could not find its private QA bookmark in the
+deployment checkout. The already-existing ignored bookmark was located in the
+project mirror and copied locally, without printing or committing it; its origin
+guard bound it to this exact public host. The final seven checks then passed.
+No fresh substitute case was used to claim old-data persistence.
+
+Only organiser/synthetic data belongs in this public prototype. Source selection
+does not prove sender intent; excluded files are retained, not verified. Reviewer
+names remain self-declared, not enterprise identity. The LLM can still make mistakes,
+and this release makes no new provider-answer-quality claim. Free-tier cold starts,
+database availability, token expiry and public-demo budgets remain operating limits.
+These are bounded development/acceptance results, not zero-bug, uptime, production,
+employee-savings or championship guarantees.
+
+## Historical runtime: database outage recovery — 21 September 2026, 17:49 MYT
 
 Live runtime **`9ae3b8bb0c9a068da8fc81e76eac8343304e7c9f`**, deployment
 `dep-daofq9mk1f9s73btquig`. See [the incident and recovery record](DATABASE_INCIDENT_20260921.md)
