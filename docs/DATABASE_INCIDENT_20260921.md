@@ -1,5 +1,38 @@
 # Database capacity incident — 21 September 2026
 
+## Later restart-loop finding — 19:25 MYT, 3.2 deployment
+
+Render initially marked `eeafff2` live at 19:24:27. Public health returned 200
+with engine 3.2.0, but the first acceptance session failed with a gateway 502
+before its mutation tests began. Render Events subsequently reported an HTTP
+health-check 503, followed by exit-status-1 startup failures. Earlier 18:05 and
+18:20 events show the same dependency-triggered restart pattern on the previous
+release. This is not evidence of successful hosted acceptance.
+
+The Turso dashboard still showed reads/writes enabled and about 108.69 MB stored.
+A single read-only `SELECT 1` diagnostic returned 1; its console displayed five
+seconds. This shows that one query succeeded, not that every cloud request was
+healthy. The new logs do not establish whether the underlying cause was the
+earlier capacity condition, latency, or another transient provider fault.
+
+Version 3.2.1 adds `/api/live`, an uncached process-only endpoint that explicitly
+reports `database_checked: false`. Render's process probe uses it; the separate
+`/api/health` endpoint remains a bounded database-readiness check and returns 503
+on failure. This prevents a later external database outage from restarting an
+otherwise responsive application and hiding its controlled failure interface.
+It does not make database-dependent operations available while storage is down.
+Normal startup still verifies migrations before starting the HTTP server; no
+schema check or persistent-storage requirement is skipped.
+
+This choice responds to Render's documented restart semantics:
+[health-check failure handling](https://render.com/docs/health-checks).
+Release acceptance requires both real storage readiness and workspace read/write
+tests, not just the liveness response or the Render "Live" label. A local
+production-build simulation with invalid synthetic database settings passed 12
+checks: the shell/liveness remained available while all eight readiness probes
+and the inbox correctly returned 503. Hosted release results are recorded in
+CLOUD_RELEASE.md. The earlier dated recovery record below is preserved.
+
 ## Observed failure
 
 At **17:27 MYT**, Render recorded an instance failure because the configured HTTP
