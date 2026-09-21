@@ -8,6 +8,8 @@ Version 3.1 is deployed with a stronger learned router, optional source-linked O
 
 ## What you can do
 
+The Operations experience adds a focused work queue, discrepancy-pattern insights, a shift brief, source-linked Evidence Navigator, checked Amendment Studio and comparison focus mode. See [the employee workflow and test boundaries](docs/OPERATIONS_UPGRADE.md). The navigator is deterministic guidance, not a new LLM chatbot; the real OpenAI recovery feature remains separate.
+
 1. Open the app and click **Run inbox** to process all 520 organiser emails.
 2. Open a discrepancy to compare all seven fields and inspect the original evidence.
 3. Use **New verification** with your own synthetic TXT, PDF, DOCX or XLSX pair.
@@ -18,7 +20,8 @@ Version 3.1 is deployed with a stronger learned router, optional source-linked O
 8. Use **Confirm category** for uncertain or incorrect email routing. The reviewer decision is version-checked and audited.
 9. For an image-only PDF, open **Documents → Read scan with local OCR**. Inspect the displayed original, correct every suggested value, select the document role and confirm all seven fields before saving. This is assisted transcription, not unattended scan approval.
 10. For unfamiliar readable layouts, use **Documents → Evidence Recovery Copilot** after explicit synthetic-data consent. Verify every source quotation before confirming the role and all seven fields. AI proposals alone never change the saved decision.
-11. Open **Resolution** for a deterministic next-action checklist and downloadable evidence handoff; nothing is sent automatically.
+11. Open **Resolution** for the Evidence Navigator, amendment preview and full resolution checklist with evidence handoff. Check the draft against its sources before downloading; nothing is sent automatically.
+12. Use **Operations desk** to work by next action, inspect field patterns and export a workspace shift brief. Queues distinguish missing documents from other evidence recovery; they never imply cargo-release approval.
 
 Engine 3.0 adds immutable full decision snapshots, separate automatic/reviewed exports, versioned business-tolerance previews, better current-message routing, conservative optional-port-code equivalence, and a standard Next.js deployment independent of ChatGPT Sites. It retains the v2 safety checks, OCR assistance, uploads and source fingerprints. See [the upgrade evidence and remaining release gate](docs/V3_TECHNICAL_UPGRADE.md) and [the independent deployment guide](docs/DEPLOYMENT.md).
 
