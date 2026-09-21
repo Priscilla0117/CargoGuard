@@ -49,6 +49,17 @@ new workspace chat instance. No browser persistent storage was added.
   prompts and uses dark-green primary buttons for stronger contrast.
 - Local production HTTP acceptance: 182 checks (72 core, 35 hardening,
   23 governance, 30 release, 22 assistant preflight). No valid provider ask.
+- Final eight-step quality gate passed on navigation-fix commit `99ba6e8`:
+  typecheck, lint, **281 tests / 18 files**, bundle integrity, organiser evaluation,
+  independent scoring, OCR staging and production build. All 520 supplied cases
+  still matched the organiser truth; not a held-out accuracy claim.
+- Final production UI: desktop 1280×720, mobile 390×844 and compact 320×568.
+  At 320×568 the composer occupied y347–568 with a 162px scrolling conversation;
+  no horizontal overflow. Escape returned focus to the launcher. Reopening
+  retained the case question and removed its sharing preview. No warning/error
+  entries appeared in the inspected production browser session.
+- A final close-handler correction resets the attachment picker and source view,
+  so dismissing a picker cannot make the next launcher click start on the list.
 
 ## Unchanged boundaries
 
@@ -58,4 +69,29 @@ The real LLM remains case-scoped and fallible. This release does not establish
 new model-quality results, unseen-data accuracy, production uptime or a judging
 outcome. Expanded paid evaluation remains pending its separately proposed cap.
 
-Public-cloud acceptance will be recorded after deployment is confirmed.
+## Public-cloud acceptance
+
+Final runtime `99ba6e85d5053ae593a2604d4c3362bcf87a0779`, Render deployment
+`dep-daodsq942hec739fh4p0`. Started 21 September 2026 at 15:36:09 MYT and
+succeeded in 2m13s on the existing Free service. The initial chat-first build
+`4960517` had deployed successfully in 2m22s before the final close-handler fix.
+No secrets, plans, health-check settings or database records were reset.
+
+- All **182 hosted HTTP checks passed** around 15:39 MYT. Hardening acceptance
+  covered 73 requests with median 375ms and p95 1,050ms in this run; this is not
+  sustained-load or uptime certification.
+- Fresh hosted automatic export independently rescored: **520/520 exact**,
+  46/46 defect cases, 20/20 review cases, zero false-OK decisions, composite 1.0.
+  SHA-256 `b0fac824010298e6bfa3b231c0490452916e50f47bc2df76df249321d659333c`.
+  Scope remains supplied development data, not unseen cases or LLM quality.
+- Public floating launcher opened the message box immediately. Workspace guide
+  reported 46 discrepancy / 20 review / 91 awaiting-document cases from the
+  user's already processed workspace. A typed email_004 question opened its
+  chat without navigating to details; the existing revision 3 was retained.
+- Public sharing preview worked with OpenAI configured. Send remained disabled
+  without consent; **no real AI request was made in this turn**. Changing to the
+  picker, closing and reopening returned to the conversation, not the list.
+- No warning/error entries were observed in the inspected public browser session.
+
+The updated public page is https://cargoguard-averis.onrender.com/. Reload an
+already-open page to load the new UI. Free-host cold starts remain possible.
