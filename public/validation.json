@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-21T00:02:56.454Z",
+  "generated_at": "2026-09-21T00:29:23.175Z",
   "version": "Full organiser development corpus; not a held-out benchmark",
   "metrics": {
     "classification_macro_f1": 1,
@@ -148,10 +148,10 @@
   ],
   "challenge_limitations": "All are supplied or same-generator synthetic development sets, not independent real-world holdouts. The comparison seed was used to diagnose the v2 error before this release.",
   "engineering": {
-    "regression_tests": 195,
+    "regression_tests": 197,
     "unit_suite_passed": true,
     "pipeline": "3.0.1",
-    "scope": "All ten discovered test files; prior 126-test run was incomplete."
+    "scope": "All eleven discovered test files; prior 126-test run was incomplete."
   },
   "routing_ablation": {
     "dataset": "520 supplied development emails; not a held-out benchmark",
@@ -175,7 +175,7 @@
   "engine": "3.0.1",
   "acceptance_gate": {
     "schema_version": 1,
-    "generated_at": "2026-09-21T00:02:56.454Z",
+    "generated_at": "2026-09-21T00:29:23.175Z",
     "engine": "3.0.1",
     "evidence_scope": "Exact supplied-corpus output agreement, not held-out accuracy, real-world safety or a judging score. Engine version is a caller label; hashes bind this report to its input files.",
     "predictions_sha256": "b0fac824010298e6bfa3b231c0490452916e50f47bc2df76df249321d659333c",

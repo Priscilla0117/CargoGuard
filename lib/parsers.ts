@@ -97,7 +97,8 @@ export async function parseDocument(
       if (new TextDecoder().decode(bytes.slice(0, 5)) !== "%PDF-")
         throw new Error("Invalid PDF header. Request a readable copy.");
       const { getDocumentProxy } = await import("unpdf");
-      const pdf = await getDocumentProxy(bytes.slice());
+      const { pdfResourceOptions } = await import("./pdf-resources");
+      const pdf = await getDocumentProxy(bytes.slice(), pdfResourceOptions());
       page_count = pdf.numPages;
       try {
         if (pdf.numPages > 30)

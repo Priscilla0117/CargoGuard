@@ -18,6 +18,7 @@
 | Uploading before the first inbox response could hide the rest of the workspace | New verification and Run inbox require a successfully loaded inbox; failed initialization remains blocked until Refresh succeeds. |
 | Repeated policy-load retries could overwrite newer edits | Single-flight loading prevents overlapping policy initialization/retries. |
 | Original-file links could fetch a newer source than the displayed decision | Pin original downloads and OCR reads to the displayed revision. |
+| PDF standard-font/CMap resources were absent, and default file-URL paths failed in Node | Install the PDF resources and resolve native paths explicitly. An isolated Symbol-font regression checks real extraction without resource warnings; source PDFs are not altered. |
 | Failed policy loading displayed default v0 as if it were confirmed | Display “not yet loaded,” disable preview until loaded, offer retry. |
 | The 45-second client deadline was shorter than a normal free-host wake-up | Allow 90 seconds while retaining explicit error handling and no automatic write retries. This does not eliminate cold starts or guarantee availability. |
 | Previous quality gate omitted an inherited test file | Discover every `.test.ts` file. Record exact file list and fail closed. Conflicting inherited expectations were reconciled conservatively, not silently ignored. |
@@ -28,9 +29,11 @@ The ws update follows the maintainer's [memory-exhaustion advisory](https://gith
 
 The remaining development-only findings come from esbuild in the deprecated Drizzle loader and legacy Wrangler toolchain: [development-server response exposure](https://github.com/advisories/GHSA-67mh-4wv8-2f99) and [Windows dev-server source exposure](https://github.com/advisories/GHSA-g7r4-m6w7-qqqr). These servers are not the deployed Next.js runtime. Do not expose them. Breaking downgrades, major overrides and an alpha Cloudflare dependency chain were deliberately not used merely to silence audit output. Audit findings are time-specific and need rechecking before each release.
 
+PDF resources are pinned to `pdfjs-dist` 6.2.108. Its 16 standard-font files and 169 CMaps were checked byte-for-byte against the resource version expected by `unpdf`. The latest installed `unpdf` 1.8.1 still vendors PDF.js 6.1.200; npm audit does not enumerate that embedded engine. The [Mozilla scripting advisory](https://github.com/mozilla/pdf.js/security/advisories/GHSA-hq66-cqwq-w95j) requires enabled PDF viewer scripting. Current CargoGuard calls text extraction and canvas rendering only: it does not import PDFViewer/ScriptingManager or execute PDF JavaScript actions. This is a code-path assessment, not a penetration test or a claim that the embedded engine was upgraded. Do not add viewer scripting without a patched engine and renewed review. The two intentionally malformed organiser PDFs still emit recovery diagnostics and correctly require review; logs are not claimed to be warning-free.
+
 ## What the evidence means
 
-- 195 tests in ten files passed with zero failures/skips, including 21 new parser/comparison probes, 23 API-boundary tests, four client-ordering checks and six evaluation-gate tests. The earlier “126 tests passed” described an incomplete selection, not every inherited test.
+- 197 tests in eleven files passed with zero failures/skips, including 21 new parser/comparison probes, 23 API-boundary tests, four client-ordering checks, six evaluation-gate tests and two PDF resource tests. The earlier “126 tests passed” described an incomplete selection, not every inherited test.
 - All 770 organiser inputs (520 email records and 250 documents) were checked against both supplied copies.
 - Original development corpus: 520/520 exact output records, 46/46 defect cases and 20/20 review cases; the supplied official composite scorer returned 1.0.
 - Original plus four previously used generator seeds: 2,600/2,600 exact output records, zero false-OK decisions in these checks. These are development sets, not an independent real-world holdout.
