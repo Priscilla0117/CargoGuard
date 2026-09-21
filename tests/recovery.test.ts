@@ -119,6 +119,44 @@ test("AI is disabled without an explicit provider and key; arbitrary models are 
   assert.equal(recoveryConfig(env).enabled, true);
   assert.equal("key" in recoveryConfig(env), false);
 });
+test("explicit gross-unit heading phrases are read conservatively without assuming units", () => {
+  const selected = (heading: string) =>
+    materializeSelection(
+      {
+        ...doc,
+        lines: [
+          { text: heading, location: "Heading" },
+          { text: "42", location: "Value" },
+        ],
+      },
+      "gross_weight_kg",
+      {
+        citations: [{ line: 2, quote: "42" }],
+        unit_citation: { line: 1, quote: heading },
+      },
+    );
+  for (const heading of [
+    "total gross kilograms",
+    "gross shipment weight in KG",
+    "total gross metric tonnes",
+  ]) {
+    const result = selected(heading);
+    assert.equal(result.issue, undefined);
+    assert.equal(result.value, heading.includes("tonnes") ? "42 MT" : "42 KG");
+    assert.equal(result.unit_citation?.quote, heading);
+  }
+  for (const heading of [
+    "not kilograms",
+    "net kilograms",
+    "tare kilograms",
+    "gross KG or MT",
+    "total gross pounds",
+    "42 kilograms",
+    "weight assumed in kilograms",
+  ]) {
+    assert.ok(selected(heading).issue, heading);
+  }
+});
 test("disabled AI never dispatches a request", async () => {
   let called = false;
   await assert.rejects(

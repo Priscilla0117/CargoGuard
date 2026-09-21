@@ -4,7 +4,7 @@ Source basis: all five supplied PDFs, both organiser folders, and the user's org
 
 | Requirement / scoring area | Delivered technical evidence | Remaining competition action |
 |---|---|---|
-| AI is a key component | Learned classifier with measured ablation; browser-local OCR; visible source-confirmed decisions | Explain the hybrid honestly; do not call it an LLM |
+| AI is a key component | Trained TF-IDF logistic router with reproducible ablation; optional OpenAI source-quoted recovery; browser-local OCR; explicit human confirmation | Distinguish the learned router, real cloud LLM and deterministic comparison. Use AI_UPGRADE.md and dated live tests; do not claim unseen-data perfection |
 | Meaningful cloud use | Live Render/Node processing with persistent Turso libSQL; hosted API and restart-persistence tests passed | Observe free-plan limits and remaining capacity/idle-wake checks in CLOUD_RELEASE.md |
 | Seven required comparison fields | SI reference, all seven side-by-side, typed numeric comparison | Show representative live cases |
 | Four supplied document formats | TXT, PDF text, XLSX, DOCX parsed from original bytes; all six scans OCR-tested | Scan suggestions require seven human confirmations; corrupted PDFs require replacement |

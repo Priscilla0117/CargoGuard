@@ -8,7 +8,7 @@ import {
 import { HttpError } from "./http";
 import { normalizeValue, resolveFields } from "./normalization";
 
-export const RECOVERY_PROMPT_VERSION = "evidence-selectors-v2";
+export const RECOVERY_PROMPT_VERSION = "evidence-selectors-v3";
 export const RECOVERY_LIMITS = {
   sourceCharacters: 16000,
   sourceBytes: 24000,
@@ -136,12 +136,20 @@ function citedText(doc: ParsedDocument, citation: RecoveryCitation): string {
     );
   return citation.quote;
 }
-function unitOf(raw: string): "KG" | "MT" | null {
-  const value = raw
+function unitOf(raw: string, allowHeading = false): "KG" | "MT" | null {
+  let value = raw
     .normalize("NFKC")
     .trim()
     .replace(/^[([]|[)\]]$/g, "")
     .trim();
+  // A model may cite the complete heading, e.g. "total gross kilograms".
+  // Preserve that exact quote but permit only this finite neutral heading
+  // grammar. Negation, net/tare, numbers, alternatives and unknown words fail.
+  if (allowHeading)
+    value = value.replace(
+      /^(?:(?:total|gross|shipment|cargo|mass|weight|units?|in|of)\s+)+/i,
+      "",
+    );
   return /^(?:kgs?|kilograms?)$/i.test(value)
     ? "KG"
     : /^(?:mt|metric tonnes?|tonnes?)$/i.test(value)
@@ -181,7 +189,7 @@ export function materializeSelection(
     const rawUnit = selection.unit_citation
       ? citedText(doc, selection.unit_citation)
       : null;
-    const unit = rawUnit ? unitOf(rawUnit) : null;
+    const unit = rawUnit ? unitOf(rawUnit, true) : null;
     const suffix = value
       .normalize("NFKC")
       .match(/([a-z]+(?:\s+[a-z]+)*)$/i)?.[1];

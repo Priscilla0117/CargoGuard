@@ -1,5 +1,7 @@
 # CargoGuard 3.0.1 — technical defensibility record
 
+Historical 3.0.1 record. Its 0.7282 model score and 391 rule decisions describe the replaced baseline, not the 3.1 router. Current AI architecture, ablation, live-model limitations and corrected-prompt evidence are in [AI_UPGRADE.md](AI_UPGRADE.md) and [CLOUD_RELEASE.md](CLOUD_RELEASE.md). Retain this record for comparison, not as current-version results.
+
 21 September 2026. This is an engineering release record, not a promise of first place or zero future bugs. See CLOUD_RELEASE.md for the actually deployed version and hosted checks.
 
 ## Concrete failures repaired
