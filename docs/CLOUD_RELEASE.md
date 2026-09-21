@@ -1,5 +1,12 @@
 # CargoGuard 3.1 — independent public cloud release
 
+## Laptop-first work queue and revision comparison — 21 September 2026
+
+See [LAPTOP_WORKSPACE.md](LAPTOP_WORKSPACE.md) for the current navigation, retained
+requirements, revision safeguards and dated acceptance. Runtime deployment status
+is recorded there. The older dated records below describe earlier interfaces and
+allowances; current quota details are in [WORKSPACE_REFRESH.md](WORKSPACE_REFRESH.md).
+
 ## Current case-assistant release — 21 September 2026
 
 Live at **https://cargoguard-averis.onrender.com/**. Final runtime commit `5d5d867d8a32beed1fed766378c97c96c8a89143`, deployment `dep-daocb76k1f9s73bgu86g`, branch `cargoguard-v3-deploy`. Render started at **13:50:20 Malaysia time** and reported **Deploy succeeded / Live** after **2m19s**. All five migrations, including `0004_case_assistant.sql`, were reported ready. Later documentation-only commits are not claimed as deployed runtime changes.

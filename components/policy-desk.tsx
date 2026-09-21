@@ -100,16 +100,17 @@ export function PolicyDesk() {
   return (
     <section className="content-card governance-panel">
       <div className="eyebrow">EXACT EVIDENCE + BUSINESS CONTEXT</div>
-      <h2>Policy laboratory</h2>
+      <h2>Verification policy</h2>
       <p>
         All seven fields remain mandatory. Tolerances annotate weight
         differences; they never erase a defect, bypass missing data, or approve
         a shipment.
       </p>
       <p>
-        Active policy: <strong>{loaded ? `v${policy.version}` : "not yet loaded"}</strong>. Each result retains
-        the policy used when it was processed. Reviewer names are self-declared
-        in this demo—not authenticated staff identities.
+        Active policy:{" "}
+        <strong>{loaded ? `v${policy.version}` : "not yet loaded"}</strong>.
+        Each result retains the policy used when it was processed. Reviewer
+        names are self-declared in this demo—not authenticated staff identities.
       </p>
       {error && (
         <p role="alert" className="field-issue">
@@ -119,7 +120,11 @@ export function PolicyDesk() {
       {notice && <p role="status">{notice}</p>}
       {!loaded && !error && <p role="status">Loading the saved policy…</p>}
       {!loaded && error && (
-        <button className="button secondary" disabled={loadingPolicy} onClick={() => void load().catch((e: Error) => setError(e.message))}>
+        <button
+          className="button secondary"
+          disabled={loadingPolicy}
+          onClick={() => void load().catch((e: Error) => setError(e.message))}
+        >
           {loadingPolicy ? "Loading policy…" : "Retry loading policy"}
         </button>
       )}

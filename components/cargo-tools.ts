@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import type { CaseSummary } from "@/lib/types";
+import type { WorkspaceView } from "@/lib/work-queue";
 type Tool = {
   name: string;
   title: string;
@@ -18,16 +19,7 @@ type ModelContext = {
 type Args = {
   cases: CaseSummary[];
   setSearch: Dispatch<SetStateAction<string>>;
-  setView: Dispatch<
-    SetStateAction<
-      | "operations"
-      | "inbox"
-      | "review"
-      | "performance"
-      | "activity"
-      | "policies"
-    >
-  >;
+  setView: Dispatch<SetStateAction<WorkspaceView>>;
   setFilter: Dispatch<SetStateAction<string>>;
   setCategory: Dispatch<SetStateAction<string>>;
 };

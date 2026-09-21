@@ -8,21 +8,21 @@ Version 3.1 is deployed with a stronger learned router, optional source-linked O
 
 ## What you can do
 
-The Operations experience adds a focused work queue, discrepancy-pattern insights, a shift brief, source-linked Evidence Navigator, checked Amendment Studio and comparison focus mode. See [the employee workflow and test boundaries](docs/OPERATIONS_UPGRADE.md). **Ask CargoGuard** adds real, optional OpenAI case chat with evidence references, an exact sharing preview and explicit consent. The navigator remains a deterministic fallback. See [chat use, safety controls and limits](docs/CASE_ASSISTANT.md).
+The laptop-first workspace has two main pages: **Work queue** and **Reports**, with policy controls under **Settings**. It retains discrepancy patterns, shift briefs, source-linked guidance, checked amendment drafts and floating **Ask CargoGuard** chat. **History → What changed?** compares earlier and current saved decisions without changing either. See [the current layout and revision-comparison evidence](docs/LAPTOP_WORKSPACE.md), and [chat use, safety controls and limits](docs/CASE_ASSISTANT.md).
 
 1. Open the app and click **Run inbox** to process all 520 organiser emails.
 2. Open a discrepancy to compare all seven fields and inspect the original evidence.
-3. Use **New verification** with your own synthetic TXT, PDF, DOCX or XLSX pair.
-4. Use **Correct value** only after inspecting the source. A reviewer name and reason are required.
-5. Use **Replace documents** to resolve missing, damaged or revised files in the same case.
+3. Use **Upload documents** with your own synthetic TXT, PDF, DOCX or XLSX pair.
+4. Under a field's **Details / correct value**, use **Correct value** only after inspecting the source. A reviewer name and reason are required. **Save correction & next case** saves successfully before advancing; it never approves a shipment.
+5. Use **Replace documents** to resolve missing, damaged or revised files in the same case. Open **History → What changed?** for fixes, new issues, unresolved fields and exact historical sources.
 6. Download an amendment draft (nothing is sent), print the case, or export the organiser submission once all 520 are processed.
-7. See measured validation in Performance and recorded actions in Audit trail.
-8. Use **Confirm category** for uncertain or incorrect email routing. The reviewer decision is version-checked and audited.
-9. For an image-only PDF, open **Documents → Read scan with local OCR**. Inspect the displayed original, correct every suggested value, select the document role and confirm all seven fields before saving. This is assisted transcription, not unattended scan approval.
-10. For unfamiliar readable layouts, use **Documents → Evidence Recovery Copilot** after explicit synthetic-data consent. Verify every source quotation before confirming the role and all seven fields. AI proposals alone never change the saved decision.
-11. Open **Resolution** for the Evidence Navigator, amendment preview and full resolution checklist with evidence handoff. Check the draft against its sources before downloading; nothing is sent automatically.
-12. Use **Operations desk** to work by next action, inspect field patterns and export a workspace shift brief. Queues distinguish missing documents from other evidence recovery; they never imply cargo-release approval.
-13. Open a case's **Ask CargoGuard** tab to explain findings, ask follow-ups or prepare a draft. Review the outgoing data preview and consent before each AI request. Inspect cited evidence; chat cannot change decisions, approve release or send an email. It shares the existing recovery allowance.
+7. See validation under **Reports → Performance** and search the latest 100 workspace events under **Reports → Audit trail**. Case History retains case-specific revisions.
+8. Open **Category & processing details → Confirm category** for uncertain or incorrect routing. Decisions are version-checked and audited.
+9. For image-only PDFs, open **Sources → Read scan with local OCR**. Inspect the original, correct every suggested value, select the role and confirm all seven fields before saving. This is assisted transcription, not unattended approval.
+10. For unfamiliar readable layouts, open **Sources → Need help extracting these fields? Open AI recovery**. Consent, source-quote checking and seven-field confirmation remain mandatory; proposals never change decisions by themselves.
+11. Use the case's contextual action (**Request correction**, **Resolve case**, **Request documents** or **Prepare handoff**) for a draft/checklist and Evidence Navigator. Nothing is sent automatically.
+12. Use **Work queue → Help & exports** for shift briefs and automatic/reviewed exports. Missing documents and other evidence-recovery work stay separate. Queues never imply cargo-release approval.
+13. Tap floating **Ask CargoGuard**, or its case-header button, to open chat directly. Change the case inside chat. Review the outgoing preview and consent before each AI request; chat cannot change decisions, approve release or send an email.
 
 Engine 3.0 adds immutable full decision snapshots, separate automatic/reviewed exports, versioned business-tolerance previews, better current-message routing, conservative optional-port-code equivalence, and a standard Next.js deployment independent of ChatGPT Sites. It retains the v2 safety checks, OCR assistance, uploads and source fingerprints. See [the upgrade evidence and remaining release gate](docs/V3_TECHNICAL_UPGRADE.md) and [the independent deployment guide](docs/DEPLOYMENT.md).
 
@@ -68,7 +68,7 @@ Latest verified engineering evidence:
 
 - 520/520 organiser output objects match on the supplied development corpus.
 - 46/46 discrepancy cases and 20/20 review cases identified.
-- 197 regression tests across all eleven discovered test files, including 400 generated compound-count checks and isolated PDF resource loading, passed. The earlier 126-test gate omitted an inherited file; see the defensibility record.
+- 314 regression tests across all 21 discovered test files passed, including 25 new queue/revision-diff checks. Earlier counts in dated release records are historical.
 - 72 original-inbox and baseline-export HTTP checks passed on the independent Node build.
 - 35 additional local hardening checks passed across 73 requests: concurrent saves/replacements, idempotent resume, scan confirmation, bounded requests, per-workspace file access and atomic upload quotas.
 - TypeScript validation, full lint and production build passed. Run `npm run quality` to reproduce the static/unit/input-integrity gate; `-- --build` adds a production build.
@@ -76,6 +76,7 @@ Latest verified engineering evidence:
 - Four additional 520-email same-generator development sets match all expected outputs after fixes: 2,600/2,600 total exact decisions. They informed development and are not independent held-out tests.
 - The original 12 targeted HarborCheck-comparison probes now all pass. This diagnostic set is not a general accuracy benchmark.
 - 23 additional governance HTTP checks passed, covering policy activation races, stale previews, immutable history, historical source access and labelled exports.
+- 15 new revision-flow HTTP checks passed locally: partial/complete replacement, retained/new issues, historical bytes, workspace isolation and category removal. See LAPTOP_WORKSPACE.md for hosted acceptance; local tests alone do not prove deployment.
 - The prior OCR evaluation read all six supplied scanned PDFs; a scanned-document browser workflow was also checked on the v3 production build. Candidate values still contain OCR mistakes: seven-field human confirmation is mandatory.
 
 These are development-corpus and engineering results, not an untouched hold-out test or a guarantee of real-world accuracy. See docs/MODEL_CARD.md for methodology and limitations.

@@ -1,5 +1,9 @@
 # Operations experience upgrade — 21 September 2026
 
+Historical release record: the later [laptop-first workspace](LAPTOP_WORKSPACE.md)
+merges Operations/Inbox/Review into Work queue and adds before/after revision
+comparison. Existing operations safeguards and functions remain available there.
+
 This release improves the employee workflow without changing the comparison engine, learned router, external LLM contract, database schema or API allowances. The engine remains **3.1.0**; the Git commit identifies this UI/workflow release. It does not turn a hackathon prototype into a certified enterprise product.
 
 ## What changed and why it matters

@@ -11,7 +11,7 @@ This is a real optional OpenAI LLM feature, separate from the fixed Evidence Nav
 5. Inspect each answer's evidence references and use **Open source evidence** to inspect the parsed lines and original document link inside the panel. Transcriptions are explicitly labelled. AI wording can be wrong even when its citation IDs are valid.
 6. Ask a follow-up, with a fresh preview and consent. Each conversation is limited to three turns. Drafts are visibly draft-only; nothing is sent or saved as a case decision.
 
-Judges need no API account or key. The server uses the owner's configured OpenAI key. If AI is unavailable, **Resolution → Evidence Navigator** and all manual/verification features remain usable.
+Judges need no API account or key. The server uses the owner's configured OpenAI key. If AI is unavailable, use the case's contextual action (for example **Resolve case** or **Request correction**) for Evidence Navigator and the full checklist. Manual verification remains usable. Current navigation is documented in [LAPTOP_WORKSPACE.md](LAPTOP_WORKSPACE.md).
 
 The panel starts with deterministic workspace counts and guidance, not an invented AI summary. **Change case** searches only the inbox supplied to this browser workspace. A question naming another standard `email_…` or uploaded-case UUID is rejected by the server before contacting OpenAI; this is an identifier guard, not semantic detection of every possible indirect reference. Cross-case synthesis is intentionally unsupported.
 

@@ -18,6 +18,15 @@ export function ResolutionDesk({
   onSource: (name: string, location: string) => void;
 }) {
   const plan = resolutionPlan(result);
+  const hasDraft = result.comparison.some((row) => row.result === "mismatch");
+  const navigator = (
+    <CaseNavigator
+      key={`${result.email.email_id}-${result.version}`}
+      result={result}
+      onNavigate={onNavigate}
+      onSource={onSource}
+    />
+  );
   function download() {
     const url = URL.createObjectURL(
       new Blob([resolutionPacket(result)], {
@@ -32,16 +41,20 @@ export function ResolutionDesk({
   }
   return (
     <section className="resolution-desk">
-      <CaseNavigator
-        key={`${result.email.email_id}-${result.version}`}
-        result={result}
-        onNavigate={onNavigate}
-        onSource={onSource}
-      />
-      <AmendmentStudio
-        key={`draft-${result.email.email_id}-${result.version}`}
-        result={result}
-      />
+      {hasDraft ? (
+        <>
+          <AmendmentStudio
+            key={`draft-${result.email.email_id}-${result.version}`}
+            result={result}
+          />
+          <details className="resolution-playbook">
+            <summary>Evidence Navigator · guidance without cloud AI</summary>
+            {navigator}
+          </details>
+        </>
+      ) : (
+        navigator
+      )}
       <details className="resolution-playbook">
         <summary>Full resolution checklist & evidence handoff</summary>
         <div className="resolution-heading">
