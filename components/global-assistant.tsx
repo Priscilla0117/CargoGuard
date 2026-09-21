@@ -126,6 +126,9 @@ export function GlobalAssistant({
   };
   const close = () => {
     setOpen(false);
+    // A dismissed attachment picker must not become the next launch screen.
+    setChoosing(false);
+    setSource(null);
   };
   const doc = result?.documents.find((item) => item.name === source?.name);
   function selectCase(id: string) {
