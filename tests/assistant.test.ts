@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { RECOVERY_LIMITS } from "../lib/recovery-schema";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -425,14 +426,17 @@ test("assistant cache is immutable, private, expiring and shares the recovery qu
       () => f.client.execute("UPDATE assistant_replies SET payload='{}'"),
       /immutable/,
     );
-    for (const key of ["recovery", "chat1", "chat2"])
+    for (const key of Array.from(
+      { length: RECOVERY_LIMITS.workspaceDailyCalls },
+      (_, i) => (i === 0 ? "recovery" : `chat${i}`),
+    ))
       await finishRecoveryAttempt(
         f.DB,
         await reserveRecoveryAttempt(f.DB, "owner", key, 1000),
         "completed",
       );
     await assert.rejects(
-      () => reserveRecoveryAttempt(f.DB, "owner", "chat3", 1000),
+      () => reserveRecoveryAttempt(f.DB, "owner", "over-limit", 1000),
       /daily AI request limit/,
     );
   } finally {

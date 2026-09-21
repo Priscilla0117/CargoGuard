@@ -16,6 +16,7 @@ import {
   type Lane,
 } from "@/lib/operations";
 import { FIELDS, FIELD_LABELS, type CaseSummary } from "@/lib/types";
+import { AiAvailability } from "@/components/ai-availability";
 
 export function OperationsDesk({
   cases,
@@ -201,6 +202,7 @@ export function OperationsDesk({
           </div>
         </section>
         <aside className="ops-insights">
+          {!loading && cases.length > 0 && <AiAvailability />}
           <div>
             <span className="eyebrow">PREVENT THE NEXT CORRECTION</span>
             <h3>Where drafts differ</h3>

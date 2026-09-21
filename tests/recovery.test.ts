@@ -482,7 +482,7 @@ test("concurrency reservation is atomic and failed calls still consume workspace
     for (const attempt of attempts)
       if (attempt.status === "fulfilled")
         await finishRecoveryAttempt(f.DB, attempt.value, "failed");
-    for (let i = 0; i < 3; i++)
+    for (let i = 0; i < RECOVERY_LIMITS.workspaceDailyCalls; i++)
       await finishRecoveryAttempt(
         f.DB,
         await reserveRecoveryAttempt(f.DB, "quota-workspace", `q${i}`, 1000),
@@ -499,9 +499,14 @@ test("concurrency reservation is atomic and failed calls still consume workspace
 test("shared daily and 100 lifetime call caps survive cookie changes and UTC days", async () => {
   const f = await dbFixture();
   try {
-    for (let day = 0; day < 5; day++) {
+    for (
+      let day = 0;
+      day <
+      RECOVERY_LIMITS.globalLifetimeCalls / RECOVERY_LIMITS.globalDailyCalls;
+      day++
+    ) {
       const now = new Date(Date.UTC(2026, 8, 21 + day));
-      for (let i = 0; i < 20; i++)
+      for (let i = 0; i < RECOVERY_LIMITS.globalDailyCalls; i++)
         await finishRecoveryAttempt(
           f.DB,
           await reserveRecoveryAttempt(

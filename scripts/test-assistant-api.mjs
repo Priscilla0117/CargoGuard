@@ -59,9 +59,12 @@ check(
 );
 check(config.data.model === "gpt-5.4-mini", "model unchanged");
 check(
-  config.data.limits.globalDailyCalls === 20 &&
-    config.data.limits.globalLifetimeCalls === 100,
-  "approved shared caps unchanged",
+  config.data.limits.globalDailyCalls === 50 &&
+    config.data.limits.workspaceDailyCalls === 10 &&
+    config.data.limits.globalDailyReservedTokens === 500000 &&
+    config.data.limits.globalLifetimeCalls === 100 &&
+    config.data.limits.globalLifetimeReservedTokens === 1000000,
+  "increased daily capacity retains original lifetime ceiling",
 );
 check(
   !("key" in config.data) && !("apiKey" in config.data),
@@ -69,6 +72,30 @@ check(
 );
 const preview = await call("/api/assistant", input);
 check(preview.status === 200, "free preview works");
+check(
+  typeof preview.data.availability.allowed === "boolean" &&
+    preview.data.availability.reservedTokens > 0,
+  "free preview checks this exact question against both quota types",
+);
+const afterPreview = await call("/api/assistant");
+check(
+  afterPreview.data.budget.workspaceRemaining ===
+    config.data.budget.workspaceRemaining,
+  "preview does not reserve a workspace request",
+);
+check(
+  preview.data.availability.allowed ===
+    (preview.data.availability.cached ||
+      (preview.data.budget.workspaceRemaining > 0 &&
+        preview.data.budget.dailyRemaining > 0 &&
+        preview.data.budget.lifetimeRemaining > 0 &&
+        !preview.data.budget.busy &&
+        preview.data.budget.dailyTokensRemaining >=
+          preview.data.availability.reservedTokens &&
+        preview.data.budget.lifetimeTokensRemaining >=
+          preview.data.availability.reservedTokens)),
+  "preview allowance accounts for remaining token capacity and concurrency",
+);
 check(
   preview.data.facts.length === 25,
   "seven field findings and fourteen values plus boundaries",

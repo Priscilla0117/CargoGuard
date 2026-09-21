@@ -71,6 +71,8 @@ interface Allowance {
     workspaceRemaining: number;
     dailyRemaining: number;
     lifetimeRemaining: number;
+    dailyTokensRemaining: number;
+    lifetimeTokensRemaining: number;
     resetsAt: string;
   };
 }
@@ -80,6 +82,12 @@ interface Preview extends Allowance {
   facts: AssistantFact[];
   enabled: boolean;
   model: string;
+  availability: {
+    allowed: boolean;
+    cached: boolean;
+    reservedTokens: number;
+    reason: string | null;
+  };
 }
 const starters = [
   {
@@ -166,7 +174,12 @@ export function CaseAssistant({
     setError("");
   }
   async function submit(action: "preview" | "ask") {
-    if (busy || (action === "ask" && (!consent || !preview?.enabled))) return;
+    if (
+      busy ||
+      (action === "ask" &&
+        (!consent || !preview?.enabled || !preview.availability.allowed))
+    )
+      return;
     controller.current?.abort();
     controller.current = new AbortController();
     const current = ++sequence.current;
@@ -358,6 +371,29 @@ export function CaseAssistant({
             <h4 ref={consentHeading} tabIndex={-1}>
               One check before sending
             </h4>
+            <div
+              className={`assistant-capacity ${preview.availability.allowed ? "available" : "unavailable"}`}
+              role="status"
+            >
+              <strong>
+                {preview.availability.cached
+                  ? "Saved answer available · no new AI request"
+                  : preview.availability.allowed
+                    ? "This question fits the current allowance"
+                    : "AI allowance is not available for this question"}
+              </strong>
+              <p>
+                {preview.availability.reason ??
+                  (preview.availability.cached
+                    ? "A valid answer is already cached in this workspace. It will be checked again when you continue."
+                    : `${preview.availability.reservedTokens.toLocaleString()} token units will be reserved. This is a conservative safety bound, not actual billed usage. Capacity is checked again when sending.`)}
+              </p>
+              {!preview.availability.allowed && (
+                <button className="text-button" onClick={onFallback}>
+                  Continue with Evidence Navigator
+                </button>
+              )}
+            </div>
             <p>
               OpenAI will receive your question, this case’s selected evidence
               and earlier turns. Check the exact data below; excerpts may
@@ -381,7 +417,9 @@ export function CaseAssistant({
               <input
                 type="checkbox"
                 checked={consent}
-                disabled={!!busy || !preview.enabled}
+                disabled={
+                  !!busy || !preview.enabled || !preview.availability.allowed
+                }
                 onChange={(event) => setConsent(event.target.checked)}
               />
               <span>
@@ -398,7 +436,12 @@ export function CaseAssistant({
             <button
               type="button"
               className="button primary"
-              disabled={!consent || !preview.enabled || !!busy}
+              disabled={
+                !consent ||
+                !preview.enabled ||
+                !preview.availability.allowed ||
+                !!busy
+              }
               onClick={() => void submit("ask")}
             >
               <Send size={15} />
@@ -427,7 +470,7 @@ export function CaseAssistant({
           <summary>Privacy, AI limits & how this works</summary>
           <p>
             {allowance
-              ? `Shared with document recovery: ${allowance.limits.workspaceDailyCalls} requests per workspace per UTC day, ${allowance.limits.globalDailyCalls} across the demo per day, ${allowance.limits.globalLifetimeCalls} lifetime. At the last allowance check: ${allowance.budget.workspaceRemaining} workspace requests and ${allowance.budget.dailyRemaining} shared daily requests remained. `
+              ? `Shared with document recovery: ${allowance.limits.workspaceDailyCalls} requests per workspace per UTC day, ${allowance.limits.globalDailyCalls} across the demo per day, ${allowance.limits.globalLifetimeCalls} lifetime. At the last check: ${allowance.budget.workspaceRemaining} workspace requests, ${allowance.budget.dailyRemaining} shared daily requests, ${allowance.budget.dailyTokensRemaining.toLocaleString()} daily token units and ${allowance.budget.lifetimeRemaining} lifetime requests remained. Daily reset: ${new Date(allowance.budget.resetsAt).toLocaleString()}. `
               : "A shared, server-enforced AI allowance applies. "}
             Token and concurrency limits can stop requests earlier. Failed
             requests count too. Availability is checked again when sending.

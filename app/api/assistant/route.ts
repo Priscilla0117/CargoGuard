@@ -27,6 +27,7 @@ import {
   reserveRecoveryAttempt,
   finishRecoveryAttempt,
   recoveryBudget,
+  recoveryRequestAvailability,
 } from "@/lib/recovery-storage";
 
 const common = {
@@ -122,7 +123,12 @@ export async function POST(request: Request) {
         prompt: ASSISTANT_VERSION,
       }),
     );
-    if (input.action === "preview")
+    const reservedTokens = reservedAssistantTokens(
+      assistantBody(context, input.question, history, config.model),
+    );
+    if (input.action === "preview") {
+      const budget = await recoveryBudget(db, session.id);
+      const cached = await assistantReply(db, session.id, { key: requestHash });
       return respond(
         {
           requestHash,
@@ -131,10 +137,16 @@ export async function POST(request: Request) {
           enabled: config.enabled,
           model: config.model,
           limits: config.limits,
-          budget: await recoveryBudget(db, session.id),
+          budget,
+          availability: recoveryRequestAvailability(
+            budget,
+            reservedTokens,
+            !!cached,
+          ),
         },
         session,
       );
+    }
     if (input.requestHash !== requestHash)
       throw new HttpError(
         "The question or evidence changed. Review a fresh preview before consenting.",
@@ -155,9 +167,7 @@ export async function POST(request: Request) {
       db,
       session.id,
       requestHash,
-      reservedAssistantTokens(
-        assistantBody(context, input.question, history, config.model),
-      ),
+      reservedTokens,
     );
     try {
       const generated = await callAssistantProvider(

@@ -16,10 +16,10 @@ export const RECOVERY_LIMITS = {
   providerOutputBytes: 40000,
   completionTokens: 3072,
   timeoutMs: 25000,
-  workspaceDailyCalls: 3,
-  globalDailyCalls: 20,
+  workspaceDailyCalls: 10,
+  globalDailyCalls: 50,
   globalLifetimeCalls: 100,
-  globalDailyReservedTokens: 100000,
+  globalDailyReservedTokens: 500000,
   // Conservative lifetime reservation; does not reset on deployment or cookie changes.
   globalLifetimeReservedTokens: 1000000,
   concurrentCalls: 2,
