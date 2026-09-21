@@ -13,7 +13,6 @@ const row = (id: string, workflow: string | null): CaseSummary => ({
     email_id: id,
     subject: `Shipping ${id}`,
     from: "agent@example.test",
-    body: "not searchable private message",
     attachments: [],
   },
   result: workflow

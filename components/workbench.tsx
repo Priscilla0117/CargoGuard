@@ -4,7 +4,10 @@ import { DecisionHistory } from "./decision-history";
 import type { PolicySnapshot } from "@/lib/policy";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { requestJson, latencySummary } from "@/lib/client-api";
+import { requestJson, requestInbox, latencySummary } from "@/lib/client-api";
+import { previewCorrection } from "@/lib/corrections";
+import { CorrectionPreview } from "./correction-preview";
+import { DocumentPairSelector } from "./document-pair-selector";
 import { createRequestGate } from "@/lib/request-gate";
 import { mergeCaseSummaries } from "@/lib/case-state";
 import { ScanAssist } from "@/components/scan-assist";
@@ -100,6 +103,7 @@ const statuses: Record<string, string> = {
 };
 type View = WorkspaceView;
 interface ApiPayload {
+  loaded_at?: string;
   cases: CaseSummary[];
   audit: AuditEvent[];
   result: CaseResult;
@@ -167,6 +171,9 @@ export default function Workbench() {
     [events, setEvents] = useState<AuditEvent[]>([]),
     [loading, setLoading] = useState(true),
     [inboxReady, setInboxReady] = useState(false),
+    [lastSync, setLastSync] = useState<string | null>(null),
+    [refreshFailed, setRefreshFailed] = useState(false),
+    [intakeFiles, setIntakeFiles] = useState<File[]>([]),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
   const [view, setView] = useState<View>("inbox"),
@@ -224,6 +231,7 @@ export default function Workbench() {
   }, []);
   const activeRequest = useRef(createRequestGate());
   const inboxRequests = useRef(createRequestGate());
+  const inboxController = useRef<AbortController | null>(null);
   function closeCase() {
     activeRequest.current.cancel();
     setSelected(null);
@@ -235,31 +243,53 @@ export default function Workbench() {
   }
   const load = useCallback(async () => {
     const request = inboxRequests.current.next();
-    setLoading(true);
-    setError("");
+    inboxController.current?.abort();
+    const controller = new AbortController();
+    inboxController.current = controller;
     try {
-      const d = await api("/api/inbox");
+      const started = performance.now();
+      const d = await requestInbox<ApiPayload>(controller.signal);
       if (inboxRequests.current.isCurrent(request)) {
         setCases(d.cases);
         setEvents(d.audit);
         setInboxReady(true);
+        setLastSync(d.loaded_at ?? new Date().toISOString());
+        setRefreshFailed(false);
+        setLatencies((prev) => [
+          ...prev.slice(-199),
+          performance.now() - started,
+        ]);
       }
     } catch (e) {
-      setError((e as Error).message);
+      if (inboxRequests.current.isCurrent(request)) {
+        setError((e as Error).message);
+        setRefreshFailed(true);
+      }
     } finally {
-      setLoading(false);
+      if (inboxRequests.current.isCurrent(request)) setLoading(false);
     }
-  }, [api]);
+  }, []);
+  function refreshWorkspace() {
+    setLoading(true);
+    setError("");
+    void load();
+  }
   useEffect(() => {
     let active = true;
-    const request = inboxRequests.current.next();
+    const gate = inboxRequests.current;
+    const request = gate.next();
+    const controller = new AbortController();
+    inboxController.current?.abort();
+    inboxController.current = controller;
     const started = performance.now();
-    requestJson<ApiPayload>("/api/inbox")
+    requestInbox<ApiPayload>(controller.signal)
       .then((d) => {
-        if (active && inboxRequests.current.isCurrent(request)) {
+        if (active && gate.isCurrent(request)) {
           setCases(d.cases);
           setEvents(d.audit);
           setInboxReady(true);
+          setLastSync(d.loaded_at ?? new Date().toISOString());
+          setRefreshFailed(false);
           setLatencies((prev) => [
             ...prev.slice(-199),
             performance.now() - started,
@@ -267,10 +297,13 @@ export default function Workbench() {
         }
       })
       .catch((e) => {
-        if (active) setError((e as Error).message);
+        if (active && gate.isCurrent(request)) {
+          setError((e as Error).message);
+          setRefreshFailed(true);
+        }
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active && gate.isCurrent(request)) setLoading(false);
       });
     fetch("/validation.json")
       .then((r) => (r.ok ? r.json() : null))
@@ -280,6 +313,8 @@ export default function Workbench() {
       .catch(() => {});
     return () => {
       active = false;
+      gate.cancel();
+      inboxController.current?.abort();
       cancel.current = true;
     };
   }, []);
@@ -347,6 +382,8 @@ export default function Workbench() {
   }
   const update = (results: CaseResult[]) => {
     inboxRequests.current.cancel();
+    inboxController.current?.abort();
+    setLoading(false);
     setCases((prev) => mergeCaseSummaries(prev, results.map(summaryOf)));
   };
   function launchAssistant(id: string | null = null) {
@@ -554,12 +591,16 @@ export default function Workbench() {
       update([d.result]);
       if (!activeRequest.current.isCurrent(request)) return;
       setSelected(d.result);
-      navigateDetail("comparison");
+      navigateDetail(
+        d.result.documents.length > 2 ? "documents" : "comparison",
+      );
       setCaseEvents([]);
       setUpload(false);
       setReplacement(null);
       setDocument(null);
-      setNotice("Documents processed and securely saved to your workspace.");
+      setNotice(
+        "Email and attachments saved. Inspect the results before taking action.",
+      );
     } catch (e) {
       if (activeRequest.current.isCurrent(request))
         setError((e as Error).message);
@@ -750,15 +791,29 @@ export default function Workbench() {
             </strong>
           </div>
           <div className="topbar-right">
-            <span className="environment">
+            <span
+              className={`environment ${refreshFailed ? "sync-failed" : ""}`}
+              title={
+                lastSync
+                  ? `Last complete inbox read: ${new Date(lastSync).toLocaleString()}. This is not a continuous health check.`
+                  : "Loading cloud workspace"
+              }
+            >
               <span />
-              Cloud workspace
+              {loading
+                ? "Syncing workspace…"
+                : refreshFailed
+                  ? "Refresh unavailable"
+                  : lastSync
+                    ? `Synced ${new Date(lastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                    : "Not yet synced"}
             </span>
             <button
               className="icon-button"
-              onClick={() => void load()}
+              onClick={refreshWorkspace}
               title="Refresh workspace"
               aria-label="Refresh workspace"
+              disabled={loading}
             >
               <RefreshCw size={17} />
             </button>
@@ -811,11 +866,12 @@ export default function Workbench() {
                   disabled={loading || !inboxReady}
                   onClick={() => {
                     setReplacement(null);
+                    setIntakeFiles([]);
                     setUpload(true);
                   }}
                 >
                   <Plus size={17} />
-                  Upload documents
+                  Import email
                 </button>
                 <button
                   className="button primary"
@@ -842,6 +898,12 @@ export default function Workbench() {
             <div className="alert warning" role="status">
               Load the workspace before creating or processing cases. Use
               Refresh to retry.
+            </div>
+          )}
+          {inboxReady && refreshFailed && (
+            <div className="alert warning" role="status">
+              Showing previously loaded results. Refresh is unavailable; saved
+              changes are not discarded. Retry when the cloud service is ready.
             </div>
           )}
           {!!outdated && (
@@ -884,7 +946,7 @@ export default function Workbench() {
                 aria-pressed={view === "activity"}
                 onClick={() => {
                   nav("activity");
-                  void load();
+                  refreshWorkspace();
                 }}
               >
                 <History size={16} /> Audit trail
@@ -965,12 +1027,29 @@ export default function Workbench() {
                     {QUEUE_FILTERS.map(([key, label]) => (
                       <button
                         key={key}
-                        className={filter === key ? "selected" : ""}
+                        className={`queue-card queue-${key} ${filter === key ? "selected" : ""}`}
                         aria-pressed={filter === key}
                         onClick={() => setFilter(key)}
                       >
-                        {label}
-                        <span>{loading ? "—" : queueCounts[key]}</span>
+                        <span className="queue-card-label">
+                          {key === "all" ? (
+                            <Inbox size={15} />
+                          ) : key === "action" ? (
+                            <Layers3 size={15} />
+                          ) : key === "discrepancy" ? (
+                            <TriangleAlert size={15} />
+                          ) : key === "review" ? (
+                            <Eye size={15} />
+                          ) : key === "awaiting_documents" ? (
+                            <Paperclip size={15} />
+                          ) : (
+                            <ShieldCheck size={15} />
+                          )}
+                          {label}
+                        </span>
+                        <strong>
+                          {loading && !inboxReady ? "—" : queueCounts[key]}
+                        </strong>
                       </button>
                     ))}
                   </div>
@@ -1668,6 +1747,22 @@ export default function Workbench() {
               )}
               {detailTab === "comparison" && !resolutionOpen && (
                 <>
+                  {selected.document_selection && (
+                    <div className="selected-pair-notice">
+                      <ShieldCheck size={17} />
+                      <p>
+                        <strong>Selected pair only.</strong>{" "}
+                        {selected.documents.length - 2} other attachments are
+                        retained, not verified.
+                      </p>
+                      <button
+                        className="text-button"
+                        onClick={() => setDetailTab("documents")}
+                      >
+                        View selection <ArrowRight size={14} />
+                      </button>
+                    </div>
+                  )}
                   {selected.comparison.length ? (
                     <>
                       <div className="policy-case-note">
@@ -1834,6 +1929,20 @@ export default function Workbench() {
               )}
               {detailTab === "documents" && (
                 <div className="document-view">
+                  <DocumentPairSelector
+                    key={`pair-${selected.email.email_id}-${selected.version}`}
+                    result={selected}
+                    onSaved={(data) => {
+                      setSelected(data.result);
+                      setDocument(null);
+                      update([data.result]);
+                      setCaseEvents(data.audit);
+                      setNotice(
+                        "Comparison pair saved. Other attachments remain available but are not verified.",
+                      );
+                      navigateDetail("comparison");
+                    }}
+                  />
                   <details
                     className="source-email"
                     open={emailOpen}
@@ -2039,6 +2148,7 @@ export default function Workbench() {
                 disabled={running}
                 onClick={() => {
                   setReplacement(selected);
+                  setIntakeFiles([]);
                   setUpload(true);
                 }}
               >
@@ -2088,7 +2198,7 @@ export default function Workbench() {
         <DialogContent
           showCloseButton={false}
           aria-describedby={undefined}
-          className="modal"
+          className="modal intake-modal"
         >
           <div className="modal-heading">
             <div>
@@ -2096,7 +2206,7 @@ export default function Workbench() {
               <DialogTitle>
                 {replacement
                   ? "Replace source documents."
-                  : "Bring your own documents."}
+                  : "Bring an email into the queue."}
               </DialogTitle>
             </div>
             <button
@@ -2109,8 +2219,8 @@ export default function Workbench() {
             </button>
           </div>
           <p>
-            Upload an SI and draft BL. The same pipeline used for the organiser
-            inbox will process your files.
+            Paste the message and attach its files. CargoGuard routes the email,
+            checks the documents and keeps every attachment as evidence.
           </p>
           <p className="info-box">
             Hackathon demo: use organiser or synthetic files only, never
@@ -2144,6 +2254,19 @@ export default function Workbench() {
                 </label>
               </>
             )}
+            {!replacement && (
+              <label>
+                Sender email
+                <input
+                  type="email"
+                  name="from"
+                  maxLength={254}
+                  placeholder="shipping@example.test"
+                  defaultValue="demo@example.test"
+                  required
+                />
+              </label>
+            )}
             <label hidden={!!replacement}>
               Email subject
               <input
@@ -2166,15 +2289,53 @@ export default function Workbench() {
             </label>
             <label className="upload-zone">
               <ArrowUpRight size={24} />
-              <strong>Choose SI & draft BL</strong>
-              <span>TXT, PDF, DOCX or XLSX · Up to 5 MB each</span>
+              <strong>Choose email attachments</strong>
+              <span>
+                TXT, PDF, DOCX or XLSX · Up to 10 files · 5 MB each · 20 MB
+                total
+              </span>
               <input
                 type="file"
                 name="files"
                 multiple
                 accept=".txt,.pdf,.docx,.xlsx"
+                onChange={(event) =>
+                  setIntakeFiles(Array.from(event.target.files ?? []))
+                }
               />
             </label>
+            {intakeFiles.length > 0 && (
+              <div className="intake-file-list">
+                <b>
+                  {intakeFiles.length} attachment
+                  {intakeFiles.length === 1 ? "" : "s"} selected
+                </b>
+                <ul>
+                  {intakeFiles.map((file, index) => (
+                    <li key={`${file.name}-${index}`}>
+                      <FileText size={14} />
+                      <span>{file.name}</span>
+                      <small>{Math.ceil(file.size / 1024)} KB</small>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {intakeFiles.length > 2 && (
+              <p className="info-box">
+                After import, choose the exact SI and draft BL in Sources. Extra
+                attachments are retained, never silently included or discarded.
+              </p>
+            )}
+            {(intakeFiles.length > 10 ||
+              intakeFiles.some((file) => file.size > 5 * 1024 * 1024) ||
+              intakeFiles.reduce((sum, file) => sum + file.size, 0) >
+                20 * 1024 * 1024) && (
+              <p className="alert error" role="alert">
+                Choose at most 10 files, no larger than 5 MB each or 20 MB
+                combined.
+              </p>
+            )}
             <div className="info-box">
               <ShieldCheck size={16} />
               <p>
@@ -2182,13 +2343,26 @@ export default function Workbench() {
                 escalated for review.
               </p>
             </div>
-            <button className="button primary full" disabled={uploading}>
+            <button
+              className="button primary full"
+              disabled={
+                uploading ||
+                intakeFiles.length > 10 ||
+                intakeFiles.some((file) => file.size > 5 * 1024 * 1024) ||
+                intakeFiles.reduce((sum, file) => sum + file.size, 0) >
+                  20 * 1024 * 1024
+              }
+            >
               {uploading ? (
                 <Loader2 size={17} className="spin" />
               ) : (
                 <Sparkles size={17} />
               )}{" "}
-              {uploading ? "Reading documents…" : "Verify documents"}
+              {uploading
+                ? "Reading documents…"
+                : replacement
+                  ? "Replace documents & recheck"
+                  : "Import & check email"}
             </button>
           </form>
         </DialogContent>
@@ -2273,7 +2447,7 @@ export default function Workbench() {
           <DialogContent
             showCloseButton={false}
             aria-describedby={undefined}
-            className="modal"
+            className="modal correction-modal"
           >
             <div className="modal-heading">
               <DialogTitle>
@@ -2307,8 +2481,14 @@ export default function Workbench() {
                   value={edit.value}
                   onChange={(e) => setEdit({ ...edit, value: e.target.value })}
                   maxLength={2000}
+                  disabled={saving}
                 />
               </label>
+              <CorrectionPreview
+                previous={selected}
+                edit={edit}
+                preview={previewCorrection(selected, edit)}
+              />
               <label>
                 Reviewer name
                 <input
@@ -2330,7 +2510,10 @@ export default function Workbench() {
                   rows={2}
                 />
               </label>
-              <button disabled={saving} className="button primary full">
+              <button
+                disabled={saving || !!previewCorrection(selected, edit).error}
+                className="button primary full"
+              >
                 {saving ? (
                   <Loader2 size={17} className="spin" />
                 ) : (
@@ -2343,7 +2526,7 @@ export default function Workbench() {
                   type="submit"
                   name="afterSave"
                   value="next"
-                  disabled={saving}
+                  disabled={saving || !!previewCorrection(selected, edit).error}
                   className="button secondary full"
                 >
                   Save correction & next case <ArrowRight size={16} />

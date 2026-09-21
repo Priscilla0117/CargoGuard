@@ -4,7 +4,7 @@ An evidence-first hackathon prototype that classifies operational emails, compar
 
 Public cloud demo: **https://cargoguard-averis.onrender.com/**. See [the verified cloud release and operating limits](docs/CLOUD_RELEASE.md). Free hosting can take 50 seconds or more to wake after inactivity.
 
-Version 3.1 is deployed with a stronger learned router, optional source-linked OpenAI evidence recovery and an operational evidence handoff. Judges use the public link without an API key; bounded requests use the owner's server-side key. Read [the AI upgrade and honest evaluation boundaries](docs/AI_UPGRADE.md), [dated live acceptance evidence](docs/CLOUD_RELEASE.md), and [the two-file unfamiliar-layout demonstration](examples/evidence-recovery/README.md).
+Version 3.2 adds multi-attachment email intake, explicit source-bound SI/BL selection, a live correction-impact preview, compact colour-coded queue cards and lighter, safer refreshes. See [the new review workflow and limitations](docs/REVIEW_WORKSPACE_V32.md) and [dated live acceptance evidence](docs/CLOUD_RELEASE.md). Judges use the public link without an API key; optional cloud chat and evidence recovery use the owner's bounded server-side key. Read [the AI architecture and evaluation boundaries](docs/AI_UPGRADE.md).
 
 ## What you can do
 
@@ -12,8 +12,8 @@ The laptop-first workspace has two main pages: **Work queue** and **Reports**, w
 
 1. Open the app and click **Run inbox** to process all 520 organiser emails.
 2. Open a discrepancy to compare all seven fields and inspect the original evidence.
-3. Use **Upload documents** with your own synthetic TXT, PDF, DOCX or XLSX pair.
-4. Under a field's **Details / correct value**, use **Correct value** only after inspecting the source. A reviewer name and reason are required. **Save correction & next case** saves successfully before advancing; it never approves a shipment.
+3. Use **Import email** with a synthetic message and up to 10 TXT, PDF, DOCX or XLSX attachments (5 MiB each, 20 MiB total). For extra attachments, explicitly select one SI and one BL in Sources; the others are retained but not verified.
+4. Under a field's **Details / correct value**, use **Correct value** only after inspecting the source. **Before you save** previews all seven checks, including linked consignee/notify effects, without writing or calling AI. A reviewer name and reason are required to save. **Save correction & next case** saves successfully before advancing; it never approves a shipment.
 5. Use **Replace documents** to resolve missing, damaged or revised files in the same case. Open **History → What changed?** for fixes, new issues, unresolved fields and exact historical sources.
 6. Download an amendment draft (nothing is sent), print the case, or export the organiser submission once all 520 are processed.
 7. See validation under **Reports → Performance** and search the latest 100 workspace events under **Reports → Audit trail**. Case History retains case-specific revisions.

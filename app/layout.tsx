@@ -4,10 +4,12 @@ import "./operations.css";
 import "./assistant.css";
 import "./workspace-design.css";
 import "./work-queue.css";
+import "./review-workspace.css";
 
 export const metadata: Metadata = {
   title: "CargoGuard | Shipping document verification",
-  description: "Compare shipping instructions and draft bills of lading with traceable evidence and human review. Built for the Averis x Monash Hackathon.",
+  description:
+    "Compare shipping instructions and draft bills of lading with traceable evidence and human review. Built for the Averis x Monash Hackathon.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
