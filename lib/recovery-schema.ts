@@ -8,7 +8,7 @@ import {
 import { HttpError } from "./http";
 import { normalizeValue, resolveFields } from "./normalization";
 
-export const RECOVERY_PROMPT_VERSION = "evidence-selectors-v1";
+export const RECOVERY_PROMPT_VERSION = "evidence-selectors-v2";
 export const RECOVERY_LIMITS = {
   sourceCharacters: 16000,
   sourceBytes: 24000,
