@@ -10,6 +10,7 @@ import { mergeCaseSummaries } from "@/lib/case-state";
 import { ScanAssist } from "@/components/scan-assist";
 import { ResolutionDesk } from "@/components/resolution-desk";
 import { EvidenceRecovery } from "@/components/evidence-recovery";
+import { OperationsDesk } from "@/components/operations-desk";
 import { canTranscribe } from "@/lib/transcription";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -55,6 +56,7 @@ import {
   Square,
   Printer,
   Info,
+  Compass,
 } from "lucide-react";
 import {
   CATEGORIES,
@@ -83,7 +85,13 @@ const statuses: Record<string, string> = {
   routed: "Routed",
   pending: "Not processed",
 };
-type View = "inbox" | "review" | "performance" | "activity" | "policies";
+type View =
+  | "operations"
+  | "inbox"
+  | "review"
+  | "performance"
+  | "activity"
+  | "policies";
 interface ApiPayload {
   cases: CaseSummary[];
   audit: AuditEvent[];
@@ -151,7 +159,7 @@ export default function Workbench() {
     [inboxReady, setInboxReady] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
-  const [view, setView] = useState<View>("inbox"),
+  const [view, setView] = useState<View>("operations"),
     [search, setSearch] = useState(""),
     [filter, setFilter] = useState("all"),
     [category, setCategory] = useState("all"),
@@ -181,6 +189,7 @@ export default function Workbench() {
   const [latencies, setLatencies] = useState<number[]>([]),
     [batchMs, setBatchMs] = useState<number | null>(null);
   const [pagination, setPagination] = useState("");
+  const [attentionOnly, setAttentionOnly] = useState(false);
   const highlighted = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     highlighted.current?.scrollIntoView({
@@ -356,6 +365,7 @@ export default function Workbench() {
         setSourceLocation("");
         setCaseEvents(history);
         setDetailTab("comparison");
+        setAttentionOnly(false);
       }
     } catch (e) {
       if (activeRequest.current.isCurrent(request))
@@ -622,6 +632,14 @@ export default function Workbench() {
         </div>
         <nav aria-label="Workspace navigation">
           <button
+            className={view === "operations" ? "active" : ""}
+            onClick={() => nav("operations")}
+            aria-label="Operations desk"
+          >
+            <Compass size={19} />
+            Operations desk
+          </button>
+          <button
             className={view === "policies" ? "active" : ""}
             onClick={() => nav("policies")}
           >
@@ -707,15 +725,17 @@ export default function Workbench() {
           <div className="breadcrumb">
             Operations <ChevronRight size={14} />
             <strong>
-              {view === "inbox"
-                ? "Document verification"
-                : view === "review"
-                  ? "Review desk"
-                  : view === "performance"
-                    ? "Performance"
-                    : view === "policies"
-                      ? "Policy laboratory"
-                      : "Audit trail"}
+              {view === "operations"
+                ? "Operations desk"
+                : view === "inbox"
+                  ? "Document verification"
+                  : view === "review"
+                    ? "Review desk"
+                    : view === "performance"
+                      ? "Performance"
+                      : view === "policies"
+                        ? "Policy laboratory"
+                        : "Audit trail"}
             </strong>
           </div>
           <div className="topbar-right">
@@ -760,26 +780,30 @@ export default function Workbench() {
             <div>
               <div className="eyebrow">SHIPPING OPERATIONS</div>
               <h1>
-                {view === "inbox"
-                  ? "Verification inbox"
-                  : view === "review"
-                    ? "A human eye, where it matters."
-                    : view === "performance"
-                      ? "Performance & evidence"
-                      : view === "policies"
-                        ? "Business rules, without hidden exceptions."
-                        : "Every decision, accounted for."}
+                {view === "operations"
+                  ? "Your next action, made clear."
+                  : view === "inbox"
+                    ? "Verification inbox"
+                    : view === "review"
+                      ? "A human eye, where it matters."
+                      : view === "performance"
+                        ? "Performance & evidence"
+                        : view === "policies"
+                          ? "Business rules, without hidden exceptions."
+                          : "Every decision, accounted for."}
               </h1>
               <p>
-                {view === "inbox"
-                  ? "Catch the discrepancy. Keep the shipment moving."
-                  : view === "review"
-                    ? "Resolve uncertain documents with the full source context."
-                    : view === "performance"
-                      ? "Measured outcomes from your workspace and reproducible validation."
-                      : view === "policies"
-                        ? "Preview, justify and version every tolerance. Preserve the exact evidence."
-                        : "An append-only record of processing and human corrections."}
+                {view === "operations"
+                  ? "A focused workspace for shipping operations and evidence-led handoffs."
+                  : view === "inbox"
+                    ? "Catch the discrepancy. Keep the shipment moving."
+                    : view === "review"
+                      ? "Resolve uncertain documents with the full source context."
+                      : view === "performance"
+                        ? "Measured outcomes from your workspace and reproducible validation."
+                        : view === "policies"
+                          ? "Preview, justify and version every tolerance. Preserve the exact evidence."
+                          : "An append-only record of processing and human corrections."}
               </p>
             </div>
             <div className="heading-actions">
@@ -836,91 +860,102 @@ export default function Workbench() {
               </div>
             </div>
           )}
-          <div className="metric-grid">
-            <button
-              className="metric"
-              onClick={() => {
-                setView("inbox");
-                setFilter("all");
-              }}
-            >
-              <span>
-                Emails processed
-                <Inbox size={18} />
-              </span>
-              <strong>
-                {counts.processed.toLocaleString()}
-                <small>/ {cases.length || 520}</small>
-              </strong>
-              <div>
-                <span className="neutral-dot" />
-                {counts.processed === cases.length && cases.length
-                  ? "Inbox is up to date"
-                  : "Ready for verification"}
-              </div>
-            </button>
-            <button
-              className="metric"
-              onClick={() => {
-                setView("inbox");
-                setFilter("discrepancy");
-              }}
-            >
-              <span>
-                Discrepancies
-                <TriangleAlert size={18} />
-              </span>
-              <strong>
-                {counts.discrepancy.toLocaleString()}
-                <small>cases</small>
-              </strong>
-              <div className="orange-text">
-                {cases.reduce(
-                  (s, c) => s + (c.result?.defect_fields.length ?? 0),
-                  0,
-                )}{" "}
-                fields need attention
-              </div>
-            </button>
-            <button
-              className="metric"
-              onClick={() => {
-                setView("inbox");
-                setFilter("verified");
-              }}
-            >
-              <span>
-                Verified documents
-                <FileCheck2 size={18} />
-              </span>
-              <strong>
-                {counts.verified.toLocaleString()}
-                <small>pairs</small>
-              </strong>
-              <div className="green-text">
-                <CheckCheck size={14} /> All seven fields matched
-              </div>
-            </button>
-            <button
-              className="metric"
-              onClick={() => {
-                setView("review");
-                setFilter("all");
-              }}
-            >
-              <span>
-                Human review
-                <Eye size={18} />
-              </span>
-              <strong>
-                {counts.review.toLocaleString()}
-                <small>cases</small>
-              </strong>
-              <div>
-                {counts.awaiting_documents} awaiting documents separately
-              </div>
-            </button>
-          </div>
+          {view !== "operations" && (
+            <div className="metric-grid">
+              <button
+                className="metric"
+                onClick={() => {
+                  setView("inbox");
+                  setFilter("all");
+                }}
+              >
+                <span>
+                  Emails processed
+                  <Inbox size={18} />
+                </span>
+                <strong>
+                  {counts.processed.toLocaleString()}
+                  <small>/ {cases.length || 520}</small>
+                </strong>
+                <div>
+                  <span className="neutral-dot" />
+                  {counts.processed === cases.length && cases.length
+                    ? "Inbox is up to date"
+                    : "Ready for verification"}
+                </div>
+              </button>
+              <button
+                className="metric"
+                onClick={() => {
+                  setView("inbox");
+                  setFilter("discrepancy");
+                }}
+              >
+                <span>
+                  Discrepancies
+                  <TriangleAlert size={18} />
+                </span>
+                <strong>
+                  {counts.discrepancy.toLocaleString()}
+                  <small>cases</small>
+                </strong>
+                <div className="orange-text">
+                  {cases.reduce(
+                    (s, c) => s + (c.result?.defect_fields.length ?? 0),
+                    0,
+                  )}{" "}
+                  fields need attention
+                </div>
+              </button>
+              <button
+                className="metric"
+                onClick={() => {
+                  setView("inbox");
+                  setFilter("verified");
+                }}
+              >
+                <span>
+                  Verified documents
+                  <FileCheck2 size={18} />
+                </span>
+                <strong>
+                  {counts.verified.toLocaleString()}
+                  <small>pairs</small>
+                </strong>
+                <div className="green-text">
+                  <CheckCheck size={14} /> All seven fields matched
+                </div>
+              </button>
+              <button
+                className="metric"
+                onClick={() => {
+                  setView("review");
+                  setFilter("all");
+                }}
+              >
+                <span>
+                  Human review
+                  <Eye size={18} />
+                </span>
+                <strong>
+                  {counts.review.toLocaleString()}
+                  <small>cases</small>
+                </strong>
+                <div>
+                  {counts.awaiting_documents} awaiting documents separately
+                </div>
+              </button>
+            </div>
+          )}
+          {view === "operations" && (
+            <OperationsDesk
+              cases={cases}
+              loading={loading}
+              busyId={busyId}
+              onOpen={(id) => void openCase(id)}
+              onInbox={() => nav("inbox")}
+            />
+          )}
           {(view === "inbox" || view === "review") && (
             <>
               <div className="section-top">
@@ -1469,28 +1504,12 @@ export default function Workbench() {
                 </h2>
               </div>
               <div className="drawer-tools">
-                {selected.has_defect && (
+                {selected.comparison.some(
+                  (row) => row.result === "mismatch",
+                ) && (
                   <button
                     className="button secondary"
-                    onClick={() =>
-                      download(
-                        `${selected.email.email_id}-amendment.txt`,
-                        [
-                          "DRAFT — review before sending; nothing has been sent.",
-                          `Subject: Draft BL amendment request — ${selected.email.subject}`,
-                          "",
-                          "Please amend the draft BL to match the Shipping Instruction:",
-                          ...selected.comparison
-                            .filter((r) => r.result === "mismatch")
-                            .map(
-                              (r) =>
-                                `${FIELD_LABELS[r.field]}\nSI (required): ${r.si.raw}\nDraft BL (current): ${r.bl.raw}\nEvidence: ${r.si.source}, ${r.si.evidence}; ${r.bl.source}, ${r.bl.evidence}\n`,
-                            ),
-                          "Please return the revised draft BL for verification.",
-                        ].join("\n"),
-                        "text/plain",
-                      )
-                    }
+                    onClick={() => setDetailTab("resolution")}
                   >
                     Draft amendment
                   </button>
@@ -1573,7 +1592,20 @@ export default function Workbench() {
                 ))}
               </div>
               {detailTab === "resolution" && (
-                <ResolutionDesk result={selected} onNavigate={setDetailTab} />
+                <ResolutionDesk
+                  result={selected}
+                  onNavigate={setDetailTab}
+                  onSource={(name, location) => {
+                    const source = selected.documents.find(
+                      (doc) => doc.name === name,
+                    );
+                    if (source) {
+                      setDocument(source);
+                      setSourceLocation(location);
+                      setDetailTab("documents");
+                    }
+                  }}
+                />
               )}
               {detailTab === "comparison" && (
                 <>
@@ -1596,8 +1628,39 @@ export default function Workbench() {
                         </span>
                         <span>DRAFT BL</span>
                       </div>
+                      <div className="comparison-focus">
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={attentionOnly}
+                            onChange={(e) => setAttentionOnly(e.target.checked)}
+                          />{" "}
+                          Focus on differences & uncertain values
+                        </label>
+                        <span>
+                          {
+                            selected.comparison.filter(
+                              (row) => !attentionOnly || row.result !== "match",
+                            ).length
+                          }{" "}
+                          of {selected.comparison.length} fields shown
+                        </span>
+                      </div>
+                      {attentionOnly &&
+                        selected.comparison.every(
+                          (row) => row.result === "match",
+                        ) && (
+                          <p className="focus-empty">
+                            No differences or uncertain fields in this
+                            comparison. Uncheck the filter to inspect all seven
+                            fields.
+                          </p>
+                        )}
                       <div className="comparison-rows">
                         {[...selected.comparison]
+                          .filter(
+                            (row) => !attentionOnly || row.result !== "match",
+                          )
                           .sort(
                             (a, b) =>
                               ({ uncertain: 0, mismatch: 1, match: 2 })[
