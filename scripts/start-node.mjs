@@ -3,8 +3,18 @@ import "./load-env.mjs";
 const migration = spawnSync(
   process.execPath,
   ["--import", "tsx", "scripts/migrate-node.ts"],
-  { stdio: "inherit", windowsHide: true },
+  {
+    stdio: "inherit",
+    windowsHide: true,
+    timeout: 60000,
+    killSignal: "SIGKILL",
+  },
 );
+if (migration.error) {
+  console.error(
+    "Database startup did not complete within its bounded check. Exiting so the host can recover; saved data is unchanged.",
+  );
+}
 if (migration.status !== 0) process.exit(migration.status ?? 1);
 const child = spawn(
   process.execPath,

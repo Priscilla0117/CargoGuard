@@ -1,37 +1,27 @@
 import fs from "node:fs/promises";
 import "./load-env.mjs";
 import { nodeClient } from "../lib/runtime-node";
+import { migrateNode } from "../lib/migrations-node";
 const client = nodeClient();
 try {
-  await client.execute(
-    "CREATE TABLE IF NOT EXISTS cargo_migrations(name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)",
-  );
+  const migrations = [];
   for (const name of (await fs.readdir("drizzle"))
     .filter((n) => /^\d+.*\.sql$/.test(n))
     .sort()) {
-    const tx = await client.transaction("write");
-    try {
-      if (
-        !(
-          await tx.execute({
-            sql: "SELECT name FROM cargo_migrations WHERE name=?",
-            args: [name],
-          })
-        ).rows.length
-      ) {
-        await tx.executeMultiple(await fs.readFile(`drizzle/${name}`, "utf8"));
-        await tx.execute({
-          sql: "INSERT INTO cargo_migrations(name,applied_at) VALUES(?,?)",
-          args: [name, new Date().toISOString()],
-        });
-      }
-      await tx.commit();
-      console.log(`Schema ready: ${name}`);
-    } catch (e) {
-      await tx.rollback();
-      throw e;
-    }
+    migrations.push({
+      name,
+      sql: await fs.readFile(`drizzle/${name}`, "utf8"),
+    });
   }
+  await migrateNode(client, migrations, (name) =>
+    console.log(`Schema ready: ${name}`),
+  );
+} catch {
+  // Driver errors can embed request details: never print credentials or SQL data.
+  console.error(
+    "Database startup check failed. Check database availability and retry; no local-storage fallback is used.",
+  );
+  process.exitCode = 1;
 } finally {
   client.close();
 }

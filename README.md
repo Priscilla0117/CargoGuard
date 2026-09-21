@@ -68,7 +68,7 @@ Latest verified engineering evidence:
 
 - 520/520 organiser output objects match on the supplied development corpus.
 - 46/46 discrepancy cases and 20/20 review cases identified.
-- 314 regression tests across all 21 discovered test files passed, including 25 new queue/revision-diff checks. Earlier counts in dated release records are historical.
+- 329 regression tests across all 22 discovered test files passed, including 15 database/recovery tests. See [the capacity incident and current recovery status](docs/DATABASE_INCIDENT_20260921.md); earlier hosted acceptance is historical, not a claim of uninterrupted availability.
 - 72 original-inbox and baseline-export HTTP checks passed on the independent Node build.
 - 35 additional local hardening checks passed across 73 requests: concurrent saves/replacements, idempotent resume, scan confirmation, bounded requests, per-workspace file access and atomic upload quotas.
 - TypeScript validation, full lint and production build passed. Run `npm run quality` to reproduce the static/unit/input-integrity gate; `-- --build` adds a production build.
