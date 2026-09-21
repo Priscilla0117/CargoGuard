@@ -1,0 +1,8 @@
+DRAFT BILL OF LADING
+Shipper: ALPHA EXPORTS LTD
+Consignee: GAMMA IMPORTS LTD
+Notify Party: SAME AS CONSIGNEE
+Port of Loading: SINGAPORE
+Port of Discharge: ROTTERDAM
+Container Count: 2
+Gross Weight: 42000 KG

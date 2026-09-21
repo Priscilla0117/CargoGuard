@@ -399,7 +399,7 @@ test("HTML error page produces an actionable client error", async () => {
       {},
       async () => new Response("<html>Gateway error</html>", { status: 502 }),
     ),
-    /unexpected response/,
+    /temporarily unavailable or restarting/,
   );
 });
 test("JSON validation errors preserve their message", async () => {

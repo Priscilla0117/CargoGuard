@@ -4,6 +4,8 @@ import {
   type Classification,
   type Email,
 } from "./types";
+import { classifyLearned } from "./routing";
+import { routingReviewGate } from "./routing-features";
 // Independently authored intent examples. The application never loads organiser
 // IDs or answer-key labels. Token probabilities are fitted from this corpus.
 export const TRAINING: Record<Category, string[]> = {
@@ -123,7 +125,7 @@ for (const cat of CATEGORIES)
       counts[cat].set(token, (counts[cat].get(token) ?? 0) + 1);
       totals[cat]++;
     }
-export function classify(
+export function classifyLegacy(
   email: Email,
   mode: "hybrid" | "model" = "hybrid",
 ): Classification {
@@ -180,14 +182,33 @@ export function classify(
       body,
     );
   const scam =
-    /bank officer.{0,100}(?:million|business proposal)|(?:reply|provide|confirm).{0,50}bank details.{0,40}(?:claim|prize)|won.{0,40}(?:lottery|prize)|(?:mailbox|account).{0,60}(?:suspend|storage|verify)|(?:pay|payment).{0,35}(?:small|delivery|parcel) fee.{0,70}(?:release|parcel|package)|guaranteed.{0,40}(?:returns|investment)|limited time offer|buy now before|deal expires|\b\d{2}% off\b|unpaid customs fee|parcel will be (?:returned|destroyed)|click here to claim|claim your \$?[\d,]+ gift card|exceeded its storage limit|verify your account within/i;
+    /bank officer.{0,100}(?:million|business proposal)|(?:reply|provide|confirm).{0,50}bank details.{0,40}(?:claim|prize)|won.{0,40}(?:lottery|prize)|(?:mailbox|account).{0,60}(?:suspend|storage|verify)|(?:pay|payment).{0,35}(?:small|delivery|parcel) fee.{0,70}(?:release|parcel|package)|guaranteed.{0,40}(?:returns|investment)/i;
+  // Read the current request before a stale subject. Quoted mail is excluded.
+  const billingRequest =
+    /\b(?:explain|clarify|dispute|revise|cancel|send|check|breakdown|question)\b[^.!?\n]{0,100}\b(?:invoice|billing|charges|credit note|freight fees)\b|\b(?:invoice|billing|charges)\b[^.!?\n]{0,80}\b(?:explain|clarify|breakdown|incorrect|dispute)\b/i.test(
+      body,
+    );
+  const promotion =
+    /\b(?:limited time offer|exclusive offer|\d{2,3}\s*%\s*off)\b/i.test(
+      body,
+    ) && /\b(?:buy now|deal expires|act now|subscribe now)\b/i.test(body);
+  const parcelPaymentLink =
+    /\b(?:package|parcel)\b[^.!?\n]{0,90}\b(?:could not be delivered|on hold|unpaid customs fee)\b/i.test(
+      body,
+    ) &&
+    /\b(?:confirm|make|complete)\s+payment\b[^!\n]{0,140}\b(?:returned|release|24 hours)\b/i.test(
+      body,
+    ) &&
+    /https?:\/\/\S+/i.test(body);
   if (mode === "hybrid") {
     if (
       scam.test(body) ||
+      parcelPaymentLink ||
+      promotion ||
       /(?:selected|winner|won)[^.\n]{0,130}(?:draw|lottery|gift card)|(?:won|winner)[\s\S]{0,150}(?:claim|survey)[\s\S]{0,100}(?:pay|shipping)/i.test(
         body,
       ) ||
-      /lottery|claim.{0,20}prize|mailbox.{0,20}full|one weird trick|singles in your area|confirm (?:your )?bank (?:details|account)|guaranteed \d+% returns|gift card.{0,20}claim/i.test(
+      /lottery|claim.{0,20}prize|mailbox.{0,20}full|one weird trick|singles in your area/i.test(
         subject,
       )
     ) {
@@ -197,6 +218,10 @@ export function classify(
       category = "BL_COMPARISON";
       rule =
         "Current message explicitly requests document verification; takes priority over subject";
+    } else if (billingRequest) {
+      category = "INVOICE_QUERY";
+      rule =
+        "Current message requests billing clarification; takes priority over a stale subject";
     } else if (
       /\b(?:happy|prosperous) new year\b|\boffice (?:closure|resumes|holiday)\b|\blist of outstanding b\/?l\b/i.test(
         body,
@@ -245,4 +270,38 @@ export function classify(
       ? "Email intent has too little or conflicting evidence. Confirm its category; no operational decision has been made."
       : undefined,
   };
+}
+
+export function classify(
+  email: Email,
+  mode: "hybrid" | "model" | "learned" | "legacy" = "hybrid",
+): Classification {
+  if (mode === "model") return classifyLegacy(email, "model");
+  if (mode === "legacy") return classifyLegacy(email, "hybrid");
+  const learned = classifyLearned(email);
+  if (mode === "learned" || !learned.needs_review || routingReviewGate(email))
+    return learned;
+  const corroboration = classifyLegacy(email, "hybrid");
+  const ranked = Object.values(learned.scores).sort((a, b) => b - a);
+  // A moderate learned score may be corroborated, never replaced, by an
+  // explicit intent rule. Hard safety abstentions above cannot be bypassed.
+  if (
+    learned.confidence >= 0.4 &&
+    ranked[0] - ranked[1] >= 0.12 &&
+    corroboration.method.includes("intent rule") &&
+    corroboration.category === learned.category &&
+    !corroboration.needs_review
+  ) {
+    return {
+      ...learned,
+      needs_review: false,
+      review_note: undefined,
+      method: "Learned TF-IDF router + corroborating intent rule",
+      signals: [
+        ...learned.signals,
+        `Corroboration: ${corroboration.signals[0]}`,
+      ],
+    };
+  }
+  return learned;
 }

@@ -4,7 +4,7 @@ import { analyze, submissionEntry } from "../lib/compare";
 import { parseDocument } from "../lib/parsers";
 import type { Email, CaseResult } from "../lib/types";
 const root = path.resolve(process.argv[2] ?? "../sdoc-hackathon-bundle"),
-  out = path.resolve(process.argv[3] ?? "work/evaluation");
+  out = path.resolve(process.argv[3] ?? "work/validation/v3/original");
 await fs.mkdir(out, { recursive: true });
 const files = (await fs.readdir(path.join(root, "inbox")))
   .filter((f) => f.endsWith(".json"))

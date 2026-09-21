@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { createHash } from "node:crypto";
-const origin = process.argv[2] ?? "http://127.0.0.1:5174";
-const auth = process.env.CARGO_SITE_AUTH
-  ? { "OAI-Sites-Authorization": `Bearer ${process.env.CARGO_SITE_AUTH}` }
-  : {};
+const origin = process.argv[2] ?? "http://127.0.0.1:3000";
 const checks = [],
   latencies = [],
   started = performance.now();
@@ -18,14 +15,13 @@ async function request(path, body, cookie, extra = {}) {
   const response = await fetch(origin + path, {
     method: body ? "POST" : "GET",
     headers: {
-      ...auth,
       Origin: origin,
       ...(cookie ? { Cookie: cookie } : {}),
       ...(json ? { "Content-Type": "application/json" } : {}),
       ...extra,
     },
     body: json ? JSON.stringify(body) : body,
-    signal: AbortSignal.timeout(45000),
+    signal: AbortSignal.timeout(90000),
   });
   const text = await response.text();
   let data;
@@ -139,17 +135,17 @@ check(
 const doc = r.documents[0],
   url = `/api/document?id=${id}&name=${encodeURIComponent(doc.name)}`;
 const original = await fetch(origin + url, {
-  headers: { ...auth, Cookie: cookie },
+  headers: { Cookie: cookie },
 });
 check(
   createHash("sha256")
     .update(Buffer.from(await original.arrayBuffer()))
     .digest("hex") === doc.sha256,
-  "R2 source hash matches actual stored bytes",
+  "source hash matches actual stored bytes",
 );
 check(
   (await request(url, undefined, other)).status === 404,
-  "R2 source isolated across workspaces",
+  "stored source isolated across workspaces",
 );
 const review = (field, value, version = r.version) =>
   call({
@@ -246,7 +242,7 @@ check(
   (await processIds([id], false)).data.results[0].defect_fields.includes(
     "gross_weight_kg",
   ),
-  "reprocess reads winning R2 replacement",
+  "reprocess reads winning stored replacement",
 );
 const oneFile = replace();
 oneFile.delete("files");
@@ -399,7 +395,7 @@ const report = {
   origin,
   generated_at: new Date().toISOString(),
   scope:
-    "Synthetic isolated-workspace Worker + D1 + R2 hardening checks; not production load certification",
+    "Synthetic isolated-workspace HTTP hardening checks against the supplied origin; not production load certification",
 };
 await fs.mkdir("work/validation", { recursive: true });
 await fs.writeFile(

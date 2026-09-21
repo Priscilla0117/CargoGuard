@@ -2,7 +2,6 @@ import { emails, bundleBytes } from "@/lib/bundle";
 import {
   analyze,
   deriveResult,
-  normalize,
   recomputeRows,
   submissionEntry,
 } from "@/lib/compare";
@@ -23,18 +22,33 @@ import {
   requireMutation,
   listCases,
   storage,
+  getPolicy,
+  revisions,
+  getRevision,
+  automaticBaselines,
   type CaseWrite,
 } from "@/lib/storage";
 import { mapLimited, processEmail } from "@/lib/processing";
 import { z } from "zod";
-import { readJson, HttpError } from "@/lib/http";
+import { readJson, HttpError, revisionNumber } from "@/lib/http";
 import { applyTranscript, type Transcript } from "@/lib/transcription";
+import { correctField } from "@/lib/corrections";
+import { selectedDocuments } from "@/lib/document-selection";
 const transcriptField = z.object({
   value: z.string().trim().min(1).max(1500),
   page: z.number().int().min(1).max(5),
   confirmed: z.literal(true),
 });
 const action = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("select_documents"),
+    id: z.string().min(1).max(80),
+    version: z.number().int().positive(),
+    si: z.string().min(1).max(180),
+    bl: z.string().min(1).max(180),
+    actor: z.string().trim().min(2).max(80),
+    reason: z.string().trim().min(5).max(2000),
+  }),
   z.object({
     action: z.literal("process"),
     ids: z
@@ -43,6 +57,7 @@ const action = z.discriminatedUnion("action", [
       .max(10)
       .refine((v) => new Set(v).size === v.length),
     skipSaved: z.boolean().optional(),
+    policyVersion: z.number().int().nonnegative().optional(),
   }),
   z.object({
     action: z.literal("review"),
@@ -87,49 +102,88 @@ export async function GET(request: Request) {
     url = new URL(request.url);
   try {
     if (url.searchParams.get("export") === "1") {
-      const all = await listCases(s.id),
+      const mode = url.searchParams.get("mode") ?? "baseline";
+      if (!["baseline", "reviewed"].includes(mode))
+        throw new HttpError("Unknown export mode.");
+      const all =
+          mode === "baseline"
+            ? await automaticBaselines(s.id)
+            : await listCases(s.id),
         map = new Map(all.map((r) => [r.email.email_id, r]));
-      if (emails.some((e) => !map.has(e.email_id)))
+      if (mode === "baseline" && emails.some((e) => !map.has(e.email_id)))
         return respond(
           {
             error:
-              "Process all organiser emails before exporting the complete submission.",
+              "A complete, current-engine automatic baseline is required. Run the full inbox first. If only reviewed, replaced-source or legacy results exist, use a fresh private-browser workspace for an untouched baseline; existing reviews are retained.",
           },
           s,
           409,
         );
-      const result = Object.fromEntries(
-        emails.map((e) => [e.email_id, submissionEntry(map.get(e.email_id)!)]),
-      );
-      return new Response(JSON.stringify(result, null, 2), {
+      const result =
+        mode === "baseline"
+          ? Object.fromEntries(
+              emails.map((e) => [
+                e.email_id,
+                submissionEntry(map.get(e.email_id)!),
+              ]),
+            )
+          : null;
+      const output =
+        mode === "baseline"
+          ? result
+          : {
+              format: "cargoguard-reviewed-evidence-v3",
+              generated_at: new Date().toISOString(),
+              warning:
+                "Reviewed operational evidence, NOT untouched automatic model accuracy. Strict mismatches remain visible regardless of business policy.",
+              cases: all.map((r) => ({
+                ...r,
+                strict_verdict: submissionEntry(r),
+              })),
+            };
+      return new Response(JSON.stringify(output, null, 2), {
         headers: {
           "Content-Type": "application/json",
-          "Content-Disposition":
-            "attachment; filename=cargoguard-submission.json",
+          "Content-Disposition": `attachment; filename=cargoguard-${mode}.json`,
           "Cache-Control": "no-store",
         },
       });
     }
-    const id = url.searchParams.get("id") ?? "",
-      result = await getCase(s.id, id);
+    const id = url.searchParams.get("id") ?? "";
+    const v = revisionNumber(url.searchParams.get("revision"));
+    const result = v ? await getRevision(s.id, id, v) : await getCase(s.id, id);
     if (!result)
       return respond({ error: "Case has not been processed yet." }, s, 404);
-    return respond({ result, audit: await audit(s.id, id) }, s);
+    return respond(
+      {
+        result,
+        audit: await audit(s.id, id),
+        revisions: await revisions(s.id, id),
+        historical: !!v,
+      },
+      s,
+    );
   } catch (e) {
     return respond(
-      { error: e instanceof Error ? e.message : "Unable to load case." },
+      {
+        error:
+          e instanceof HttpError
+            ? e.message
+            : "Unable to load case. Retry shortly.",
+      },
       s,
-      503,
+      e instanceof HttpError ? e.status : 503,
     );
   }
 }
 export async function POST(request: Request) {
   let s = workspace(request);
   try {
-    const payload = await readJson(request);
     s = requireMutation(request);
+    const payload = await readJson(request);
     const input = action.parse(payload);
     if (input.action === "process") {
+      const policy = await getPolicy(s.id, input.policyVersion);
       const started = performance.now(),
         saved = new Map(
           (await getCases(s.id, input.ids)).map((r) => [r.email.email_id, r]),
@@ -146,7 +200,8 @@ export async function POST(request: Request) {
       await mapLimited(jobs, 2, async (job) => {
         if (
           input.skipSaved &&
-          job.previous?.pipeline_version === PIPELINE_VERSION
+          job.previous?.pipeline_version === PIPELINE_VERSION &&
+          (job.previous?.policy?.version ?? 0) === policy.version
         ) {
           cached.push(job.previous);
           return;
@@ -164,6 +219,7 @@ export async function POST(request: Request) {
             read,
             job.previous,
             !!input.skipSaved,
+            policy,
           );
           writes.push({
             result,
@@ -192,7 +248,8 @@ export async function POST(request: Request) {
           const winner = latest.find(
             (r) =>
               r.email.email_id === id &&
-              r.pipeline_version === PIPELINE_VERSION,
+              r.pipeline_version === PIPELINE_VERSION &&
+              (r.policy?.version ?? 0) === policy.version,
           );
           if (winner) cached.push(winner);
           else
@@ -225,6 +282,68 @@ export async function POST(request: Request) {
     const previous = await getCase(s.id, input.id);
     if (!previous || previous.version !== input.version)
       throw new HttpError("Case changed. Refresh it before saving.", 409);
+    if (input.action === "select_documents") {
+      if (previous.category !== "BL_COMPARISON")
+        throw new HttpError(
+          "Confirm the BL comparison category before selecting a document pair.",
+          422,
+        );
+      const selection = {
+        si: {
+          name: input.si,
+          sha256:
+            previous.documents.find((d) => d.name === input.si)?.sha256 ?? "",
+        },
+        bl: {
+          name: input.bl,
+          sha256:
+            previous.documents.find((d) => d.name === input.bl)?.sha256 ?? "",
+        },
+        actor: input.actor,
+        reason: input.reason,
+        selected_at: new Date().toISOString(),
+      };
+      selectedDocuments(previous.documents, selection);
+      if (
+        previous.document_selection?.si.name === input.si &&
+        previous.document_selection?.bl.name === input.bl
+      )
+        throw new HttpError(
+          "This pair is already selected. Existing corrections have been retained.",
+          422,
+        );
+      const result = {
+        ...analyze(
+          previous.email,
+          previous.documents,
+          previous.duration_ms,
+          previous.category_override,
+          previous.policy,
+          selection,
+        ),
+        reviewed: true,
+        source_replaced: previous.source_replaced,
+      };
+      const updated = await saveCase(
+        s.id,
+        result,
+        input.version,
+        "DOCUMENT_PAIR_SELECTED",
+        input.actor,
+        JSON.stringify({
+          selection,
+          excluded: previous.documents
+            .filter((d) => ![input.si, input.bl].includes(d.name))
+            .map((d) => d.name),
+          previousSelection: previous.document_selection,
+          correctionsReset: previous.reviewed === true,
+        }),
+      );
+      return respond(
+        { result: updated, audit: await audit(s.id, input.id) },
+        s,
+      );
+    }
     if (input.action === "transcribe") {
       const transcript: Transcript = {
         role: input.role,
@@ -257,14 +376,17 @@ export async function POST(request: Request) {
       );
     }
     if (input.action === "route") {
-      let result = {
+      let result: CaseResult = {
         ...analyze(
           previous.email,
           previous.documents,
           previous.duration_ms,
           input.category,
+          previous.policy,
+          previous.document_selection,
         ),
         reviewed: true,
+        source_replaced: previous.source_replaced,
       };
       if (
         input.category === previous.category &&
@@ -293,31 +415,10 @@ export async function POST(request: Request) {
         s,
       );
     }
-    if (!previous.comparison.length)
-      throw new HttpError(
-        "This case requires readable SI and BL documents before field correction.",
-        422,
-      );
-    const rows = structuredClone(previous.comparison),
-      row = rows.find((r) => r.field === input.field)!;
-    if (normalize(input.field, input.value) === null)
-      throw new HttpError(
-        "Enter a complete, unambiguous field value. Use kilograms for ambiguous weights.",
-        422,
-      );
-    const old = row[input.side].raw;
-    row[input.side] = {
-      ...row[input.side],
-      raw: input.value,
-      extraction_issue: undefined,
-      issue: undefined,
-      method: `Human correction by ${input.actor}`,
-      evidence: `Reviewer confirmed; original source: ${row[input.side].evidence}`,
-    };
-    const result = deriveResult(
-      { ...previous, reviewed: true, pipeline_version: PIPELINE_VERSION },
-      recomputeRows(rows),
-    );
+    const old = previous.comparison.find((r) => r.field === input.field)?.[
+      input.side
+    ].raw;
+    const result = correctField(previous, input, input.actor);
     const updated = await saveCase(
       s.id,
       result,

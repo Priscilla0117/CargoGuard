@@ -1,4 +1,7 @@
 import { classify } from "./classifier";
+import { selectedDocuments } from "./document-selection";
+import { recoveryExtracted } from "./recovery-schema";
+import { withPolicy, DEFAULT_POLICY, type PolicySnapshot } from "./policy";
 import {
   FIELDS,
   FIELD_LABELS,
@@ -10,8 +13,14 @@ import {
   type CaseResult,
   type Extracted,
   type ComparisonRow,
+  type DocumentSelection,
 } from "./types";
-import { normalize, compareFields, resolveFields } from "./normalization";
+import {
+  normalize,
+  compareFields,
+  resolveFields,
+  equivalent,
+} from "./normalization";
 export { normalize, compareFields, recomputeRows } from "./normalization";
 const labels: [RegExp, Field | "stop"][] = [
   [/^shipper(?:\s*\/\s*exporter)?(?:\s*\([^)]*\))*\s*$/i, "shipper"],
@@ -53,7 +62,51 @@ function fieldLabel(text: string): Field | "stop" | null {
     )?.[1] ?? null
   );
 }
+
+/** A header's unit is part of the source value, not disposable label decoration. */
+function weightWithLabel(
+  raw: string,
+  label: string,
+): { raw: string; issue?: string } {
+  const annotations = [...label.normalize("NFKC").matchAll(/\(([^)]*)\)/g)]
+    .map((match) => match[1].replace(/^\s*毛重\s*/, "").trim())
+    .filter(Boolean);
+  const unit = (value: string) =>
+    /^(?:kgs?|kilograms?)$/i.test(value)
+      ? "KG"
+      : /^(?:mt|metric tonnes?|tonnes?)$/i.test(value)
+        ? "MT"
+        : null;
+  const headerUnits = annotations.map(unit);
+  if (!headerUnits.length) return { raw };
+  if (headerUnits.some((value) => !value || value !== headerUnits[0]))
+    return {
+      raw,
+      issue:
+        "The weight label contains unsupported or conflicting units. Confirm the weight in kilograms.",
+    };
+  const suffix = raw
+    .normalize("NFKC")
+    .trim()
+    .match(/([a-z]+(?:\s+[a-z]+)*)$/i)?.[1];
+  if (suffix) {
+    if (unit(suffix) && unit(suffix) !== headerUnits[0])
+      return {
+        raw,
+        issue:
+          "The weight label and value specify conflicting units. Confirm the source weight in kilograms.",
+      };
+    return { raw };
+  }
+  // Only augment a complete number. Missing values and unsupported expressions
+  // remain uncertain, and the evidence still points to the original label/value.
+  return normalize("gross_weight_kg", raw) !== null
+    ? { raw: `${raw} ${headerUnits[0]}` }
+    : { raw };
+}
+
 export function extract(doc: ParsedDocument): Extracted {
+  if (doc.recovery) return recoveryExtracted(doc);
   if (doc.transcription) {
     return resolveFields(
       Object.fromEntries(
@@ -87,6 +140,8 @@ export function extract(doc: ParsedDocument): Extracted {
     raw: string;
     location: string;
     total: boolean;
+    label: string;
+    issue?: string;
   };
   const segments: Segment[] = [];
   let current: Segment | null = null;
@@ -104,6 +159,7 @@ export function extract(doc: ParsedDocument): Extracted {
               raw: split ? split[2].trim() : "",
               location: line.location,
               total: /^total\s+gross/i.test(text),
+              label: split ? split[1] : text,
             };
       if (current) segments.push(current);
     } else if (current) {
@@ -115,6 +171,9 @@ export function extract(doc: ParsedDocument): Extracted {
         current = null;
     }
   }
+  for (const segment of segments)
+    if (segment.field === "gross_weight_kg")
+      Object.assign(segment, weightWithLabel(segment.raw, segment.label));
   for (const field of FIELDS) {
     let candidates = segments.filter((s) => s.field === field && s.raw.trim());
     if (field === "gross_weight_kg" && candidates.some((s) => s.total))
@@ -124,7 +183,8 @@ export function extract(doc: ParsedDocument): Extracted {
       values = candidates.map((c) => normalize(field, c.raw));
     const conflicting =
       candidates.length > 1 &&
-      values.some((v) => v === null || v !== values[0]);
+      values.some((v) => !equivalent(field, v, values[0]));
+    const issue = candidates.find((candidate) => candidate.issue)?.issue;
     result[field] = {
       raw: conflicting
         ? candidates.map((c) => c.raw).join("\n--- alternative value ---\n")
@@ -133,9 +193,10 @@ export function extract(doc: ParsedDocument): Extracted {
       evidence: candidates.map((c) => c.location).join("; "),
       source: doc.name,
       method: doc.method,
-      ...(conflicting
+      ...(conflicting || issue
         ? {
             extraction_issue:
+              issue ??
               "Conflicting repeated field labels. Confirm the authoritative value from the source.",
           }
         : {}),
@@ -156,20 +217,32 @@ export function extract(doc: ParsedDocument): Extracted {
         const m = next.text.match(
           /[:：]\s*(\d[\d ,.]*\s*(?:kgs?|mt|tonnes?)?)\s*$/i,
         );
-        if (m && normalize("gross_weight_kg", m[1]) !== null)
+        if (m && normalize("gross_weight_kg", m[1]) !== null) {
+          const recovered = weightWithLabel(
+            m[1].trim(),
+            `${line.text} ${next.text.split(/[:：]/)[0]}`,
+          );
           result.gross_weight_kg = {
-            raw: m[1].trim(),
+            raw: recovered.raw,
             normalized: null,
             evidence: line.location,
             source: doc.name,
             method: `${doc.method}; same-baseline total`,
+            ...(recovered.issue ? { extraction_issue: recovered.issue } : {}),
           };
+        }
       }
     }
   }
   return resolveFields(result);
 }
 export function deriveResult(
+  base: CaseResult,
+  rows: ComparisonRow[],
+): CaseResult {
+  return withPolicy(deriveStrictResult(base, rows));
+}
+function deriveStrictResult(
   base: CaseResult,
   rows: ComparisonRow[],
 ): CaseResult {
@@ -204,6 +277,20 @@ export function analyze(
   documents: ParsedDocument[],
   duration = 0,
   categoryOverride?: Category,
+  policy: PolicySnapshot = DEFAULT_POLICY,
+  selection?: DocumentSelection,
+): CaseResult {
+  return withPolicy(
+    analyzeCore(email, documents, duration, categoryOverride, selection),
+    policy,
+  );
+}
+function analyzeCore(
+  email: Email,
+  documents: ParsedDocument[],
+  duration = 0,
+  categoryOverride?: Category,
+  selection?: DocumentSelection,
 ): CaseResult {
   const classification = classify(email),
     base: CaseResult = {
@@ -219,6 +306,8 @@ export function analyze(
       defect_fields: [],
       summary: "",
       documents,
+      document_selection: selection,
+      reviewed: selection ? true : undefined,
       comparison: [],
       duration_ms: duration,
       processed_at: new Date().toISOString(),
@@ -229,10 +318,18 @@ export function analyze(
       ...base,
       status: "NEEDS_REVIEW",
       workflow: "review",
-      review_reason: "uncertain_category",
+      review_reason:
+        base.category === "BL_COMPARISON" &&
+        documents.some((d) => d.type === "OTHER" && !d.error)
+          ? "wrong_doc_type"
+          : "uncertain_category",
       summary:
-        classification.review_note ??
-        "Email intent is uncertain. Confirm the category before processing the documents.",
+        (base.category === "BL_COMPARISON" &&
+        documents.some((d) => d.type === "OTHER" && !d.error)
+          ? "An attachment is a recognized non-shipping-comparison document, such as an invoice or packing list. Provide the actual SI and draft BL. "
+          : "") +
+        (classification.review_note ??
+          "Email intent is uncertain. Confirm the category before processing the documents."),
     };
   if (
     !categoryOverride &&
@@ -272,6 +369,25 @@ export function analyze(
     review_reason: reason,
     summary,
   });
+  if (selection) {
+    try {
+      const [si, bl] = selectedDocuments(documents, selection);
+      const result = deriveResult(
+        base,
+        compareFields(extract(si), extract(bl)),
+      );
+      const excluded = documents.length - 2;
+      return {
+        ...result,
+        summary: `${result.summary} Human-selected pair only; ${excluded} other attachment${excluded === 1 ? " is" : "s are"} retained but not verified.`,
+      };
+    } catch {
+      return review(
+        "wrong_doc_type",
+        "The selected SI/BL pair is no longer valid. Confirm the current source documents before comparing.",
+      );
+    }
+  }
   if (documents.length < 2) {
     if (
       documents.length === 0 &&
@@ -299,17 +415,19 @@ export function analyze(
         .map((d) => `${d.name}: ${d.error}`)
         .join(" "),
     );
-  if (documents.some((d) => d.type === "OTHER"))
+  if (documents.some((d) => d.type === "OTHER" || d.type === "UNKNOWN"))
     return review(
       "wrong_doc_type",
-      "An attachment is an invoice, packing list or another document type. A draft BL is required.",
+      documents.length > 2
+        ? "This email contains additional attachments. In Sources, choose the readable SI and draft BL to compare. Every other attachment will be retained but not verified."
+        : "An attachment is an invoice, packing list or an unrecognized document type. Confirm every attachment and provide exactly one SI and one draft BL before comparing.",
     );
   const sis = documents.filter((d) => d.type === "SI"),
     bls = documents.filter((d) => d.type === "BL");
   if (sis.length !== 1 || bls.length !== 1)
     return review(
       "wrong_doc_type",
-      "Could not identify exactly one Shipping Instruction and one draft Bill of Lading. Confirm document roles.",
+      "Could not identify exactly one Shipping Instruction and one draft Bill of Lading. Confirm document roles; for multiple drafts, choose the comparison pair in Sources.",
     );
   return deriveResult(base, compareFields(extract(sis[0]), extract(bls[0])));
 }

@@ -1,5 +1,7 @@
 # Model and validation card
 
+**Version note:** The sections below are the **historical 3.0.1 baseline**, not the current model. The current 3.2 engine uses the learned TF-IDF logistic router, optional external AI, and the safety changes described in [AI_UPGRADE.md](AI_UPGRADE.md) and [REVIEW_WORKSPACE_V32.md](REVIEW_WORKSPACE_V32.md). See CLOUD_RELEASE.md for dated live-provider tests. Historical 73%/391-rule metrics below do not describe the default current router. No version claims perfect unseen-input accuracy.
+
 ## Intended use
 
 Triage shipping-related emails into BL_COMPARISON, SI_REQUEST, INVOICE_QUERY, GENERAL and SPAM; compare an SI and draft BL across seven required fields. Human staff remain responsible for final operational decisions.
@@ -16,7 +18,7 @@ An additional pretrained English Tesseract OCR model runs in the browser on imag
 
 Application imports: supplied email/attachment inputs, authored examples, deterministic parser and comparison code.
 
-Offline-only evaluation: scripts/score-evaluation.py reads the organiser ground-truth key and invokes their unmodified scorer. The application never imports that key, metadata labels, generated predictions or an ID-to-answer mapping. Public validation.json contains aggregate metrics only. Renaming IDs/files does not change predictions in the regression test.
+Offline-only evaluation: scripts/verify-evaluation.mjs reads an explicitly supplied organiser ground-truth key, invokes their unmodified scorer and fails nonzero on schema, coverage or output differences. It runs in the quality gate. The application never imports that key, metadata labels, generated predictions or an ID-to-answer mapping. Public validation.json contains aggregate metrics and hashes only. Renaming IDs/files does not change predictions in the regression test.
 
 The organiser explicitly clarified that the released Docker key is for participant self-evaluation and the older README restriction was outdated.
 
@@ -38,23 +40,25 @@ Actual workflow totals: 63 verified pairs, 46 discrepancy pairs, 20 review cases
 
 ## Additional evidence
 
-114 regression tests cover independent field mutations; whole-expression and 400 generated compound-count checks; placeholders; duplicate labels; misleading subjects and quoted threads; correction dependencies; uncertain routing; bounded parsing; source identity; scan confirmation; and malformed requests. Run `npm run quality` for retained logs.
+197 regression tests in eleven automatically discovered files cover independent field mutations; whole-expression and 400 generated compound-count checks; unit-bearing labels; placeholders; duplicate labels; misleading subjects and quoted threads; correction dependencies; uncertain routing; bounded parsing; source identity; scan confirmation; policies; immutable storage transactions; reverse-proxy origin safety; malformed requests; client ordering; failing accuracy gates and actual PDF font/CMap resource loading. The earlier 126-test gate omitted an inherited test file; this is corrected and disclosed in DEFENSIBILITY.md. Run `npm run quality` for retained logs and the independent organiser accuracy gate.
 
-70 local API integration checks cover all 520 records through the Worker/D1/R2 path, exact exported predictions, session isolation, cross-origin protection, new-file processing, field corrections, stale-save rejection, audit integrity, attachment replacement, reprocessing and restricted file access.
+72 local API integration checks cover all 520 records through the standard Next.js/Node/libSQL path, exact exported predictions, isolation, cross-origin protection, uploads, corrections, stale saves, audit integrity, replacement, reprocessing and restricted sources. Another 35 hardening checks and 23 governance checks cover race conditions, scan review, quotas, stale policy previews, historical sources and labelled exports. These are local production-build tests, not proof of hosted performance.
 
 These tests are engineering regression coverage, not a statistical estimate of unseen accuracy.
 
-Three additional same-generator datasets (seeds 7, 20260920, 20260921; 520 emails each) were evaluated and used for fixes. The release matches every expected output across these and the original set: 2,080 emails, 209/209 exact defect catches and 80/80 review cases. No expected defect/review case was shown as verified. This is not a novel-template or real-world holdout result. Earlier failures remain documented in the workspace's readiness audit; the resolved failures are covered by regressions.
+Four additional same-generator datasets (seeds 7, 20260920, 20260921, 8675309; 520 emails each) were evaluated and used for fixes. Version 3 matches every expected output across these and the original set: 2,600 emails, 267/267 exact defect catches and 100/100 review cases. No expected defect/review case was shown as verified. Seed 8675309 originally exposed a v2 promotional-routing mistake and is now development evidence, not a holdout. The same 12 targeted HarborCheck-comparison probes now pass 12/12 versus v2's 9/12; these deliberately chosen diagnostics are not a random benchmark.
 
-The supplied-corpus routing ablation is reproducible with `node --import tsx scripts/ablation.ts`: model-only classification accuracy 73.27%, macro-F1 0.7282; hybrid 100%, macro-F1 1.000. The hybrid uses an explicit rule for 370/520 records and model-only routing for 150/520. This demonstrates that the rules matter and prevents misrepresenting the result as learned-model-only accuracy. A rules-only baseline and independent real-world benchmark remain future evaluation work.
+The supplied-corpus routing ablation is reproducible with `node --import tsx scripts/ablation.ts /path/to/ground_truth.json`: model-only classification accuracy 73.27%, macro-F1 0.7282; hybrid 100%, macro-F1 1.000. Version 3.0.1 uses an explicit rule for 391/520 records and model-only routing for 129/520. The rules matter; these results must not be described as learned-model-only accuracy. A rules-only baseline and independent real-world benchmark remain future evaluation work.
 
 All six image-only organiser PDFs were rendered and OCR-read with the shipped model. At 180 DPI, 36/42 candidate fields were syntactically usable; that is **candidate completeness, not transcription accuracy**. Company names, punctuation and numbers still contain errors. Mean per-page model confidence ranged 69–83/100 in this diagnostic run. Browser rendering may yield different text. No scan is cleared from confidence alone; page images, manual edits and seven explicit confirmations are required. Malformed PDFs cannot use the scan-confirmation route.
 
 ## Known limitations and next evaluation
 
+- Excel formulas/error cells require a recalculated, inspected values-only export. No cached formula result is treated as independently verified. Unsupported or conflicting weight units and extra unknown documents are sent for review.
+
 - OCR is English-only, up to five pages and 5 MB, and may be slow on low-powered devices. Initial model download is several MB. Human-confirmed transcription or readable replacement is required; unattended OCR clearance is intentionally absent.
 - Unfamiliar unlabeled layouts may not extract correctly; review/unknown handling needs a much broader real-document benchmark.
-- Conservative normalization tolerates spacing, punctuation and explicit numeric units. It does not guess port aliases or accept fuzzy company-name matches.
+- Conservative normalization tolerates spacing, punctuation and explicit numeric units. A small explicit list handles matching optional port codes; unknown or contradictory codes are not stripped. It does not guess arbitrary port aliases or accept fuzzy company-name matches.
 - Hand-authored classifier examples are small and English-focused; assess multilingual and forwarded-thread behavior before production.
 - A field correction changes extracted data, not the authoritative original file. Reviewers must actually inspect the source.
 - Benchmark synthetic inputs are clean compared with operational emails. Obtain approved, anonymized historical examples; freeze a hold-out set before further tuning; measure error by format/template/category and human review workload.

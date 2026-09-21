@@ -7,6 +7,7 @@ import {
   saveCase,
   getCase,
   storage,
+  getPolicy,
 } from "@/lib/storage";
 import { z } from "zod";
 import { readForm, HttpError } from "@/lib/http";
@@ -14,18 +15,35 @@ import { readForm, HttpError } from "@/lib/http";
 export async function POST(request: Request) {
   let s = workspace(request);
   const keys: string[] = [];
-  let persistAttempted = false,
-    targetId = "";
+  let persistAttempted = false;
   try {
-    const form = await readForm(request);
     s = requireMutation(request);
+    const form = await readForm(request, 21 * 1024 * 1024);
+    // FormData.get() reads the first value but Object.fromEntries() keeps the
+    // last. Reject ambiguous control fields before choosing upload vs replace.
+    for (const field of [
+      "id",
+      "version",
+      "actor",
+      "reason",
+      "from",
+      "subject",
+      "body",
+    ])
+      if (form.getAll(field).length > 1)
+        throw new HttpError(`Only one ${field} field is allowed.`);
     if (form.getAll("files").some((x) => !(x instanceof File)))
       throw new HttpError("The attachment field must contain files.");
     const files = form
       .getAll("files")
       .filter((x): x is File => x instanceof File && !!x.name);
-    if (files.length > 2)
-      throw new HttpError("Upload at most two files: the SI and draft BL.");
+    if (files.length > 10)
+      throw new HttpError("Attach at most 10 documents per email.");
+    if (files.reduce((sum, f) => sum + f.size, 0) > 20 * 1024 * 1024)
+      throw new HttpError(
+        "The combined attachments must be 20 MB or smaller.",
+        413,
+      );
     const replacement = form.get("id")
       ? z
           .object({
@@ -43,16 +61,21 @@ export async function POST(request: Request) {
         s,
         409,
       );
-    if (replacement && files.length !== 2)
+    if (replacement && files.length < 2)
       throw new HttpError(
         "Supply both replacement documents: the SI and draft BL.",
       );
-    const { subject, body } = z
+    const { subject, body, from } = z
       .object({
+        from: z.string().trim().email().max(254),
         subject: z.string().trim().min(1).max(500),
         body: z.string().trim().min(1).max(20000),
       })
       .parse({
+        from:
+          previous?.email.from ??
+          form.get("from") ??
+          "uploaded@workspace.local",
         subject: previous?.email.subject ?? form.get("subject"),
         body: previous?.email.body ?? form.get("body"),
       });
@@ -91,12 +114,22 @@ export async function POST(request: Request) {
     }
     const email = {
         email_id: id,
-        from: previous?.email.from ?? "uploaded@workspace.local",
+        from,
         subject,
         body,
         attachments: paths,
       },
-      r = analyze(email, docs, 0, previous?.category_override);
+      r = analyze(
+        email,
+        docs,
+        0,
+        previous?.category_override,
+        previous?.policy ?? (await getPolicy(s.id)),
+      );
+    if (previous) {
+      r.reviewed = true;
+      r.source_replaced = true;
+    }
     r.duration_ms = Math.round(performance.now() - started);
     const detail = JSON.stringify({
       summary: r.summary,
@@ -105,7 +138,6 @@ export async function POST(request: Request) {
       attachments: docs.map((d) => ({ name: d.name, sha256: d.sha256 })),
     });
     persistAttempted = true;
-    targetId = id;
     const result = await saveCase(
       s.id,
       r,
@@ -119,17 +151,11 @@ export async function POST(request: Request) {
     if (keys.length) {
       // A lost database response is not proof of rollback. Never delete bytes
       // that a committed case might reference; retain uncertain orphans for cleanup.
-      let safeToRemove = !persistAttempted;
-      if (persistAttempted) {
-        try {
-          const saved = await getCase(s.id, targetId);
-          safeToRemove = !saved?.email.attachments.some((p) =>
-            keys.includes(`${s.id}/${targetId}/${p.split("/").pop()}`),
-          );
-        } catch {
-          safeToRemove = false;
-        }
-      }
+      // A subsequent replacement can move the committed bytes into history.
+      // Looking only at the current case is insufficient proof of orphanhood.
+      const safeToRemove =
+        !persistAttempted ||
+        (e instanceof HttpError && [409, 429].includes(e.status));
       if (safeToRemove)
         await storage()
           .BUCKET.delete(keys)

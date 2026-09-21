@@ -7,6 +7,23 @@ export class HttpError extends Error {
     this.name = "HttpError";
   }
 }
+export function sameRequestOrigin(
+  request: Request,
+  publicOrigin?: string,
+): boolean {
+  const origin = request.headers.get("origin");
+  if (!origin) return true; // Non-browser API clients still require the workspace cookie.
+  try {
+    const url = new URL(request.url);
+    const expected = publicOrigin
+      ? new URL(publicOrigin).origin
+      : new URL(`${url.protocol}//${request.headers.get("host") ?? url.host}`)
+          .origin;
+    return new URL(origin).origin === expected;
+  } catch {
+    return false;
+  }
+}
 /** Bound the stream itself: content-length may be absent or dishonest. */
 export async function readBytes(
   request: Request,
@@ -57,11 +74,11 @@ export async function readJson(
     throw new HttpError("Request must contain valid UTF-8 JSON.");
   }
 }
-export async function readForm(request: Request): Promise<FormData> {
-  const bytes = await readBytes(request, 11 * 1024 * 1024);
+export async function readForm(request: Request, limit = 11 * 1024 * 1024): Promise<FormData> {
   const type = request.headers.get("content-type") ?? "";
-  if (!type.startsWith("multipart/form-data;"))
+  if (!/^multipart\/form-data\s*;/i.test(type))
     throw new HttpError("Use a multipart document upload.", 415);
+  const bytes = await readBytes(request, limit);
   try {
     return await new Request(request.url, {
       method: "POST",
@@ -73,4 +90,13 @@ export async function readForm(request: Request): Promise<FormData> {
       "The upload is incomplete or malformed. Select the files and retry.",
     );
   }
+}
+
+/** Do not let malformed or rounded history selectors reach the database. */
+export function revisionNumber(value: string | null): number | undefined {
+  if (value === null) return undefined;
+  const version = Number(value);
+  if (!/^\d+$/.test(value) || !Number.isSafeInteger(version) || version < 1)
+    throw new HttpError("Invalid revision.");
+  return version;
 }

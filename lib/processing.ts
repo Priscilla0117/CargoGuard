@@ -2,6 +2,9 @@ import { analyze, deriveResult, recomputeRows } from "./compare";
 import { parseDocument } from "./parsers";
 import type { CaseResult, Email, ParsedDocument } from "./types";
 import { canTranscribe, transcribeDocument } from "./transcription";
+import { DEFAULT_POLICY, type PolicySnapshot } from "./policy";
+import { recoverDocument } from "./recovery";
+import { selectionStillMatches } from "./document-selection";
 
 export async function mapLimited<T, R>(
   items: T[],
@@ -29,6 +32,7 @@ export async function processEmail(
   read: (path: string) => Promise<Uint8Array | null>,
   previous?: CaseResult,
   preserveCorrections = false,
+  policy: PolicySnapshot = previous?.policy ?? DEFAULT_POLICY,
 ) {
   const started = performance.now();
   const docs = await mapLimited(email.attachments, 2, async (path) => {
@@ -46,6 +50,17 @@ export async function processEmail(
     const original = previous?.documents.find(
       (d) => d.name === doc.name && d.sha256 && d.sha256 === doc.sha256,
     );
+    if (original?.recovery) {
+      try {
+        return await recoverDocument(doc, original.recovery);
+      } catch {
+        return {
+          ...doc,
+          error:
+            "Previously confirmed recovery no longer matches the parsed source. Review or replace the document again.",
+        };
+      }
+    }
     return original?.transcription && canTranscribe(doc)
       ? transcribeDocument(doc, original.transcription)
       : doc;
@@ -55,8 +70,15 @@ export async function processEmail(
     docs,
     Math.round(performance.now() - started),
     previous?.category_override,
+    policy,
+    selectionStillMatches(docs, previous?.document_selection),
   );
-  if (docs.some((d) => d.transcription) || previous?.category_override)
+  result.source_replaced = previous?.source_replaced;
+  if (
+    docs.some((d) => d.transcription || d.recovery) ||
+    previous?.category_override ||
+    result.document_selection
+  )
     result.reviewed = true;
   // An engine upgrade is not permission to erase a reviewed fact. Preserve
   // corrections only when every source fingerprint is unchanged.

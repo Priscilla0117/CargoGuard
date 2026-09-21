@@ -4,14 +4,11 @@ const fetch = (url, options = {}) =>
   globalThis.fetch(url, {
     ...options,
     headers: {
-      ...(process.env.CARGO_SITE_AUTH
-        ? { "OAI-Sites-Authorization": `Bearer ${process.env.CARGO_SITE_AUTH}` }
-        : {}),
       ...options.headers,
     },
-    signal: AbortSignal.timeout(45000),
+    signal: AbortSignal.timeout(90000),
   });
-const origin = process.argv[2] ?? "http://localhost:5173";
+const origin = new URL(process.argv[2] ?? "http://127.0.0.1:3000").origin;
 const start = performance.now();
 let checks = 0;
 async function session() {
@@ -80,10 +77,14 @@ for (let i = 0; i < 520; i += 10) {
 checks += 52;
 const exported = await call("/api/cases?export=1"),
   expected = JSON.parse(
-    await fs.readFile("work/evaluation/submission.json", "utf8"),
+    await fs.readFile("work/validation/v3/original/submission.json", "utf8"),
   );
 check(exported.r.status === 200, "complete export allowed");
 assert.deepEqual(exported.data, expected);
+await fs.mkdir("work/validation", { recursive: true });
+// Retain the actual HTTP output for independent answer-key scoring afterwards.
+// This is offline QA evidence, never runtime input or a public answer endpoint.
+await fs.writeFile("work/validation/http-submission.json", JSON.stringify(exported.data, null, 2));
 checks++;
 check(
   (await call("/api/inbox", null, other)).data.cases.every(
@@ -116,6 +117,17 @@ check(
 check(
   (await call("/api/cases?id=email_001")).data.audit.length === 2,
   "failed stale write leaves no false audit event",
+);
+assert.deepEqual(
+  (await call("/api/cases?export=1&mode=baseline")).data,
+  expected,
+);
+checks++;
+check(
+  (await call("/api/cases?export=1&mode=reviewed")).data.cases.find(
+    (r) => r.email.email_id === "email_001",
+  ).reviewed === true,
+  "reviewed export discloses human intervention",
 );
 check(
   (await call("/api/cases", { action: "process", ids: ["email_001"] })).data
@@ -192,7 +204,7 @@ const report = {
   duration_ms: Math.round(performance.now() - start),
   passed: true,
   scope:
-    "Cloudflare Worker + D1 + R2 integration; isolated synthetic workspace",
+    "HTTP integration against the supplied origin; isolated synthetic workspace",
   origin,
   generated_at: new Date().toISOString(),
 };

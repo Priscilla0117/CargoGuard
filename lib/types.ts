@@ -53,6 +53,7 @@ export interface ParsedDocument {
   sha256?: string;
   page_count?: number;
   transcription?: import("./transcription").Transcript;
+  recovery?: import("./recovery-schema").ConfirmedRecovery;
 }
 export interface FieldValue {
   raw: string;
@@ -79,6 +80,13 @@ export interface Classification {
   needs_review?: boolean;
   review_note?: string;
 }
+export interface DocumentSelection {
+  si: { name: string; sha256: string };
+  bl: { name: string; sha256: string };
+  actor: string;
+  reason: string;
+  selected_at: string;
+}
 export interface CaseResult {
   email: Email;
   category: Category;
@@ -100,11 +108,15 @@ export interface CaseResult {
   processed_at: string;
   version: number;
   reviewed?: boolean;
+  source_replaced?: boolean;
+  document_selection?: DocumentSelection;
   category_override?: Category;
   pipeline_version?: string;
+  policy?: import("./policy").PolicySnapshot;
+  policy_assessment?: ReturnType<typeof import("./policy").assessPolicy>;
 }
 export interface CaseSummary {
-  email: Email;
+  email: Pick<Email, "email_id" | "from" | "subject" | "attachments">;
   result: Omit<CaseResult, "email" | "documents" | "comparison"> | null;
 }
 export interface AuditEvent {
@@ -115,10 +127,14 @@ export interface AuditEvent {
   detail: string;
   created_at: string;
 }
-export const PIPELINE_VERSION = "2.0.0";
+export const PIPELINE_VERSION = "3.2.1";
+export function emailSummaryOf(email: Email): CaseSummary["email"] {
+  const { email_id, from, subject, attachments } = email;
+  return { email_id, from, subject, attachments };
+}
 export function summaryOf(result: CaseResult): CaseSummary {
   const { email, documents, comparison, ...rest } = result;
   void documents;
   void comparison;
-  return { email, result: rest };
+  return { email: emailSummaryOf(email), result: rest };
 }
