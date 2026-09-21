@@ -85,7 +85,14 @@ try {
   );
   const id = result.email.email_id;
   for (const fixture of selected) {
-    const doc = result.documents.find((d) => d.name === fixture.source.name);
+    const sourceHash = createHash("sha256")
+      .update(fixture.source.spans.map((s) => s.text).join("\n"))
+      .digest("hex");
+    const doc = result.documents.find((d) => d.sha256 === sourceHash);
+    check(
+      !!doc,
+      "uploaded document located by exact source-byte hash, independent of safe filename prefix",
+    );
     const request = {
       action: "suggest",
       id,
