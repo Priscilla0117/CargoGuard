@@ -64,7 +64,8 @@ seven fields; source links are pinned to each snapshot's exact version.
   regressions, not new held-out model-accuracy results.
 - At 1366 × 768 the queue table begins near y=319 and six full rows fit before
   scrolling. Previously Operations' queue began near y=962 and Inbox's table near
-  y=726. No page-wide horizontal overflow was observed.
+  y=726. At 1280 × 720, five full rows fit. No page-wide horizontal overflow was
+  observed at either tested laptop size.
 - Browser journeys: Run inbox; filtered case opening; all seven fields; correction
   save/advance; historical comparison; source tools; direct case chat; audit
   search; settings. Synthetic replacement showed one field now matching, one new
@@ -81,8 +82,38 @@ ignored work/validation; workspace cookies are never printed or published.
 
 ## Release status and limits
 
-Local acceptance is complete. Hosted acceptance will be recorded here after the
-checked commit is deployed; this section does not yet claim a live upgrade.
+Live at **https://cargoguard-averis.onrender.com/**. Runtime commit
+`e716487660f281cdc1f0ccaa5cc237be936c8f05`, branch `cargoguard-v3-deploy`, Render
+deployment `dep-daofajad0e5s7381trog`. Deployment started at **17:13:49 Malaysia
+time on 21 September 2026** and Render reported **Deploy succeeded / Live** after
+**2m51s**. Later documentation-only commits do not change this runtime.
+
+- All **200 hosted HTTP checks** passed again, completed by **17:18:54 MYT**:
+  72 core, 35 hardening, 23 governance, 30 release, 25 assistant preflight and
+  15 revision-flow checks. These tests create synthetic isolated workspaces;
+  the existing visible user's cases were not edited. Provider calls: **zero**.
+- The actual hosted automatic export was independently scored at **17:18:36
+  MYT**: **520/520 exact**, all 46 defect cases and 20 review cases, zero false OK,
+  official supplied-corpus composite 1.0. The prediction hash equals the local
+  hash above. This is supplied development data, not unseen accuracy.
+- Seven post-redeployment persistence checks passed at **17:17:03 MYT**:
+  unchanged saved case and policy, available historical revision, exact hashes
+  of both retained 5 MiB source files, and denial of both to another workspace.
+  The private persistence bookmark remains ignored and must not be published.
+- Hosted browser acceptance confirmed the compact queue, historical v1/v2 to v3
+  comparison (including engine-change notices), all seven fields on expansion,
+  revision-pinned source links, direct case chat, Reports, audit trail and Settings.
+  No warning/error entries appeared in the inspected browser log. No new AI
+  answer was requested; this release does not re-test provider answer quality.
+- Hosted hardening requests measured median **263 ms**, p95 **485 ms**, across
+  73 requests while other suites ran. This is low-volume synthetic evidence,
+  not a cold-start, load-capacity or latency guarantee.
+
+Reports remain in the deployment checkout's ignored `work/validation/`, including
+`laptop-hosted-accuracy.json`. The original project mirror receives the source and
+documentation changes without replacing unrelated local edits. Its installed
+dependencies/build output are not the tested deployment; use `npm ci` and rebuild
+if running that copy.
 
 Laptop-first, not a new mobile optimization effort. No employee usability study,
 accessibility certification, sustained-load test or new LLM-quality test. Shared
