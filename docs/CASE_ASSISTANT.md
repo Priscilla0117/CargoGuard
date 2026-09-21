@@ -40,7 +40,7 @@ The browser view can be cleared with **Start a new conversation**. This is not a
 
 ## Reproducible evidence and limitations
 
-Before deployment on 21 September 2026:
+Initial case-tab release on 21 September 2026 (before the floating-panel upgrade; see GLOBAL_ASSISTANT_RELEASE.md for newer evidence):
 
 - Eight-step quality gate passed, including **267 tests across 16 files**, typecheck, lint, original-input integrity, independent organiser scoring, OCR staging and production build.
 - Seventeen new assistant tests cover the provider contract, source privacy, scan-transcription provenance, readable/navigable citation rendering, rejection of invalid references, no-key/error behavior, shared quota, cache privacy/expiry, same-origin/session/consent, preview binding, follow-ups and in-flight revision changes. Provider responses are mocked: these tests do not establish LLM answer quality.
