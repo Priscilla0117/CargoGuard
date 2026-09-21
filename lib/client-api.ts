@@ -34,7 +34,9 @@ export async function requestJson<T>(
     data = await response.json();
   } catch {
     throw new RequestError(
-      "The server returned an unexpected response. Refresh and retry.",
+      [502, 503, 504].includes(response.status)
+        ? "The cloud service is temporarily unavailable or restarting. Wait a moment, then refresh the workspace to check saved progress before repeating an action."
+        : "The server returned an unexpected response. Refresh and retry.",
       response.status,
     );
   }

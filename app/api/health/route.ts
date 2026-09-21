@@ -1,19 +1,21 @@
-import { storage } from "@/lib/storage";
+import { databaseReady } from "@/lib/runtime";
+import { createReadinessCheck } from "@/lib/readiness";
 import { PIPELINE_VERSION } from "@/lib/types";
 export const dynamic = "force-dynamic";
+const readiness = createReadinessCheck(databaseReady);
 export async function GET() {
-  try {
-    await storage()
-      .DB.prepare("SELECT version FROM result_revisions LIMIT 1")
-      .all();
+  if (await readiness()) {
     return Response.json(
       { status: "ready", engine: PIPELINE_VERSION },
       { headers: { "Cache-Control": "no-store" } },
     );
-  } catch {
+  } else {
     return Response.json(
       { status: "unavailable" },
-      { status: 503, headers: { "Cache-Control": "no-store" } },
+      {
+        status: 503,
+        headers: { "Cache-Control": "no-store", "Retry-After": "5" },
+      },
     );
   }
 }
