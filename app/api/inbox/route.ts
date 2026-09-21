@@ -20,7 +20,7 @@ export async function GET(request: Request) {
         audit: await audit(s.id),
         policy: await getPolicy(s.id),
         model: {
-          name: "Naive Bayes + intent rules",
+          name: "Learned TF-IDF linear router with safety review",
           version: PIPELINE_VERSION,
           training: "64 independently authored intent examples",
           cloud: "Server-side processing + persistent workspace storage",

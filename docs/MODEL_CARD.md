@@ -1,5 +1,7 @@
 # Model and validation card
 
+**Version note:** The sections below document the released 3.0.1 baseline. The 3.1 local candidate replaces its router and adds optional external AI. See [AI_UPGRADE.md](AI_UPGRADE.md) for the current architecture, evaluation boundary and pending live-provider checks. Historical metrics below are not tests of the new LLM.
+
 ## Intended use
 
 Triage shipping-related emails into BL_COMPARISON, SI_REQUEST, INVOICE_QUERY, GENERAL and SPAM; compare an SI and draft BL across seven required fields. Human staff remain responsible for final operational decisions.

@@ -4,6 +4,8 @@ import {
   type Classification,
   type Email,
 } from "./types";
+import { classifyLearned } from "./routing";
+import { routingReviewGate } from "./routing-features";
 // Independently authored intent examples. The application never loads organiser
 // IDs or answer-key labels. Token probabilities are fitted from this corpus.
 export const TRAINING: Record<Category, string[]> = {
@@ -123,7 +125,7 @@ for (const cat of CATEGORIES)
       counts[cat].set(token, (counts[cat].get(token) ?? 0) + 1);
       totals[cat]++;
     }
-export function classify(
+export function classifyLegacy(
   email: Email,
   mode: "hybrid" | "model" = "hybrid",
 ): Classification {
@@ -268,4 +270,38 @@ export function classify(
       ? "Email intent has too little or conflicting evidence. Confirm its category; no operational decision has been made."
       : undefined,
   };
+}
+
+export function classify(
+  email: Email,
+  mode: "hybrid" | "model" | "learned" | "legacy" = "hybrid",
+): Classification {
+  if (mode === "model") return classifyLegacy(email, "model");
+  if (mode === "legacy") return classifyLegacy(email, "hybrid");
+  const learned = classifyLearned(email);
+  if (mode === "learned" || !learned.needs_review || routingReviewGate(email))
+    return learned;
+  const corroboration = classifyLegacy(email, "hybrid");
+  const ranked = Object.values(learned.scores).sort((a, b) => b - a);
+  // A moderate learned score may be corroborated, never replaced, by an
+  // explicit intent rule. Hard safety abstentions above cannot be bypassed.
+  if (
+    learned.confidence >= 0.4 &&
+    ranked[0] - ranked[1] >= 0.12 &&
+    corroboration.method.includes("intent rule") &&
+    corroboration.category === learned.category &&
+    !corroboration.needs_review
+  ) {
+    return {
+      ...learned,
+      needs_review: false,
+      review_note: undefined,
+      method: "Learned TF-IDF router + corroborating intent rule",
+      signals: [
+        ...learned.signals,
+        `Corroboration: ${corroboration.signals[0]}`,
+      ],
+    };
+  }
+  return learned;
 }

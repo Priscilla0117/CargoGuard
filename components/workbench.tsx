@@ -8,6 +8,8 @@ import { requestJson, latencySummary } from "@/lib/client-api";
 import { createRequestGate } from "@/lib/request-gate";
 import { mergeCaseSummaries } from "@/lib/case-state";
 import { ScanAssist } from "@/components/scan-assist";
+import { ResolutionDesk } from "@/components/resolution-desk";
+import { EvidenceRecovery } from "@/components/evidence-recovery";
 import { canTranscribe } from "@/lib/transcription";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -356,7 +358,8 @@ export default function Workbench() {
         setDetailTab("comparison");
       }
     } catch (e) {
-      if (activeRequest.current.isCurrent(request)) setError((e as Error).message);
+      if (activeRequest.current.isCurrent(request))
+        setError((e as Error).message);
     } finally {
       if (activeRequest.current.isCurrent(request)) setBusyId("");
     }
@@ -473,7 +476,8 @@ export default function Workbench() {
         "Reprocessed from current sources and confirmed scan transcripts. Field edits reset; prior corrections remain in the audit trail.",
       );
     } catch (e) {
-      if (activeRequest.current.isCurrent(request)) setError((e as Error).message);
+      if (activeRequest.current.isCurrent(request))
+        setError((e as Error).message);
     } finally {
       if (activeRequest.current.isCurrent(request)) setBusyId("");
     }
@@ -518,7 +522,8 @@ export default function Workbench() {
       setDocument(null);
       setNotice("Documents processed and securely saved to your workspace.");
     } catch (e) {
-      if (activeRequest.current.isCurrent(request)) setError((e as Error).message);
+      if (activeRequest.current.isCurrent(request))
+        setError((e as Error).message);
     } finally {
       setUploading(false);
     }
@@ -552,7 +557,8 @@ export default function Workbench() {
         "Correction saved. The comparison and audit trail have been updated.",
       );
     } catch (e) {
-      if (activeRequest.current.isCurrent(request)) setError((e as Error).message);
+      if (activeRequest.current.isCurrent(request))
+        setError((e as Error).message);
     } finally {
       setSaving(false);
     }
@@ -586,7 +592,8 @@ export default function Workbench() {
         "Category confirmed. Documents were checked using the confirmed routing.",
       );
     } catch (e) {
-      if (activeRequest.current.isCurrent(request)) setError((e as Error).message);
+      if (activeRequest.current.isCurrent(request))
+        setError((e as Error).message);
     } finally {
       setSaving(false);
     }
@@ -799,7 +806,8 @@ export default function Workbench() {
           </div>
           {!inboxReady && !loading && (
             <div className="alert warning" role="status">
-              Load the workspace before creating or processing cases. Use Refresh to retry.
+              Load the workspace before creating or processing cases. Use
+              Refresh to retry.
             </div>
           )}
           {!!outdated && (
@@ -1254,11 +1262,14 @@ export default function Workbench() {
                 <dl className="facts">
                   <div>
                     <dt>Classifier</dt>
-                    <dd>Multinomial Naive Bayes + intent rules</dd>
+                    <dd>Learned TF-IDF linear router + safety review</dd>
                   </div>
                   <div>
                     <dt>Training source</dt>
-                    <dd>64 independently authored examples</dd>
+                    <dd>
+                      875 authored-data training rows; 175 grouped validation
+                      rows
+                    </dd>
                   </div>
                   <div>
                     <dt>Comparison</dt>
@@ -1543,7 +1554,13 @@ export default function Workbench() {
                 </div>
               </div>
               <div className="detail-tabs">
-                {["comparison", "documents", "email", "history"].map((t) => (
+                {[
+                  "comparison",
+                  "resolution",
+                  "documents",
+                  "email",
+                  "history",
+                ].map((t) => (
                   <button
                     key={t}
                     className={detailTab === t ? "active" : ""}
@@ -1555,6 +1572,9 @@ export default function Workbench() {
                   </button>
                 ))}
               </div>
+              {detailTab === "resolution" && (
+                <ResolutionDesk result={selected} onNavigate={setDetailTab} />
+              )}
               {detailTab === "comparison" && (
                 <>
                   {selected.comparison.length ? (
@@ -1772,6 +1792,27 @@ export default function Workbench() {
                               }}
                             />
                           )}
+                          {!d.error &&
+                            !!d.sha256 &&
+                            d.lines.length > 0 &&
+                            d.type !== "OTHER" &&
+                            !d.transcription && (
+                              <EvidenceRecovery
+                                key={`recovery-${selected.email.email_id}-${d.name}-${selected.version}`}
+                                doc={d}
+                                result={selected}
+                                onEvidence={setSourceLocation}
+                                onSaved={(data) => {
+                                  setSelected(data.result);
+                                  setDocument(null);
+                                  update([data.result]);
+                                  setCaseEvents(data.audit);
+                                  setNotice(
+                                    "Source-linked recovery confirmed. Strict checks rerun; AI provenance and human review retained.",
+                                  );
+                                }}
+                              />
+                            )}
                           {d.error ? (
                             <div className="alert warning">
                               <TriangleAlert size={18} />

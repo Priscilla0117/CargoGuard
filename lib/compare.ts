@@ -1,4 +1,5 @@
 import { classify } from "./classifier";
+import { recoveryExtracted } from "./recovery-schema";
 import { withPolicy, DEFAULT_POLICY, type PolicySnapshot } from "./policy";
 import {
   FIELDS,
@@ -103,6 +104,7 @@ function weightWithLabel(
 }
 
 export function extract(doc: ParsedDocument): Extracted {
+  if (doc.recovery) return recoveryExtracted(doc);
   if (doc.transcription) {
     return resolveFields(
       Object.fromEntries(
@@ -310,10 +312,18 @@ function analyzeCore(
       ...base,
       status: "NEEDS_REVIEW",
       workflow: "review",
-      review_reason: "uncertain_category",
+      review_reason:
+        base.category === "BL_COMPARISON" &&
+        documents.some((d) => d.type === "OTHER" && !d.error)
+          ? "wrong_doc_type"
+          : "uncertain_category",
       summary:
-        classification.review_note ??
-        "Email intent is uncertain. Confirm the category before processing the documents.",
+        (base.category === "BL_COMPARISON" &&
+        documents.some((d) => d.type === "OTHER" && !d.error)
+          ? "An attachment is a recognized non-shipping-comparison document, such as an invoice or packing list. Provide the actual SI and draft BL. "
+          : "") +
+        (classification.review_note ??
+          "Email intent is uncertain. Confirm the category before processing the documents."),
     };
   if (
     !categoryOverride &&
