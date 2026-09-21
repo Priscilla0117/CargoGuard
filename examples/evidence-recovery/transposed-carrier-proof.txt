@@ -1,0 +1,3 @@
+Draft Bill of Lading. Columns A to G respectively mean exporting party, receiving party, arrival-contact party, ocean loading port, ocean discharge port, total containers, total gross kilograms.
+A | B | C | D | E | F | G
+Fernridge Pulp SA | Marlin Cartons Ltd | Marlin Receiving Office | Bilbao | Tema | 4 | 26,300

@@ -4,7 +4,7 @@ An evidence-first hackathon prototype that classifies operational emails, compar
 
 Public cloud demo: **https://cargoguard-averis.onrender.com/**. See [the verified cloud release and operating limits](docs/CLOUD_RELEASE.md). Free hosting can take 50 seconds or more to wake after inactivity.
 
-Version 3.1 is a local release candidate adding a substantially stronger learned router, optional source-linked OpenAI evidence recovery and an operational evidence handoff. Read [the AI upgrade and honest evaluation boundaries](docs/AI_UPGRADE.md). Hosted 3.0.1 evidence in [the cloud release record](docs/CLOUD_RELEASE.md) must not be represented as a live test of this new version.
+Version 3.1 is deployed with a stronger learned router, optional source-linked OpenAI evidence recovery and an operational evidence handoff. Judges use the public link without an API key; bounded requests use the owner's server-side key. Read [the AI upgrade and honest evaluation boundaries](docs/AI_UPGRADE.md), [dated live acceptance evidence](docs/CLOUD_RELEASE.md), and [the two-file unfamiliar-layout demonstration](examples/evidence-recovery/README.md).
 
 ## What you can do
 
@@ -17,6 +17,8 @@ Version 3.1 is a local release candidate adding a substantially stronger learned
 7. See measured validation in Performance and recorded actions in Audit trail.
 8. Use **Confirm category** for uncertain or incorrect email routing. The reviewer decision is version-checked and audited.
 9. For an image-only PDF, open **Documents → Read scan with local OCR**. Inspect the displayed original, correct every suggested value, select the document role and confirm all seven fields before saving. This is assisted transcription, not unattended scan approval.
+10. For unfamiliar readable layouts, use **Documents → Evidence Recovery Copilot** after explicit synthetic-data consent. Verify every source quotation before confirming the role and all seven fields. AI proposals alone never change the saved decision.
+11. Open **Resolution** for a deterministic next-action checklist and downloadable evidence handoff; nothing is sent automatically.
 
 Engine 3.0 adds immutable full decision snapshots, separate automatic/reviewed exports, versioned business-tolerance previews, better current-message routing, conservative optional-port-code equivalence, and a standard Next.js deployment independent of ChatGPT Sites. It retains the v2 safety checks, OCR assistance, uploads and source fingerprints. See [the upgrade evidence and remaining release gate](docs/V3_TECHNICAL_UPGRADE.md) and [the independent deployment guide](docs/DEPLOYMENT.md).
 

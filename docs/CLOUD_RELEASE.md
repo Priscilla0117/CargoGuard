@@ -1,8 +1,38 @@
-# CargoGuard 3.0.1 — independent public cloud release
+# CargoGuard 3.1 — independent public cloud release
+
+## Current 3.1.0 release — 21 September 2026
+
+Public demo: **https://cargoguard-averis.onrender.com/**. Judges need no OpenAI, Render, Turso or ChatGPT account. The optional LLM uses the owner's server-side OpenAI key after explicit organiser/synthetic-text consent. No paid hosting upgrade, credit purchase or automatic top-up was enabled.
+
+Final runtime commit: `02462456f08c5916c53e6e7d0335ed76adf9e61b`, branch `cargoguard-v3-deploy`. Render deployment `dep-daoal70473hc739j7qsg` started at 11:55:08 Malaysia time and succeeded after 2m16s. All four database migrations were ready. Documentation-only commits after this runtime are not silently claimed as deployed code.
+
+| Final-release check | Observed result |
+| --- | --- |
+| Local complete release gate | Eight steps passed; 228/228 tests across 14 files, no skips; typecheck, lint, 770-input integrity, independent scoring and production build passed |
+| Five development datasets | 2,600 exact outputs; 267 defect cases and 100 review cases retained; zero false-OK decisions in these tests |
+| Final-host regression suites | 72 baseline + 35 hardening + 23 governance + 30 additional release checks passed (160 total) |
+| Final-host automatic export | 520/520 exact records, 46/46 defect cases, 20/20 review cases; unmodified organiser composite scorer 1.0, evaluated at 12:00:03 Malaysia time |
+| Final-host hardening latency | Median 261 ms, p95 426 ms over its 73 requests; low-volume synthetic evidence, not a capacity guarantee |
+| Real OpenAI recovery | 75 checks passed on two unfamiliar-layout synthetic documents; 14/14 expected field values recovered with exact source quotations |
+| Actual provider | `gpt-5.4-mini-2026-03-17`, recovery contract `evidence-selectors-v3`; 2,482 ms / 1,584 tokens for the sectioned SI and 2,449 ms / 1,493 tokens for the transposed BL |
+| AI decision boundary | Suggestions did not change saved decisions; all seven confirmations required; stale and cross-workspace requests refused; cache reuse avoided another provider call; six true differences remained after confirmation/reprocessing |
+| Browser AI journey | Organiser `email_001_SI.txt` proposal returned in 3,155 ms (1,587 input / 330 output tokens). Complete values/addresses matched the source; all seven confirmations were unchecked, role initially unselected, Save disabled; citation link highlighted original Line 4; no case change was submitted |
+| Pre-existing data after redeployment | Seven persistence checks passed: unchanged saved case/policy/history, both exact 5 MiB source hashes, other-workspace denial |
+| Existing browser demo upgrade | All 520 older-engine cases upgraded; counts remained 63 verified, 46 discrepancy, 20 review, 91 awaiting documents and 300 routed. Performance displayed engine 3.1.0, the new learned router and development-only evaluation labels |
+
+The first live prompt exposed label/address mistakes and the second contract rejected a longer but explicit gross-unit heading. Both issues were corrected and the final tests rerun. Earlier reports are retained as `live-recovery-v1-failed.json` and `live-recovery-v2-partial.json`; the successful report is `work/validation/ai-v31/live-recovery.json`. Do not hide those development failures or label the final rerun an untouched holdout. The final source-based output hash remains `b0fac824010298e6bfa3b231c0490452916e50f47bc2df76df249321d659333c`.
+
+Six actual provider requests were used in validation, including unsuccessful proposals. The hard shared limits remain 20 attempts/UTC day and 100 for the database lifetime, with three/workspace/day, input/output bounds and a conservative daily token-reservation cap that can stop calls sooner. Public traffic can exhaust the allowance. No quota records were reset. A timeout, missing key, exhausted allowance or incomplete proposal leaves manual review available.
+
+The new model-only router scores 1.0 macro-F1 on the 520 supplied development messages versus 0.7282 for the previous Naive Bayes baseline. The final hybrid uses 7 agreeing rule corroborations, not 391 rule-selected categories. The separate 60-message synthetic challenge still has two pure-model category errors and two ambiguous messages not escalated; it is not proof of perfect generalization. See [AI_UPGRADE.md](AI_UPGRADE.md) and [the practical synthetic demo](../examples/evidence-recovery/README.md).
+
+The Render Free wake-up delay, database-token expiry, lack of corporate authentication and other operating limits below still apply. These tests do not guarantee zero bugs, production readiness or a championship.
+
+## Historical 3.0.1 release
 
 Verified 21 September 2026, Malaysia time. Public demo: **https://cargoguard-averis.onrender.com/**. No Render, Turso or ChatGPT sign-in is required to use it.
 
-## Deployed configuration
+### Historical deployed configuration
 
 - Repository: `Priscilla0117/CargoGuard`, branch `cargoguard-v3-deploy`.
 - Running application commit: `45dea6b11bb7a3f49b5e1b97c777a07dfe0efe8c`, engine `3.0.1`. Render deployment `dep-dao7lnrtqb8s73e7rif0` went live at **08:33:33 Malaysia time, 21 September 2026**, after a 2m06s deployment.
@@ -12,7 +42,7 @@ Verified 21 September 2026, Malaysia time. Public demo: **https://cargoguard-ave
 - Source and application data are separate: live decisions, histories, policies and uploaded bytes are in Turso, not Render's temporary disk. Startup migrations succeeded remotely.
 - The old public v2 site and its saved work remain untouched. Browser workspaces do not transfer between the two domains.
 
-## Current 3.0.1 acceptance evidence
+### Historical 3.0.1 acceptance evidence
 
 The existing Free service was updated, not replaced. No access/visibility changes or paid upgrades were made. The GitHub branch received the code commit above; subsequent documentation-only commits do not change the manually deployed runtime.
 

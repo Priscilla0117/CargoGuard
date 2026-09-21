@@ -1,6 +1,6 @@
 # CargoGuard 3.1 — AI evidence recovery and learned routing
 
-Release status: local release candidate. Do not claim that the public deployment has this version until its health endpoint and live smoke tests confirm it. The live OpenAI integration requires the owner's server-side key and real-provider acceptance tests; mocked adapter tests are not proof of model quality.
+Release status: deployed on the public Render service, 21 September 2026. Runtime commit `02462456f08c5916c53e6e7d0335ed76adf9e61b`, engine 3.1.0, recovery contract `evidence-selectors-v3`. The real OpenAI connection and 75 recovery-workflow checks passed on two synthetic unfamiliar-layout documents; a third organiser document was checked through the UI. See [CLOUD_RELEASE.md](CLOUD_RELEASE.md) for scope, earlier failures and limitations. Mocked adapter tests are not proof of model quality.
 
 ## Why this is more than adding a chatbot
 
@@ -11,6 +11,8 @@ The replacement is an offline-trained multinomial logistic regression model usin
 The model artifact is `lib/routing-model.json`, SHA-256 `4d20c503c67e65ca28eef50e2db8c12a767cf468ce196a9e812c372eff7228da`. It has 8,935 features and is approximately 751 KB as JSON. Training: 875 rows; grouped-by-body validation: 175 rows, 174 correct. Those rows are generated combinations of authored material, not 1,050 independent real emails. Scores are explicitly uncalibrated. The model is English-focused.
 
 Model-only supplied-set category accuracy and macro-F1 are 1.0, with no category-rule override. This is still development evidence. Safety gates abstain on weak evidence, negated verification and competing workflows. A moderate learned choice may be corroborated by an agreeing explicit intent rule, but a rule cannot replace the learned category or bypass a hard ambiguity gate.
+
+On the original 520 development emails, the final router uses 513 direct learned decisions and 7 agreeing rule corroborations, compared with 391 rule decisions in the previous hybrid. Removing the learned model is not equivalent to keeping a functional default router. This is measurable AI contribution, not a claim that rules are inherently undesirable.
 
 ## Evidence Recovery Copilot
 
@@ -50,10 +52,14 @@ The Resolution tab creates a deterministic, evidence-linked next-action checklis
 
 ```text
 node --import tsx scripts/train-router.ts work/validation/ai-v31/reproduced-model.json
-node --import tsx scripts/evaluate-routing.ts /path/to/ground_truth.json /path/to/challenge-routing.json
+node --import tsx scripts/evaluate-routing.ts /path/to/ground_truth.json tests/fixtures/ai-routing-challenge.json
 npm run quality -- --build
 ```
 
 The 60-case challenge was authored separately: 50 clear and 10 deliberately ambiguous messages. The initial learned model classified 48/50 clear cases correctly; both incorrect choices were escalated with safety gates. Eight of ten ambiguous messages were escalated. The trained weights were fixed before evaluation. The final consensus/coverage policy is development work; do not represent its later reruns as a new untouched holdout. This small synthetic challenge is not a statistically representative production benchmark.
 
-The first live provider test of prompt v1 returned labels inside values and omitted party addresses. Numerical validators blocked confirmation; no case was approved. Prompt v2 explicitly requests value-only substrings and complete party/address blocks. This correction uses development feedback: later reruns of that fixture are not held-out evidence. See the dated cloud release record for subsequent acceptance results. Do not replace missing broad real-world measurements with mock-test success or organiser classification accuracy. Winning the hackathon and zero future bugs cannot be guaranteed.
+The first live provider test of prompt v1 returned labels inside values and omitted party addresses. Numerical validators blocked confirmation; no case was approved. Prompt v2 explicitly requests value-only substrings and complete party/address blocks. Its SI recovery passed, but the transposed BL returned a full unit heading (`total gross kilograms`) that the overly narrow validator rejected. Contract v3 allows a finite, explicit gross-unit heading grammar while still rejecting negation, net/tare units, alternatives, assumptions and conflicting source units. These corrections use development feedback: later reruns are not held-out evidence.
+
+The final live rerun recovered all 14/14 expected fields on the two development documents, with provider latencies of 2,482 ms and 2,449 ms and 3,077 actual tokens combined. It passed source-grounding, no-change-before-confirmation, cache reuse, workspace isolation, consent, unchecked-field rejection, stale-save rejection, audited confirmation and source-identical reprocessing checks. The resulting six discrepancies were retained. A third UI-only organiser-source proposal displayed all seven correct fields with confirmations unchecked and Save disabled; it did not alter the case.
+
+Six provider requests were made during this validation, including the earlier unsuccessful proposals. They count toward the persistent caps. Only these three distinct documents were live-tested: the other eight recovery-challenge fixtures were not evaluated live, and neither rare layouts nor adversarial instructions have comprehensive real-provider validation. This is not a production field-accuracy estimate or a hallucination-proof guarantee. Use [the synthetic demonstration guide](../examples/evidence-recovery/README.md) and inspect every proposed value. Winning the hackathon and zero future bugs cannot be guaranteed.
