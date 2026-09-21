@@ -89,4 +89,46 @@ completed by a UI release. No competition outcome or zero-defect guarantee is ma
 - Policy impact preview inspected 520 cases without activation. Local browser
   warning/error log was empty in the inspected session.
 
-Hosted deployment and real-provider smoke results are appended after verification.
+## Hosted acceptance
+
+Runtime commit `3d3a37946558a94d3311d1e5cac4f8166488cade` was deployed to the
+existing free Render service. Deployment `dep-daoefeid0e5s73fulc20` started at
+16:15:54 MYT and succeeded in 2m15s on 21 September 2026. No new database migration.
+
+- All **185 hosted HTTP checks passed**, finishing approximately 16:20 MYT.
+  Hardening suite median 263ms / p95 452ms over 73 requests; this is low-volume
+  acceptance evidence, not a load-test or uptime promise.
+- A fresh hosted automatic export independently matched **520/520** reference
+  records, 46/46 defect cases, 20/20 review cases, zero false OK, composite 1.0.
+  Its output hash matches the local value recorded above.
+- Seven existing persistence/isolation checks passed after deployment: saved case,
+  historical revision and policy unchanged; both exact 5 MiB sources retained and
+  inaccessible to a different workspace.
+- The quota response showed the new limits, with all seven earlier attempts still
+  counted. No usage was reset. Two new provider requests were made in this turn.
+- The first real chat request (`email_004`) returned HTTP 200 and one validated
+  answer, but the new smoke harness stopped on an overly strict model-name
+  assertion: OpenAI returned `gpt-5.4-mini-2026-03-17`, not the alias. That first
+  answer's full semantic/cache assertions were **not completed**. The harness was
+  corrected to accept the configured alias or a dated snapshot of the same model.
+  The first request was not repeated.
+- The remaining single live test (`email_506`) passed completely: the answer
+  explained missing attachments and 0/7 comparison coverage, requested SI + draft
+  BL, cited current-case facts, made no approval claim and left the saved case
+  unchanged. A free cached preview and cached replay consumed no additional
+  request. Provider latency was 2,888ms. This is a smoke test, not broad LLM accuracy.
+- Public UI: direct chat opening, revision-3 case loading, 15,079-unit capacity
+  preview, Send disabled without consent, and unobstructed mobile Audit navigation
+  were verified. No further provider call was made through the UI.
+- At 16:22 MYT, the shared ledger had **41 daily / 91 lifetime requests** and
+  **389,474 daily / 889,474 lifetime reserved token units** remaining. This is a
+  timestamped observation; other visitors can consume the allowance.
+
+The optional `scripts/test-assistant-live.mjs` requires an explicit consent flag,
+has no automatic retry and is excluded from CI. It accepts `--missing-evidence-only`
+to run just that one case. Never run it again without sufficient owner-authorized
+test allowance. Detailed responses are saved under ignored `work/validation/ai-v31/`.
+
+Reload https://cargoguard-averis.onrender.com/ to load the new interface. Free-host
+idle wake-up, provider failures, exhausted quotas and untested documents remain
+possible limitations. No finite test suite establishes a zero-bug guarantee.

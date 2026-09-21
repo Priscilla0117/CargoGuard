@@ -148,3 +148,10 @@ Reproducible scripts: `scripts/test-api.mjs`, `scripts/test-hardening-api.mjs`, 
 6. This remains a synthetic-data hackathon demo, not a corporate production release. It lacks verified staff identity/roles, antivirus, formal retention and backup guarantees, a durable background job queue and comprehensive global abuse protection. Never upload confidential real shipment data.
 
 Passing the recorded tests is evidence of this release's behavior, not a promise of zero future bugs or a championship result. See [DEPLOYMENT.md](DEPLOYMENT.md) for reproduction and the remaining broader acceptance checks.
+# Workspace/capacity update — 21 September 2026, 16:22 MYT
+
+See [WORKSPACE_REFRESH.md](WORKSPACE_REFRESH.md) for the six-tab design, increased
+daily AI caps with unchanged lifetime ceilings, runtime commit `3d3a379`, 185 hosted
+HTTP checks, original 520-case rescoring, persistence verification and the exact
+scope/limitations of two real provider requests. Earlier sections below are dated
+historical acceptance records, not the current quota specification.
