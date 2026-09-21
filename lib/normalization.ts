@@ -10,11 +10,49 @@ export interface NormalizedValue {
   issue?: string;
 }
 const missing =
-  /^(?:[\s?_\-–—.\/]+|[\s?_\-–—.\/]*[?_]{2,}[\s?_\-–—.\/]*(?:m\.?t\.?s?|kgs?|kilograms?|tonnes?|containers?|units?)\.?|t\.?\s*b\.?\s*[acd]\.?|n\.?\s*\/?\s*a\.?|nil|none|null|unknown|pending|unavailable|not\s+(?:available|provided|specified|stated|known|confirmed|applicable)|to\s+be\s+(?:advised|confirmed|determined|provided|decided)|awaiting\s+(?:confirmation|details|instructions)|same\s+as\s+above)$/i;
+  /^(?:[\s?_\-–—.\/]+|t\.?\s*b\.?\s*[acd]\.?|n\.?\s*\/?\s*a\.?|nil|none|null|unknown|pending|unavailable|not\s+(?:available|provided|specified|stated|known|confirmed|applicable)|to\s+be\s+(?:advised|confirmed|determined|provided|decided)|awaiting\s+(?:confirmation|details|instructions)|same\s+as\s+above)$/i;
+const unitPlaceholder =
+  /^(?:[?_\-–—.\s]+)\s*(?:kgs?|kilograms?|mt|metric tonnes?|tonnes?)$/i;
 export const sameAsConsignee = (raw: string) =>
   /^(?:same as|as per)\s+(?:the\s+)?consignee\.?$/i.test(
     raw.normalize("NFKC").trim(),
   );
+
+/** Two unexplained legal entities are not a confirmed party, even on both documents.
+ * Wrapped names and address lines remain intact; this is an ambiguity gate, not
+ * a name extractor. Explicit agency relationships are left for exact comparison.
+ */
+function ambiguousParty(value: string) {
+  const names = new Set<string>();
+  const blocks = value.split(/[;|]+/);
+  for (const block of blocks) {
+    // Join wrapped names before checking their endings, including numeric names
+    // such as "3S PAPER ...". The original value is never altered by this gate.
+    const plain = block
+      .split(/\r?\n/)
+      .filter(
+        (line) =>
+          !/\b(?:on behalf of|as agents? for|care of)\b|\bc\s*\/\s*o\b/i.test(
+            line,
+          ),
+      )
+      .join(" ")
+      .toUpperCase()
+      .replace(/[.,]/g, "")
+      .trim();
+    const endings =
+      /\b(?:SDN BHD|PTE LTD|PTY LTD|LIMITED|LTD|INCORPORATED|INC|CORPORATION|CORP|LLC|GMBH)\b/g;
+    let start = 0;
+    for (const match of plain.matchAll(endings)) {
+      const name = plain.slice(start, match.index + match[0].length).trim();
+      const prefix = plain.slice(start, match.index).trim();
+      // A suffix on a wrapped line is not another company name.
+      if (/[A-Z]/.test(prefix)) names.add(name.replace(/\s+/g, " "));
+      start = match.index + match[0].length;
+    }
+  }
+  return names.size > 1;
+}
 
 /** Consume the whole expression. A valid prefix must never hide a conflicting suffix. */
 export function normalizeValue(field: Field, raw: string): NormalizedValue {
@@ -24,9 +62,14 @@ export function normalizeValue(field: Field, raw: string): NormalizedValue {
     .trim();
   if (
     !value ||
+    !/[\p{L}\p{N}]/u.test(value) ||
     value
       .split(/\r?\n/)
-      .some((line) => line.trim() && missing.test(line.trim()))
+      .some(
+        (line) =>
+          line.trim() &&
+          (missing.test(line.trim()) || unitPlaceholder.test(line.trim())),
+      )
   ) {
     return {
       value: null,
@@ -97,6 +140,15 @@ export function normalizeValue(field: Field, raw: string): NormalizedValue {
           issue: "Gross weight must be a positive, finite shipment weight.",
         };
   }
+  if (
+    ["shipper", "consignee", "notify_party"].includes(field) &&
+    ambiguousParty(value)
+  )
+    return {
+      value: null,
+      issue:
+        "Multiple possible company names appear in this party field. Confirm the intended party from the source; identical ambiguity in both documents is not a match.",
+    };
   return {
     value: value
       .toUpperCase()
@@ -110,6 +162,37 @@ export function normalizeValue(field: Field, raw: string): NormalizedValue {
 
 export function normalize(field: Field, raw: string) {
   return normalizeValue(field, raw).value;
+}
+
+// Optional codes are equivalent only for an explicitly supported name/code pair.
+// Unknown codes, different names and contradictory codes must not disappear.
+const portCodes: Record<string, string> = {
+  SINGAPORE: "SGSIN",
+  "PORT KLANG": "MYPKG",
+  SHANGHAI: "CNSHA",
+  ROTTERDAM: "NLRTM",
+  "HONG KONG": "HKHKG",
+};
+export function equivalent(
+  field: Field,
+  a: string | number | null,
+  b: string | number | null,
+) {
+  if (a === null || b === null) return false;
+  if (a === b) return true;
+  if (
+    !field.startsWith("port_of_") ||
+    typeof a !== "string" ||
+    typeof b !== "string"
+  )
+    return false;
+  const canonical = (value: string) => {
+    const match = value.match(/^(.+?)\s*\(([A-Z]{2}[A-Z0-9]{3})\)$/);
+    return match && portCodes[match[1].trim()] === match[2]
+      ? match[1].trim()
+      : value;
+  };
+  return canonical(a) === canonical(b);
 }
 
 /** Shared by extraction AND review. Extraction ambiguity remains until that field is corrected. */
@@ -135,48 +218,6 @@ export function resolveFields(fields: Extracted): Extracted {
   return resolved;
 }
 
-const PARTY_FIELDS = new Set<Field>(["shipper", "consignee", "notify_party"]);
-const PORT_FIELDS = new Set<Field>(["port_of_loading", "port_of_discharge"]);
-const LOCODE = /\s*\(([A-Z]{2}[A-Z0-9]{3})\)$/;
-const nameLine = (raw: string) =>
-  normalize("shipper", raw.split(/\r?\n/).find((l) => l.trim()) ?? "");
-const hasAddressBlock = (raw: string) =>
-  raw.split(/\r?\n/).filter((l) => l.trim()).length > 1;
-
-/**
- * Only RELAXES formatting-only differences; it never hides a changed name, port or code.
- * - Party: one side gives the name only, the other gives the same name plus its address.
- * - Port: one side adds a UN/LOCODE in brackets (or gives only the code) that the other omits.
- */
-export function formattingOnlyDifference(
-  field: Field,
-  si: { raw: string; normalized: string | number | null },
-  bl: { raw: string; normalized: string | number | null },
-): boolean {
-  if (typeof si.normalized !== "string" || typeof bl.normalized !== "string")
-    return false;
-  if (PARTY_FIELDS.has(field)) {
-    const siAddr = hasAddressBlock(si.raw),
-      blAddr = hasAddressBlock(bl.raw);
-    if (siAddr === blAddr) return false; // both or neither carry an address: exact rule applies
-    const nameOnly = siAddr ? bl : si,
-      withAddress = siAddr ? si : bl;
-    const name = nameLine(withAddress.raw);
-    return !!name && name === nameOnly.normalized;
-  }
-  if (PORT_FIELDS.has(field)) {
-    const sa = si.normalized.match(LOCODE),
-      ba = bl.normalized.match(LOCODE);
-    if (sa && ba) return false; // both carry codes: exact rule applies
-    const coded = sa ? si.normalized : ba ? bl.normalized : null;
-    const plain = sa ? bl.normalized : ba ? si.normalized : null;
-    if (!coded || !plain) return false;
-    const m = coded.match(LOCODE)!;
-    return coded.replace(LOCODE, "").trim() === plain || m[1] === plain;
-  }
-  return false;
-}
-
 export function compareFields(si: Extracted, bl: Extracted): ComparisonRow[] {
   const a = resolveFields(si),
     b = resolveFields(bl);
@@ -187,8 +228,7 @@ export function compareFields(si: Extracted, bl: Extracted): ComparisonRow[] {
     result:
       a[field].normalized === null || b[field].normalized === null
         ? "uncertain"
-        : a[field].normalized === b[field].normalized ||
-            formattingOnlyDifference(field, a[field], b[field])
+        : equivalent(field, a[field].normalized, b[field].normalized)
           ? "match"
           : "mismatch",
   }));

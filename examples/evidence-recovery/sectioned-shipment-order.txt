@@ -1,0 +1,6 @@
+Shipping Instruction / authorised shipment particulars
+Sending legal entity: Maple Crest Fibre Ltd; registered address: 8 Foundry Lane, Bristol.
+Receiving legal entity: Solace Paper Traders; delivery address: 21 Harbor Street, Accra.
+Arrival communications: Kojo Cargo Agency; contact address: 5 Wharf Avenue, Accra.
+Port where goods go aboard = Bristol. Port where goods leave the ship = Tema.
+Equipment total = 2 containers. Packed gross cargo weight = 13,600 kilograms.

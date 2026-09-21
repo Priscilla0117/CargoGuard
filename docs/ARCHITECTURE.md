@@ -4,30 +4,39 @@
 
 The browser displays the inbox, comparisons, evidence, uploads and reviewer forms. On request, a local browser worker proposes OCR text from scanned PDFs. It does not receive an answer key or make the authoritative comparison decision. Heavy PDF/OCR code is loaded on demand.
 
-Cloudflare Workers runs the email classifier, document parsers, normalization, comparison and API validation. D1 stores versioned case results and append-only application audit events. R2 stores uploaded original documents. The supplied synthetic inbox is a server-side input bundle. Each browser gets a random HttpOnly workspace cookie.
+Version 3 defaults to standard Next.js on Node.js, independently deployed on Render Free plus persistent Turso libSQL. The server runs email classification, document parsing, normalization, comparison and API validation. Turso stores cases, immutable result revisions, policy versions, events and small original uploads. The supplied synthetic inbox is a server-side input bundle. Each browser gets a random HttpOnly workspace cookie. Local SQLite is an explicitly selected QA backend; the server refuses it on Render. Hosted API, upload and restart-persistence verification is recorded in [CLOUD_RELEASE.md](CLOUD_RELEASE.md), along with the remaining limits. The legacy Worker/D1/R2 adapter is retained as a separate optional build, not the default.
 
-Processing flow: email → learned intent classifier + explicit intent rules → document type and readability checks → seven evidence-linked fields → typed comparison → verified, discrepancy, review, awaiting documents or routed → D1 result + audit event.
+Processing flow: email → trained TF-IDF logistic intent router with safety abstention (an agreeing rule can corroborate, never replace its category) → document type and readability checks → seven evidence-linked fields → exact comparison plus a separate policy annotation → verified, discrepancy, review, awaiting documents or routed → atomic current result + immutable revision + audit event.
+
+Version 3.1 adds optional Evidence Recovery Copilot for unfamiliar readable layouts. With explicit organiser/synthetic-data consent, Render sends bounded extracted lines to the fixed OpenAI Responses endpoint using an owner-supplied server-side key. The browser never receives the key. The LLM selects verbatim value fragments; the server validates citations and units. All seven fields and the role require explicit reviewer confirmation before a hash/revision-bound proposal can become a reviewed source revision. Persistent Turso reservations enforce the approved global usage cap, including failures. Provider errors preserve the saved decision. This is not a chatbot or an autonomous clearance agent; see [AI_UPGRADE.md](AI_UPGRADE.md).
 
 ## Why this fits Averis
 
 The work starts with an operational inbox, not a chatbot. Staff see which shipments need attention, the exact SI and BL values, and the page/line/cell supporting each value. The SI is always the reference. Staff can correct an extraction, upload a revised document pair and prepare a draft amendment request. Nothing is sent to a carrier automatically.
 
-AI handles noisy email intent. Deterministic comparison keeps shipment facts predictable and inspectable. Failure becomes a review task, not a silent success.
+AI handles noisy email intent and assists unfamiliar-layout interpretation. Deterministic comparison keeps shipment facts predictable and inspectable. Failure becomes a review task, not a silent success. A deterministic Resolution checklist and downloadable revision-pinned evidence packet help staff act on discrepancies without sending messages automatically.
 
 ## API contract
 
 | Endpoint | Purpose | Safeguards |
 |---|---|---|
-| GET /api/inbox | 520 organiser records plus this workspace's uploads | Session-scoped D1 query |
+| GET /api/inbox | 520 organiser records plus this workspace's uploads | Session-scoped database query |
 | POST /api/cases | Process up to 10 IDs, correct a field, confirm category, or confirm a scan transcript | Bounded schema/body, origin check, optimistic version; seven confirmations, page references and source hash for scans |
-| GET /api/cases?id=… | Result and latest 100 case audit events | Session-scoped |
-| GET /api/cases?export=1 | Organiser JSON for exactly the 520 supplied IDs | Rejects incomplete exports; uploaded cases excluded |
-| POST /api/upload | Create a case or replace both documents in one case | Maximum two files, 5 MB/file, four allowed extensions, random R2 keys |
-| GET /api/document | Retrieve a current source attachment | Case membership and workspace check; no arbitrary file path |
+| GET /api/cases?id=… | Current result, audit and latest 100 revision summaries; optional revision=… retrieves an exact historical snapshot | Session-scoped, read-only historical inspection |
+| GET /api/cases?export=1 | Untouched current-engine automatic baseline for the 520 supplied IDs; mode=reviewed returns labelled operational evidence instead | No reviewed/legacy/replaced-source result can become automatic accuracy evidence |
+| POST /api/upload | Create a case or replace both documents in one case | Maximum two files, 5 MB/file, four allowed extensions, random immutable source keys |
+| GET /api/document | Retrieve a current or revision-specific source | Case/revision membership and workspace check; no arbitrary file path |
+| GET/POST /api/policies | History, preview and activate bounded weight-exception policies | Expiring server-side preview token, workspace isolation, policy/case-state CAS and reason |
+| GET /api/health | Schema/storage readiness and engine version | No credentials or detailed database errors exposed |
+| GET /api/live | Process-only probe for Render restarts | Explicitly does not check storage; startup must still verify migrations, and release acceptance requires readiness plus workspace tests |
 
 ## Storage and concurrency
 
-Cases have composite key (workspace, email_id). Updates require the expected version. One D1 transaction updates each result and writes its audit event only if the version update succeeded. Stale reviewer saves and conflicting replacements are rejected. File replacement uses new random names rather than overwriting originals. New R2 objects are cleaned up only when they are known not to be referenced by a committed case. If database status is unknown, retaining possible orphans is safer than deleting committed evidence; an operational retention/cleanup service remains future work. The 30-upload quota is checked atomically during insertion as well as before expensive parsing.
+Cases have composite key (workspace, email_id). Updates require the expected version. One database transaction writes the current result, complete revision and audit event only if the version update succeeds. If any statement fails, all three roll back. SQLite triggers refuse updates/deletes to revisions and policy versions. This is application/database immutability, not protection against an administrator altering the schema. Migration imports only the actually retained legacy state and marks its provenance unverified; earlier states are not reconstructed or invented.
+
+Stale saves and conflicting replacements are rejected. File replacement uses new random names, retaining historical source bytes. Cleanup happens only before persistence or after a confirmed rejected write. An unknown commit response is not permission to delete bytes, including bytes referenced only by history. Retention/cleanup remains future work. The 30-upload quota is checked atomically. The Node backend adds a 256-MB total upload cap. Small binary documents are stored in libSQL for this bounded demo; large enterprise document volumes should move to managed object storage.
+
+Policy v0 means exact required comparison. Versioned kg/% tolerances annotate weight differences; when both are enabled the tighter limit wins. No fields can be disabled. Strict mismatch/uncertainty always remains authoritative. Previews expire after 10 minutes. Activation checks both the prior policy version and the sum of monotonically increasing case versions atomically, so a changed case invalidates its preview. Rollback appends a new version. Each browser batch captures one policy version; existing case snapshots are unchanged by activation. Manual corrections and scan confirmation retain their case's policy.
 
 Explicit reprocess reads current source bytes and resets individual extraction corrections, retaining confirmed categories and fingerprint-matched scan transcripts. Resume/engine upgrades also preserve field corrections when every source hash is unchanged. The interface distinguishes these operations. Two browser batch workers send at most ten emails each; each server batch parses at most two cases concurrently. Database results are loaded and saved in batches. Idempotent skipSaved retries reuse current-engine results, so concurrent resume does not create duplicate events. Pause finishes in-flight batches; reload can resume saved progress. This is a bounded interactive workflow, not a durable background queue.
 
@@ -43,7 +52,7 @@ Archive expansion, file size, page count and extracted-text limits bound process
 
 ## Security boundaries and production gaps
 
-This is a hackathon prototype using synthetic data. A random session cookie is a capability, not enterprise identity. Reviewer names are self-declared. The deployment's site-access layer can restrict who visits; D1 workspace isolation is additionally enforced by the app.
+This is a hackathon prototype using synthetic data. A random session cookie is a capability, not enterprise identity. Reviewer names are self-declared and visibly labelled as such. Public demo visitors receive separate workspaces; this is not staff authentication. Parameterized queries scope cases, revisions, policy tokens and sources to the workspace. The origin check uses the configured public origin on a reverse-proxied host and does not trust arbitrary forwarded-origin headers.
 
 Implemented: HttpOnly/SameSite cookie, Secure in production, no-store responses, parameterized SQL, stale-write detection, ZIP expansion limits, file-type limits, escaped React text, SHA-256 file fingerprints, no automatic email sending, and no external AI transmission.
 

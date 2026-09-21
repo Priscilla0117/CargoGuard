@@ -97,7 +97,8 @@ export async function parseDocument(
       if (new TextDecoder().decode(bytes.slice(0, 5)) !== "%PDF-")
         throw new Error("Invalid PDF header. Request a readable copy.");
       const { getDocumentProxy } = await import("unpdf");
-      const pdf = await getDocumentProxy(bytes.slice());
+      const { pdfResourceOptions } = await import("./pdf-resources");
+      const pdf = await getDocumentProxy(bytes.slice(), pdfResourceOptions());
       page_count = pdf.numPages;
       try {
         if (pdf.numPages > 30)
@@ -171,16 +172,22 @@ export async function parseDocument(
         >[]) {
           for (const cell of arr(row.c) as Record<string, unknown>[]) {
             const type = cell["@_t"];
+            if (type === "e")
+              throw new Error(
+                "The spreadsheet contains an error cell. Resolve the errors and export a values-only copy before uploading.",
+              );
+            // A cached formula result can be stale, and this parser does not
+            // execute Excel formulas or linked workbooks. Never verify it as fact.
+            if ("f" in cell)
+              throw new Error(
+                "Spreadsheet formula results cannot be independently recalculated. Recalculate, inspect and export a values-only copy before uploading.",
+              );
             const value =
               type === "s"
                 ? shared[Number(cell.v)]
                 : type === "inlineStr"
                   ? texts(cell.is)
                   : texts(cell.v);
-            if (cell.f && !value)
-              throw new Error(
-                "A spreadsheet formula has no cached value. Recalculate and save before uploading.",
-              );
             if (value !== undefined && String(value).trim())
               lines.push({
                 text: decode(String(value)),

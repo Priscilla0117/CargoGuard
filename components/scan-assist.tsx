@@ -37,7 +37,14 @@ export function ScanAssist({
   const [confidence, setConfidence] = useState<number | null>(null),
     [text, setText] = useState("");
   const controller = useRef<AbortController | null>(null);
-  useEffect(() => () => controller.current?.abort(), []);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      controller.current?.abort();
+    };
+  }, []);
 
   async function run() {
     const abort = new AbortController();
@@ -74,7 +81,7 @@ export function ScanAssist({
             import("unpdf"),
             import("tesseract.js"),
             fetch(
-              `/api/document?id=${encodeURIComponent(result.email.email_id)}&name=${encodeURIComponent(doc.name)}`,
+              `/api/document?id=${encodeURIComponent(result.email.email_id)}&name=${encodeURIComponent(doc.name)}&revision=${result.version}`,
               { signal: abort.signal },
             ),
           ]);
@@ -220,7 +227,9 @@ export function ScanAssist({
           reason: fd.get("reason"),
         }),
       });
-      onSaved(saved);
+      // The save may succeed after the reviewer closes or switches the case.
+      // Its server-side audit remains, but it must not reopen the old drawer.
+      if (mounted.current) onSaved(saved);
     } catch (e) {
       setError((e as Error).message);
     } finally {

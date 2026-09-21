@@ -1,10 +1,16 @@
-import { env } from "cloudflare:workers";
+import { runtimeBindings } from "@/lib/runtime";
 import { NextResponse } from "next/server";
-import type { CaseResult, AuditEvent } from "./types";
-import { HttpError } from "./http";
+import {
+  PIPELINE_VERSION,
+  type CaseResult,
+  type CaseSummary,
+  type AuditEvent,
+} from "./types";
+import { HttpError, sameRequestOrigin } from "./http";
+import { DEFAULT_POLICY, withPolicy, type PolicySnapshot } from "./policy";
 type Bindings = { DB: D1Database; BUCKET: R2Bucket };
 export function storage() {
-  const e = env as unknown as Bindings;
+  const e = runtimeBindings() as Bindings;
   if (!e.DB || !e.BUCKET)
     throw new Error("Cloud storage is unavailable. Please retry shortly.");
   return e;
@@ -34,8 +40,14 @@ export function respond(
   return r;
 }
 export function requireMutation(request: Request) {
-  const origin = request.headers.get("origin");
-  if (origin && new URL(origin).origin !== new URL(request.url).origin)
+  // Next's internal URL can use localhost while the actual Host is 127.0.0.1.
+  // Render terminates HTTPS at its proxy; use its trusted configured public URL.
+  if (
+    !sameRequestOrigin(
+      request,
+      process.env.CARGO_PUBLIC_ORIGIN ?? process.env.RENDER_EXTERNAL_URL,
+    )
+  )
     throw new HttpError("Cross-origin writes are not allowed.", 403);
   const s = workspace(request);
   if (s.fresh)
@@ -85,14 +97,44 @@ export interface CaseWrite {
   actor: string;
   detail: string;
 }
-export async function saveCases(ws: string, writes: CaseWrite[]) {
+/** Strip email body, source text and seven-field evidence before remote transfer.
+ * Full case payloads remain available through the workspace-scoped detail API.
+ */
+export async function listCaseSummaries(
+  ws: string,
+  db = storage().DB,
+): Promise<CaseSummary[]> {
+  const rows = await db
+    .prepare(
+      "SELECT json_remove(payload, '$.documents', '$.comparison', '$.email.body') AS payload, version FROM cases WHERE workspace=? ORDER BY email_id",
+    )
+    .bind(ws)
+    .all<{ payload: string; version: number }>();
+  return rows.results.map((row) => {
+    const { email, ...result } = JSON.parse(row.payload);
+    return { email, result: { ...result, version: row.version } };
+  });
+}
+export async function saveCases(
+  ws: string,
+  writes: CaseWrite[],
+  db = storage().DB,
+) {
   if (!writes.length)
     return { results: [] as CaseResult[], conflicts: [] as string[] };
-  const db = storage().DB,
-    now = new Date().toISOString();
+  const now = new Date().toISOString();
   const statements = writes.flatMap((w) => {
     const version = w.expected + 1,
-      payload = JSON.stringify({ ...w.result, version });
+      payload = JSON.stringify({ ...withPolicy(w.result), version });
+    const origin =
+      !w.result.reviewed &&
+      !w.result.source_replaced &&
+      !w.result.category_override &&
+      !w.result.document_selection &&
+      !w.result.documents.some((d) => d.transcription || d.recovery) &&
+      ["PROCESSED", "REPROCESSED", "UPLOADED"].includes(w.action)
+        ? "automatic"
+        : "reviewed";
     const mutation =
       w.expected === 0
         ? db
@@ -124,6 +166,21 @@ export async function saveCases(ws: string, writes: CaseWrite[]) {
       mutation,
       db
         .prepare(
+          "INSERT INTO result_revisions(workspace,email_id,version,payload,origin,action,actor,detail,created_at) SELECT ?,?,?,?,?,?,?,?,? WHERE changes()=1",
+        )
+        .bind(
+          ws,
+          w.result.email.email_id,
+          version,
+          payload,
+          origin,
+          w.action,
+          w.actor,
+          w.detail,
+          now,
+        ),
+      db
+        .prepare(
           "INSERT INTO events(id,workspace,email_id,action,actor,detail,created_at) SELECT ?,?,?,?,?,?,? WHERE changes()=1",
         )
         .bind(
@@ -141,11 +198,69 @@ export async function saveCases(ws: string, writes: CaseWrite[]) {
     results: CaseResult[] = [],
     conflicts: string[] = [];
   for (let i = 0; i < writes.length; i++) {
-    if (saved[i * 2].meta.changes === 1)
-      results.push({ ...writes[i].result, version: writes[i].expected + 1 });
+    if (saved[i * 3].meta.changes === 1)
+      results.push({
+        ...withPolicy(writes[i].result),
+        version: writes[i].expected + 1,
+      });
     else conflicts.push(writes[i].result.email.email_id);
   }
   return { results, conflicts };
+}
+
+export async function getPolicy(
+  ws: string,
+  version?: number,
+): Promise<PolicySnapshot> {
+  if (version === 0) return structuredClone(DEFAULT_POLICY);
+  const row = await storage()
+    .DB.prepare(
+      version === undefined
+        ? "SELECT payload FROM policies WHERE workspace=? ORDER BY version DESC LIMIT 1"
+        : "SELECT payload FROM policies WHERE workspace=? AND version=?",
+    )
+    .bind(...(version === undefined ? [ws] : [ws, version]))
+    .first<{ payload: string }>();
+  if (!row && version !== undefined)
+    throw new HttpError(
+      "Policy version does not exist in this workspace.",
+      404,
+    );
+  return row ? JSON.parse(row.payload) : structuredClone(DEFAULT_POLICY);
+}
+export async function revisions(ws: string, id: string) {
+  return (
+    await storage()
+      .DB.prepare(
+        "SELECT version,origin,action,actor,detail,created_at FROM result_revisions WHERE workspace=? AND email_id=? ORDER BY version DESC LIMIT 100",
+      )
+      .bind(ws, id)
+      .all()
+  ).results;
+}
+export async function getRevision(ws: string, id: string, version: number) {
+  const row = await storage()
+    .DB.prepare(
+      "SELECT payload FROM result_revisions WHERE workspace=? AND email_id=? AND version=?",
+    )
+    .bind(ws, id, version)
+    .first<{ payload: string }>();
+  return row ? (JSON.parse(row.payload) as CaseResult) : null;
+}
+export async function automaticBaselines(ws: string) {
+  // Export the earliest genuinely automatic revision from the CURRENT engine,
+  // never a human-corrected, replaced-source or undocumented legacy snapshot.
+  const rows = await storage()
+    .DB.prepare(
+      `SELECT r.payload FROM result_revisions r
+    WHERE r.workspace=? AND r.origin='automatic'
+    AND json_extract(r.payload,'$.pipeline_version')=?
+    AND r.version=(SELECT MIN(b.version) FROM result_revisions b WHERE b.workspace=r.workspace
+      AND b.email_id=r.email_id AND b.origin='automatic' AND json_extract(b.payload,'$.pipeline_version')=?)`,
+    )
+    .bind(ws, PIPELINE_VERSION, PIPELINE_VERSION)
+    .all<{ payload: string }>();
+  return rows.results.map((r) => JSON.parse(r.payload) as CaseResult);
 }
 export async function saveCase(
   ws: string,

@@ -1,4 +1,6 @@
-# CargoGuard 2.0.0 — GitHub source package
+# Historical CargoGuard 2.0.0 packaging notes
+
+The `cargoguard-v3-deploy` branch now contains CargoGuard 3.0.0. Use [README.md](README.md) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for its current Node/Render/Turso setup. The instructions below and `SOURCE_MANIFEST.json` describe the older v2 ZIP only; they are retained as history, not current deployment instructions or current-file checksums. The original `main` branch is preserved separately. Do not restore `.openai/hosting.json` into this independent deployment branch.
 
 Start here when using the ZIP. The application source matches release commit `95e54c28f80a14bb1c158983be05566b51b9f9aa`. Packaging adds this guide, a standalone evaluation script, the technical release report and a file-integrity manifest; it does not change the deployed application logic.
 

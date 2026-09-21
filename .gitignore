@@ -2,6 +2,9 @@
 
 # dependencies
 /node_modules
+*.db
+*.db-shm
+*.db-wal
 /.pnp
 .pnp.*
 .yarn/*
@@ -40,6 +43,7 @@ next-env.d.ts
 /.wrangler/
 # Checkout-local execution profile and tool state; never publish them.
 /.sites-runtime/
+/.openai/
 /.agents/
 /.codex/
 /outputs/

@@ -5,7 +5,7 @@ import { CATEGORIES } from "../lib/types";
 // Labels enter only this offline evaluation file, never application inference.
 const truth = JSON.parse(
   await fs.readFile(
-    "../sdoc-hackathon-docker/data_v2/ground_truth.json",
+    process.argv[2] ?? "../sdoc-hackathon-docker/data_v2/ground_truth.json",
     "utf8",
   ),
 );
