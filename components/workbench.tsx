@@ -9,6 +9,7 @@ import { createRequestGate } from "@/lib/request-gate";
 import { mergeCaseSummaries } from "@/lib/case-state";
 import { ScanAssist } from "@/components/scan-assist";
 import { ResolutionDesk } from "@/components/resolution-desk";
+import { CaseAssistant } from "@/components/case-assistant";
 import { EvidenceRecovery } from "@/components/evidence-recovery";
 import { OperationsDesk } from "@/components/operations-desk";
 import { canTranscribe } from "@/lib/transcription";
@@ -1576,6 +1577,7 @@ export default function Workbench() {
                 {[
                   "comparison",
                   "resolution",
+                  "assistant",
                   "documents",
                   "email",
                   "history",
@@ -1587,9 +1589,28 @@ export default function Workbench() {
                   >
                     {t === "history"
                       ? "Audit trail"
-                      : t[0].toUpperCase() + t.slice(1)}
+                      : t === "assistant"
+                        ? "Ask CargoGuard"
+                        : t[0].toUpperCase() + t.slice(1)}
                   </button>
                 ))}
+              </div>
+              <div hidden={detailTab !== "assistant"}>
+                <CaseAssistant
+                  key={`${selected.email.email_id}:${selected.version}`}
+                  result={selected}
+                  onFallback={() => setDetailTab("resolution")}
+                  onSource={(name, location) => {
+                    const source = selected.documents.find(
+                      (doc) => doc.name === name,
+                    );
+                    if (source) {
+                      setDocument(source);
+                      setSourceLocation(location);
+                      setDetailTab("documents");
+                    }
+                  }}
+                />
               </div>
               {detailTab === "resolution" && (
                 <ResolutionDesk

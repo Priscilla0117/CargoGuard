@@ -4,7 +4,7 @@ Source basis: all five supplied PDFs, both organiser folders, and the user's org
 
 | Requirement / scoring area | Delivered technical evidence | Remaining competition action |
 |---|---|---|
-| AI is a key component | Trained TF-IDF logistic router with reproducible ablation; optional OpenAI source-quoted recovery; browser-local OCR; explicit human confirmation | Distinguish the learned router, real cloud LLM and deterministic comparison. Use AI_UPGRADE.md and dated live tests; do not claim unseen-data perfection |
+| AI is a key component | Trained TF-IDF logistic router with reproducible ablation; optional OpenAI source-quoted recovery and evidence-linked case chat; browser-local OCR; explicit human confirmation | Distinguish the learned router, real cloud LLM and deterministic comparison. Use AI_UPGRADE.md, CASE_ASSISTANT.md and dated live tests; do not claim unseen-data perfection |
 | Meaningful cloud use | Live Render/Node processing with persistent Turso libSQL; hosted API and restart-persistence tests passed | Observe free-plan limits and remaining capacity/idle-wake checks in CLOUD_RELEASE.md |
 | Seven required comparison fields | SI reference, all seven side-by-side, typed numeric comparison | Show representative live cases |
 | Four supplied document formats | TXT, PDF text, XLSX, DOCX parsed from original bytes; all six scans OCR-tested | Scan suggestions require seven human confirmations; corrupted PDFs require replacement |
@@ -12,7 +12,7 @@ Source basis: all five supplied PDFs, both organiser folders, and the user's org
 | Preliminary architecture — 15 | ARCHITECTURE.md, modular parser/classifier/API/storage | Convert key points into slides |
 | Preliminary prototype — 25 | Interactive inbox, evidence, upload, corrections, export | Rehearse live workflow |
 | Preliminary integration — 15 | Working independent cloud runtime and persistent database; explicit automatic/reviewed exports | Rehearse the hosted demo; no live corporate-email integration |
-| Preliminary validation — 15 | Original plus four development challenge sets; 250 regression tests after the operations upgrade; fail-closed independent organiser-scoring gate; hosted evidence in CLOUD_RELEASE.md | Explain development-vs-hold-out distinction; do not equate the automated score with judging marks |
+| Preliminary validation — 15 | Original plus four development challenge sets; 265 regression tests after the case-assistant upgrade; fail-closed independent organiser-scoring gate; hosted evidence in CLOUD_RELEASE.md | Explain development-vs-hold-out distinction; do not equate the automated score with judging marks |
 | Problem understanding — 10 | Shipping operations workflow; no silent clearance | Validate assumptions with organiser |
 | Innovation — 10 | Source evidence, fingerprint-bound scan recovery, immutable decision replay, exact verdict plus business exception, preview/CAS policy activation | Show safe recovery and that a tolerance cannot improve the strict benchmark |
 | Practicality — 10 | Low-cost deterministic checks, manual resolution, roadmap | Use measured pilot data, not fabricated ROI |

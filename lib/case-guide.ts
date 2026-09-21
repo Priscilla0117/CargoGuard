@@ -122,7 +122,7 @@ export function answerCase(
         paragraphs: [
           "This navigator uses fixed, tested answers and your current case facts. It is not an LLM conversation and does not send your question or email elsewhere.",
           "The separate Evidence Recovery Copilot can send selected document text to OpenAI only after its explicit consent step. It returns source-quoted proposals; seven field confirmations and a reviewer reason are required to save them. Local OCR is a separate browser workflow.",
-          "API limits still apply to the recovery copilot. No feature here changes the exact verdict or bypasses human review.",
+          "The separate Ask CargoGuard tab provides optional LLM chat with an exact data preview and explicit consent. It shares the recovery copilot's API limits. No navigator or chat answer changes the exact verdict or bypasses human review.",
         ],
         target: "documents",
         rows: [],
