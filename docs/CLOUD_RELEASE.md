@@ -2,12 +2,15 @@
 
 ## Laptop-first work queue and revision comparison — 21 September 2026
 
+Live runtime **`e716487660f281cdc1f0ccaa5cc237be936c8f05`**, Render deployment
+`dep-daofajad0e5s7381trog`, started **17:13:49 MYT**, succeeded after **2m51s**.
 See [LAPTOP_WORKSPACE.md](LAPTOP_WORKSPACE.md) for the current navigation, retained
-requirements, revision safeguards and dated acceptance. Runtime deployment status
-is recorded there. The older dated records below describe earlier interfaces and
+requirements, revision safeguards, **314 local regression tests**, **200 hosted
+HTTP checks**, **520/520 supplied-case agreement** and **seven persistence checks**.
+The older dated records below describe earlier interfaces and
 allowances; current quota details are in [WORKSPACE_REFRESH.md](WORKSPACE_REFRESH.md).
 
-## Current case-assistant release — 21 September 2026
+## Historical case-assistant release — 21 September 2026, 13:50 MYT
 
 Live at **https://cargoguard-averis.onrender.com/**. Final runtime commit `5d5d867d8a32beed1fed766378c97c96c8a89143`, deployment `dep-daocb76k1f9s73bgu86g`, branch `cargoguard-v3-deploy`. Render started at **13:50:20 Malaysia time** and reported **Deploy succeeded / Live** after **2m19s**. All five migrations, including `0004_case_assistant.sql`, were reported ready. Later documentation-only commits are not claimed as deployed runtime changes.
 
@@ -155,10 +158,10 @@ Reproducible scripts: `scripts/test-api.mjs`, `scripts/test-hardening-api.mjs`, 
 6. This remains a synthetic-data hackathon demo, not a corporate production release. It lacks verified staff identity/roles, antivirus, formal retention and backup guarantees, a durable background job queue and comprehensive global abuse protection. Never upload confidential real shipment data.
 
 Passing the recorded tests is evidence of this release's behavior, not a promise of zero future bugs or a championship result. See [DEPLOYMENT.md](DEPLOYMENT.md) for reproduction and the remaining broader acceptance checks.
-# Workspace/capacity update — 21 September 2026, 16:22 MYT
+## Historical workspace/capacity update — 21 September 2026, 16:22 MYT
 
-See [WORKSPACE_REFRESH.md](WORKSPACE_REFRESH.md) for the six-tab design, increased
+See [WORKSPACE_REFRESH.md](WORKSPACE_REFRESH.md) for the previous six-tab design, increased
 daily AI caps with unchanged lifetime ceilings, runtime commit `3d3a379`, 185 hosted
 HTTP checks, original 520-case rescoring, persistence verification and the exact
-scope/limitations of two real provider requests. Earlier sections below are dated
-historical acceptance records, not the current quota specification.
+scope/limitations of two real provider requests. Its quota configuration remains
+unchanged by the laptop-first release; its runtime and interface are historical.

@@ -76,7 +76,7 @@ Latest verified engineering evidence:
 - Four additional 520-email same-generator development sets match all expected outputs after fixes: 2,600/2,600 total exact decisions. They informed development and are not independent held-out tests.
 - The original 12 targeted HarborCheck-comparison probes now all pass. This diagnostic set is not a general accuracy benchmark.
 - 23 additional governance HTTP checks passed, covering policy activation races, stale previews, immutable history, historical source access and labelled exports.
-- 15 new revision-flow HTTP checks passed locally: partial/complete replacement, retained/new issues, historical bytes, workspace isolation and category removal. See LAPTOP_WORKSPACE.md for hosted acceptance; local tests alone do not prove deployment.
+- All 200 HTTP checks passed against the deployed laptop-workspace release, including 15 new revision-flow checks: partial/complete replacement, retained/new issues, historical bytes, workspace isolation and category removal. Seven post-redeployment persistence checks also passed. See [the exact release evidence](docs/LAPTOP_WORKSPACE.md).
 - The prior OCR evaluation read all six supplied scanned PDFs; a scanned-document browser workflow was also checked on the v3 production build. Candidate values still contain OCR mistakes: seven-field human confirmation is mandatory.
 
 These are development-corpus and engineering results, not an untouched hold-out test or a guarantee of real-world accuracy. See docs/MODEL_CARD.md for methodology and limitations.
