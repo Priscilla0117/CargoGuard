@@ -88,7 +88,7 @@ These suites create synthetic QA workspaces and write test data. Use a dedicated
 
 Follow [DEPLOYMENT.md](DEPLOYMENT.md) and `render.yaml`. The default deployment uses Render plus Turso, not local disk persistence.
 
-Set `TURSO_DATABASE_URL` and a database-scoped `TURSO_AUTH_TOKEN` only in Render's secret environment settings. Never set `CARGO_LOCAL_DB` there. Optional cloud assistance additionally uses `CARGO_AI_PROVIDER`, `CARGO_AI_MODEL` and `CARGO_AI_API_KEY`; follow [.env.example](../.env.example) and [AI_UPGRADE.md](AI_UPGRADE.md). Do not prefix secrets with `NEXT_PUBLIC_` or commit actual environment files.
+Set `TURSO_DATABASE_URL` and a database-scoped `TURSO_AUTH_TOKEN` only in Render's secret environment settings. Never set `CARGO_LOCAL_DB` there. Optional cloud assistance additionally uses `CARGO_AI_PROVIDER`, `CARGO_AI_MODEL` and `CARGO_AI_API_KEY`; follow [.env.example](../.env.example) and [MODEL_CARD.md](MODEL_CARD.md). Do not prefix secrets with `NEXT_PUBLIC_` or commit actual environment files.
 
 Core classification and comparison require no LLM key. When enabled, the assistant/recovery can send the specifically previewed question, case context and source excerpts to OpenAI after consent. Browser OCR does not send scan contents to OpenAI. Shared attempt/token limits and provider availability can stop AI requests; a restart does not reset persistent allowances.
 

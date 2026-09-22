@@ -1,5 +1,43 @@
 {
   "schema_version": 1,
+  "later_source_tree_regression": {
+    "baseline_commit": "26f92d4b793ad5c20212234c97d13ae228e88183",
+    "started_at": "2026-09-22T02:19:09.574Z",
+    "finished_at": "2026-09-22T02:20:57.051Z",
+    "node": "v24.19.0",
+    "snapshot_files": 260,
+    "removed_files_absent": 25,
+    "quality_steps_passed": 8,
+    "unit_tests_passed": 350,
+    "unit_tests_skipped": 0,
+    "http_suites": {
+      "core": 72,
+      "hardening": 35,
+      "governance": 23,
+      "release": 30,
+      "revision": 15,
+      "assistant_preflight": 25,
+      "review_workspace": 28
+    },
+    "total_http_assertions_passed": 228,
+    "organiser_integrity": { "emails": 520, "documents": 250, "both_copies_matched": true },
+    "actual_http_export_scoring": {
+      "predictions_sha256": "b0fac824010298e6bfa3b231c0490452916e50f47bc2df76df249321d659333c",
+      "ground_truth_sha256": "d2d84f55cd68e9e0e7a62f07616d49968f44be2132c7b6b69a77213adfc0babe",
+      "verifier_sha256": "0a556839752c42d9edcefdfc3230b4c1746fef824abec7b9f3a37d582b85a614",
+      "exact_matches": 520,
+      "exact_defect_cases": 46,
+      "exact_review_cases": 20,
+      "false_ok_decisions": 0,
+      "official_composite": 1
+    },
+    "runtime_hashes_unchanged_during_test": true,
+    "external_ai_enabled": false,
+    "provider_reservations": 0,
+    "test_server_stopped": true,
+    "passed": true,
+    "scope": "Byte-verified curated source snapshot, existing dependencies and a new local SQLite database. Later edits were documentation only. Not a new clean install, cloud acceptance run, live LLM evaluation, independent holdout or judging score."
+  },
   "source_commit": "0a2340cc7edcd3a154f420701461094124e5be04",
   "engine": "3.2.1",
   "quality_completed_at": "2026-09-22T00:34:15.1Z",

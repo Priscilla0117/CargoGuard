@@ -51,3 +51,14 @@ next-env.d.ts
 *.tsbuildinfo
 !/.env.example
 /public/ocr/
+
+# Local-only presentation preparation and obsolete packaging outputs.
+/private-preparation/
+/submission-prep/
+/recordings/
+/pitch-drafts/
+/docs/RECORDING_*.md
+/docs/DEMO_SCRIPT.md
+/docs/REQUIREMENT_PROOF_CHECKLIST.md
+/GITHUB_UPLOAD.md
+/SOURCE_MANIFEST.json

@@ -1,57 +1,79 @@
-# CargoGuard 3.2 — evidence-aware review workspace
+# Review workspace — product guide
 
-Status: **3.2.1 deployed on the independent Render demo**, 21 September 2026, 19:37:58 MYT. Runtime `15ccb25d737bc233bc15912631a55f954b3f5e50`; 177 hosted acceptance/persistence checks and the exact 520-case cloud export are recorded in [CLOUD_RELEASE.md](CLOUD_RELEASE.md). Changes are independently implemented; HarborCheck was a workflow/comparison reference, not copied source. This is a stronger hackathon prototype, not a championship, zero-bug or production-readiness guarantee.
+CargoGuard 3.2.1 organizes document checking around **Work queue**, **Reports** and secondary **Settings**. A case has three sections: **Check**, **Sources** and **History**.
 
-## What staff can do
+[Architecture](ARCHITECTURE.md) · [Case assistant](CASE_ASSISTANT.md) · [Setup and tests](DEVELOPMENT.md)
 
-### Import an email, not just a document pair
+## From inbox to a supported decision
 
-Use **Import email** to enter sender, subject and message and attach up to **10 TXT/PDF/DOCX/XLSX files**, **5 MiB each / 20 MiB combined**. Email-only messages can be routed too. This is manual intake, not Gmail or Outlook synchronisation. No mailbox permissions were added.
+| Step | Reviewer action | Product boundary |
+| --- | --- | --- |
+| Route | Run the sample inbox or import an email | Five email categories; only comparison requests continue to shipment checking |
+| Inspect | Read the seven SI/BL values and source evidence in Check | SI is the reference; uncertain values are not matches |
+| Select sources | Choose an identified readable SI and BL when several attachments exist | Only that pair is verified; all other files remain retained, not verified |
+| Resolve | Inspect sources, confirm an extraction, replace files or request missing evidence | Saved corrections do not edit original documents |
+| Recheck | Review the recomputed result and any remaining uncertainty | Matching fields do not authorize shipment release |
+| Trace | Inspect earlier snapshots and original files in History | Reviewer names are self-declared, not corporate identities |
 
-With extra attachments, the case stays under review. In **Sources**, explicitly select a readable identified SI and BL. The server binds the choice to source SHA-256 fingerprints and the current case revision. A reviewer name and reason are required. Other attachments remain downloadable and are clearly labelled **retained, not verified**. Unknown roles and damaged sources cannot bypass recovery simply by selecting them. Changing the pair recalculates from the sources; previous corrections and source bytes remain in history. Replacement drops the prior selection. Source-identical reprocessing preserves it.
+Queue filters group cases by next action. With the supplied data, **15 need evidence recovery and 96 need documents**; the latter includes five missing-attachment review cases plus 91 awaiting-document requests. These operational queues do not change the underlying **20 review / 91 awaiting** result counts.
 
-This is useful when an operations email includes an invoice, an older BL and the latest BL. Staff can show exactly which documents supported their decision. It does not prove which revision a sender intended; the reviewer must check that.
+Reports include discrepancy-pattern counts and an event trail. Counts are observations, not inferred root causes, supplier ratings or measured savings. **Help & exports** offers a shift brief and separately labelled automatic/reviewed exports. Correction drafts require source review and acknowledgement; nothing is emailed automatically.
 
-### See a correction's consequences before saving
+## Intake and source selection
 
-Under **Details / correct value → Correct value**, the **Before you save** panel recalculates all seven checks while the employee edits. It shows resolved findings, newly introduced problems, remaining uncertainty and linked-field changes. For example, changing a consignee can also change a notify party expressed as “same as consignee”.
+**Import email** accepts sender, subject, message and 0–10 TXT/PDF/DOCX/XLSX attachments. Document replacement accepts 2–10 files. Both use `POST /api/upload`, with **5 MiB per file / 20 MiB combined** limits.
 
-The preview and server save share one calculation function. The preview makes **no storage write and no AI request**. Invalid/ambiguous values disable saving and are rejected again by the server. A version check prevents stale overwrites. Changing extracted data does not modify original files or authorize shipment release. SI edits are explicitly identified as changes to the reference.
+Email-only intake can route a message but cannot verify absent documents. Extra attachments keep a comparison under review until the reviewer selects a valid pair in **Sources**. A name and reason are required. The server binds the selection to file SHA-256 fingerprints and the current revision.
 
-### Less searching and less clutter
+Files with unknown roles or unreadable content need the appropriate recovery/replacement process before selection. Selecting a pair does not establish the sender's intended draft. A different pair recalculates from source while keeping prior corrections and bytes in history. Replacement clears the old selection; source-identical reprocessing preserves it.
 
-Two main pages remain: Work queue and Reports; Settings stays secondary. Compact colour-coded queue cards show counts and filter the next action. Colours also have labels/icons. Multi-file intake shows file names and limits. On laptops, the correction form and its impact preview sit side by side. History warns when the selected pair changes even if its field values are identical.
+## Preview a correction before saving
 
-## Fixes and reliability boundaries
+Under **Details / correct value → Correct value**, **Before you save** recalculates all seven checks as the value is edited. It shows resolved findings, new issues, remaining uncertainty and linked effects—for example, a notify party expressed as **SAME AS CONSIGNEE**.
 
-- Unexplained multiple corporate names in a party block now trigger review rather than becoming a false match when repeated in both documents. Wrapped company names, address continuations, repeated identical names and explicit agency wording have regression tests. This conservative gate does not recognize every possible international company-name construction.
-- The learned router was retrained with independently authored security-incident examples. A report *about* a phishing message no longer automatically becomes the phishing message in the reproduced failing scenario. Actual credential demands still classify as spam. No organiser answer-key data was added to training.
-- Inbox SQL removes document text, comparison evidence and email bodies **before** transferring results from the remote database. Full evidence remains available through the case-detail API. On the 520 supplied saved outputs, serialized queue summaries are 706,990 bytes versus 1,747,055 bytes for full results: **59.5% smaller**. This is a payload measurement, not a guaranteed latency reduction.
-- Inbox, audit and policy reads run concurrently. One bounded retry is allowed for a transient **read-only inbox** failure; writes are never automatically replayed. Cancelled/older refreshes cannot replace newer case results or error/loading state. The UI labels last successful sync and retained older results after a failed refresh; it does not claim continuous healthy cloud status.
-- Version 3.2.1 separates the process-only `/api/live` probe from `/api/health`, which still returns 503 when storage cannot be reached. Render uses the process probe so a later database outage does not itself trigger a restart loop. Normal startup still requires successful migration checks; there is no temporary local-storage fallback and failed writes are not replayed. Twelve local production-build fault checks verified this distinction with deliberately invalid synthetic database settings.
-- The previous Turso capacity incident and Render free-tier cold starts remain provider constraints. This change reduces avoidable transfer and improves failure handling; it does not establish unlimited capacity or uninterrupted service.
+Previewing saves nothing and makes no AI request. Preview and server save share the same calculation. Invalid values disable Save and are rejected again by the server. Saving checks the expected revision and atomically records the result, complete revision and event; a stale save is rejected.
+
+A changed SI value is a change to the reference, not evidence that the BL issuer corrected anything. **Save correction & next case** advances only after a successful save; it never approves the next case.
+
+## Reproducible four-file example
+
+This small fictional example exercises source selection, linked-field preview and history. It is not organiser evaluation data and does not contact an AI provider.
+
+Files: [si.txt](../tests/fixtures/intake/si.txt), [earlier-bl.txt](../tests/fixtures/intake/earlier-bl.txt), [latest-bl.txt](../tests/fixtures/intake/latest-bl.txt), [invoice.txt](../tests/fixtures/intake/invoice.txt).
+
+### Import and compare
+
+1. Open **Work queue → Import email**.
+2. Use sender `demo@example.test`, subject `Synthetic test: review the latest draft BL`, and message: `Please compare the attached shipping instruction with the latest draft bill of lading. The earlier draft and invoice are included for context.`
+3. Attach the four unchanged files and choose **Import & check email**.
+4. Under **Sources → Select SI and draft BL**, select `si.txt` and `earlier-bl.txt`. Enter your actual reviewer name and a reason such as `Synthetic test: inspect the supplied earlier draft.` Choose **Confirm pair & compare**.
+5. Expect **MISMATCH** in **consignee and notify party**: SI uses BETA IMPORTS LTD; the earlier BL uses GAMMA IMPORTS LTD and inherits that value for notify party.
+6. Under **Change comparison pair**, select `si.txt` and `latest-bl.txt`, record the reason and confirm. Expect all seven fields to match for the **selected pair**. The earlier draft and invoice remain retained, not verified.
+
+Both drafts were imported together; selecting another one is not receipt of a new sender email.
+
+### Check a linked edit safely
+
+1. Inspect `latest-bl.txt`: its consignee is **BETA IMPORTS LTD**, and notify party is **SAME AS CONSIGNEE**.
+2. In **Check**, show all fields. In the right-hand draft BL consignee column, choose **Details / correct value → Correct value**.
+3. Temporarily enter `GAMMA IMPORTS LTD`. Expect **two new problems** in the preview, including the linked notify-party change. **Do not save that hypothetical value.**
+4. Restore the actual source value `BETA IMPORTS LTD`. Confirm that the preview returns to matching.
+5. Enter your reviewer name and a truthful reason, for example: `Confirmed BETA IMPORTS LTD against the latest BL source; the temporary what-if was not saved.` Choose **Save correction & recompute**.
+6. Verify the save confirmation and new revision. The seven-field result should remain matching. This confirms an already-correct extraction; it does not repair a real parser error or change the original file.
+7. Open **History**, inspect the saved review entry, then expand **Inspect full earlier snapshot and original files** to check the earlier evidence.
+
+Because the saved value remains BETA, before/after field comparison can correctly show **zero value changes**. The new review record is distinct from the earlier source-pair change. If a save fails or its outcome is unclear, inspect current state before repeating it.
+
+## History and review safeguards
+
+History compares the current result with an earlier saved snapshot. Source links are pinned to each revision. It distinguishes new issues, newly matching fields, unresolved fields and checks no longer available. A mismatch becoming unknown or being routed elsewhere is not shown as a fix.
+
+SI, category, engine, policy and source-pair changes receive notices. Historical inspection is read-only; it does not restore or delete a result. Database triggers reject ordinary revision updates/deletes, but this is not certified tamper-proof storage against an administrator.
 
 ## Validation and limits
 
-The 3.2.1 local release gate passed all eight steps: typecheck, lint, **350 unit tests / zero skips**, 770-file organiser-input integrity, supplied-corpus evaluation, independent organiser scorer, OCR asset staging and production build. **228 local HTTP checks** passed again on the final 3.2.1 build (72 core, 35 hardening, 23 governance, 30 release, 25 assistant preflight, 15 revision and 28 new intake/review checks). The process-health patch has twelve additional local production-build fault checks. No valid external AI request was made. Use `public/validation.json`, `work/validation/quality-gate.json`, and CLOUD_RELEASE.md for timestamps and separately dated hosted acceptance.
+The recorded 21 September 3.2.1 gate passed **350 unit tests**, **228 local HTTP assertions**, **12 local outage checks** and **177 hosted acceptance/persistence assertions**. Laptop workflows were inspected at 1366×768 and 1280×720. The separate [22 September report](SUBMISSION_CHECK.md) records the fresh local recheck; [cloud evidence](CLOUD_RELEASE.md) separates dated hosted and provider tests.
 
-The test suite includes 20 new unit checks for the repaired ambiguities, preview/save equivalence, dependent fields, pair fingerprints, source changes, history, isolation, compact summaries and bounded retries. The final browser walkthrough checked **1366×768 and 1280×720** layouts: four-file intake, pair selection with explicit exclusions, preview-only linked-field changes, rejected ambiguous values, save matching the preview, unchanged revision after cancelling, history, retained work after restart, and direct floating chat. The two-column dialog fits within the measured laptop viewport, without horizontal overflow. No warning/error appeared in the inspected final browser console. These observations are not a comprehensive accessibility audit or employee usability study.
+The synthetic pairing and linked-edit paths have regression coverage, including stale writes, preview/save equivalence, cancellation, file fingerprints and revision history. These are engineering checks, not an Averis employee usability study or comprehensive accessibility certification.
 
-All five same-generator development sets (2,600 emails total) match the expected outputs under the revised engine. These are **not independent production holdouts**. The separate 60-message routing challenge still has two incorrect raw category predictions among 50 clear messages; both go to review under the current safety wrapper. Nine of ten intentionally ambiguous messages go to review. This is not perfect model understanding.
-
-The model is reproducibly trained from 910 generated training rows, with 181/182 grouped-by-body validation rows correct. Those rows are combinations of independently authored examples, not 1,092 real-world emails. Current model SHA-256: `25b36b744cc49e09b383d01bbc2c6560fe984e4cf1670dc02b674ce5b526be2a`. Retraining to a separate file reproduced the hash. The model has 9,244 features and occupies 776,816 bytes. Scores remain uncalibrated.
-
-Existing optional cloud chat and source-quoted recovery remain available with consent and shared limits; this release did not spend additional OpenAI balance or change those limits. Grounding/source checks do not make an LLM hallucination-proof. Reviewer identities remain self-declared and the demo uses browser-workspace isolation, not enterprise SSO/RBAC. Only organiser/synthetic data belongs in this public prototype.
-
-## Reproduce and demonstrate
-
-```text
-npm run quality -- --build
-node --import tsx scripts/test-review-workspace-api.ts http://127.0.0.1:3055
-node scripts/test-release-api.mjs http://127.0.0.1:3055
-node --import tsx scripts/test-revision-api.ts http://127.0.0.1:3055
-```
-
-Use the four clearly synthetic files in `tests/fixtures/intake/`. Import all four. Select the SI and earlier BL to show the consignee/notify differences. Select the latest BL to show a matching **selected pair**, with two excluded attachments still visible. Preview a consignee change to show its notify-party consequence; cancel it to prove the preview saves nothing. Open History to inspect who selected each pair, original files and the revision differences.
-
-This demonstrates employee value and auditability. It is more defensible than claiming a feature is unique among every team, claiming 100% accuracy on unseen shipments, or presenting a preview as an issuer-corrected document.
+The [model card](MODEL_CARD.md) records routing errors, development-set limitations and OCR/LLM fallibility. Browser workspaces are not corporate authentication. Only organiser/synthetic data belongs in the public prototype. A supervised pilot with approved new documents, staff feedback and measured review outcomes is still required before production use.

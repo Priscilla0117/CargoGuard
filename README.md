@@ -3,7 +3,7 @@
 <p align="center">
   <a href="https://cargoguard-averis.onrender.com/"><strong>Live&nbsp;demo&nbsp;↗</strong></a>
   &nbsp; · &nbsp;
-  <a href="docs/RECORDING_RUNBOOK.md">Demo&nbsp;guide</a>
+  <a href="docs/REVIEW_WORKSPACE_V32.md">User&nbsp;guide</a>
   &nbsp; · &nbsp;
   <a href="docs/ARCHITECTURE.md">Architecture</a>
   &nbsp; · &nbsp;
@@ -28,14 +28,14 @@ Five email categories. TXT, PDF, Word (.docx) and Excel (.xlsx) inputs. Missing 
 
 Earlier results and original files remain available in **History**. Correction drafts are never sent automatically.
 
-## Take a quick judge walkthrough
+## Try the prototype
 
 1. **Open the demo → Run inbox.** No account or personal API key needed.
 2. **Find `email_313`.** See five versus four containers and a **500 kg** weight difference. Open a source reference to check the evidence.
 3. **Open Ask CargoGuard** and attach that case. Ask: *“What needs fixing, and what should I do next?”* Review the outgoing data and consent before sending.
 4. **Inspect `email_512` and `email_507`.** A scan needing review and a missing draft stay incomplete, with a next step.
 
-For source-pair selection and the linked-field preview, follow the [four-file demo](docs/RECORDING_RUNBOOK.md#prepare-the-synthetic-four-file-case).
+For multi-file selection, correction previews and history, see the [user guide](docs/REVIEW_WORKSPACE_V32.md). The [synthetic intake fixtures](tests/fixtures/intake) provide a reproducible example.
 
 > Free hosting may take around a minute to wake. Use only organiser/synthetic data. AI has shared limits; core comparison and manual review still work without it.
 
@@ -53,7 +53,7 @@ For source-pair selection and the linked-field preview, follow the [four-file de
 
 A trained **TF-IDF logistic model** routes emails; deterministic checks compare shipment fields. Render runs the pipeline, and Turso stores cases, small originals and review history. Optional OpenAI assistance uses server-side credentials and explicit consent. Browser-local OCR proposes text for human confirmation.
 
-[Architecture & implementation](docs/ARCHITECTURE.md) · [AI design](docs/AI_UPGRADE.md) · [Requirements & rubric map](docs/REQUIREMENTS.md)
+[Architecture & implementation](docs/ARCHITECTURE.md) · [Model & AI evidence](docs/MODEL_CARD.md) · [Requirements coverage](docs/REQUIREMENTS.md)
 
 ## Required written responses
 
@@ -134,6 +134,6 @@ Open **http://localhost:3000**, then choose **Run inbox**. SQLite is for local d
 
 **Demo boundaries:** browser workspaces are not corporate authentication. A match is not shipment approval. OCR/AI can be wrong; inspect sources before confirming.
 
-**Submission materials:** [voiceover](docs/RECORDING_VOICEOVER.md) · [proof checklist](docs/REQUIREMENT_PROOF_CHECKLIST.md) · [remaining submission actions](docs/SUBMISSION_CHECK.md#team-actions-required-before-submission). Recording plans are not a finished video.
+**Technical documentation:** [written responses](docs/WRITTEN_RESPONSES.md) · [verification report](docs/SUBMISSION_CHECK.md) · [cloud and AI validation](docs/CLOUD_RELEASE.md).
 
 **Acknowledgements:** built with open-source dependencies and OpenAI Codex assistance. Organiser inputs are included for the authorised demo; answer keys are not runtime inputs or published here. Preserve vendor/OCR licences. The team must confirm eligibility, originality, permitted dates and any reused material.

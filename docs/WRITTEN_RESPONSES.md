@@ -14,7 +14,7 @@ Useful additions address handover and review: explicit source-pair selection, a 
 
 The main email router is a trained **TF-IDF multinomial logistic regression model** with word, word-pair and character features. It runs on the server without an API key. Training uses independently authored synthetic examples, not the organiser answer key. Safety checks can abstain when intent is unclear.
 
-On the 520 supplied development emails, the current router made 513 direct learned decisions and seven learned decisions corroborated by an agreeing rule. A rule cannot replace the learned category. These counts describe routing paths, not a separate benchmark score. See the [model evidence and limitations](AI_UPGRADE.md).
+On the 520 supplied development emails, the current router made 513 direct learned decisions and seven learned decisions corroborated by an agreeing rule. A rule cannot replace the learned category. These counts describe routing paths, not a separate benchmark score. See the [model evidence and limitations](MODEL_CARD.md).
 
 **Render** runs the Next.js/Node.js server and document pipeline. **Turso/libSQL** persists case results, original small uploads, revisions and review events. **OpenAI** supports optional source-quoted field recovery and case-specific explanations through server-side calls after explicit consent. Recovery requires source validation and human confirmation; chat cannot change saved decisions. **Tesseract.js** offers browser-local English OCR suggestions for scans.
 
@@ -38,7 +38,7 @@ Development feedback led to changes: ambiguous company blocks now require review
 | Large saved results made queue reads expensive | Fetch compact summaries and load full source evidence on demand | 706,990 versus 1,747,055 serialized bytes on supplied saved outputs: 59.5% smaller, not a claimed latency reduction |
 | LLM recovery could select an incorrect or malformed value | Bounded output contract, verbatim source checks, unit validation and mandatory human confirmation | Dated real-provider development trials; quoting a source does not guarantee semantic correctness |
 
-Implementation and incident details: [review workspace](REVIEW_WORKSPACE_V32.md), [AI recovery](AI_UPGRADE.md), [database incident](DATABASE_INCIDENT_20260921.md).
+Implementation and incident details: [review workspace](REVIEW_WORKSPACE_V32.md), [AI recovery](MODEL_CARD.md), [failure handling and cloud validation](CLOUD_RELEASE.md).
 
 ## 5. Success metrics
 
@@ -54,9 +54,9 @@ The following are the **recorded 21 September 2026 release 3.2.1 results**, not 
 | Hosted checks | 170 HTTP acceptance checks plus seven retained-data checks = 177 |
 | Original input integrity | 520 emails and 250 document byte sequences matched both organiser copies |
 
-[Exact dated release evidence](CLOUD_RELEASE.md) separates local, hosted, provider and historical runs. [Submission check](SUBMISSION_CHECK.md) records the latest recheck without relabelling old results as new.
+[Exact dated release evidence](CLOUD_RELEASE.md) separates local, hosted, provider and historical runs. [Verification report](SUBMISSION_CHECK.md) records the latest recheck without relabelling old results as new.
 
-Four additional same-generator sets informed development. Including the original, 2,600 outputs matched, but they share templates and are **not independent real-world holdouts**. The separate 60-message routing challenge still exposes limitations, documented in [AI_UPGRADE.md](AI_UPGRADE.md). OCR and LLM proposals can be wrong.
+Four additional same-generator sets informed development. Including the original, 2,600 outputs matched, but they share templates and are **not independent real-world holdouts**. The separate 60-message routing challenge still exposes limitations, documented in [MODEL_CARD.md](MODEL_CARD.md). OCR and LLM proposals can be wrong.
 
 We have not measured production ROI. Proposed pilot measures are median review time, missed discrepancies/false clearances, unnecessary review referrals, correction rounds and staff task completion. Organiser scoring is a development aid, not a judging score or a guarantee of unseen accuracy.
 
