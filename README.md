@@ -10,11 +10,6 @@
   <a href="docs/SUBMISSION_CHECK.md">Test&nbsp;report</a>
 </p>
 
-<p align="center">
-  <strong>Team MozartAI</strong> · Ng Ern Chi &amp; Chan Kar Jun<br>
-  Averis x Monash Hackathon 2026 · CargoGuard 3.2.1
-</p>
-
 ## Five containers. Or four?
 
 The Shipping Instruction (SI) says **five**. The draft Bill of Lading (BL) says **four**.
