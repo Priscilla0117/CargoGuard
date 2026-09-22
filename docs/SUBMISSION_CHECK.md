@@ -31,7 +31,7 @@ Completed **22 September 2026, 08:35 MYT / 00:35 UTC** using Node 24.19.0. A pro
 
 The initial full gate used the checkout's existing installed dependencies. A separate clean-install check also passed, as recorded below. Deliberately malformed PDF fixtures emitted expected parser warnings; the tests correctly retained their review outcomes. Counts overlap in purpose and must not be summed into independent business cases.
 
-Reproduction commands and organiser-path overrides are in [README.md](../README.md#reproduce-the-checks). The machine-readable [sanitised verification summary](evidence/submission-20260922.json) records the exact baseline and aggregate results. Detailed run logs remain in ignored local QA storage; they are not deployed inputs or source-controlled answer keys.
+Reproduction commands and organiser-path overrides are in [the development guide](DEVELOPMENT.md#reproduce-the-checks), linked from README.md. The machine-readable [sanitised verification summary](evidence/submission-20260922.json) records the exact baseline and aggregate results. Detailed run logs remain in ignored local QA storage; they are not deployed inputs or source-controlled answer keys.
 
 ### Clean installation
 
