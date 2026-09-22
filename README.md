@@ -6,8 +6,6 @@
   <a href="docs/REVIEW_WORKSPACE_V32.md">User&nbsp;guide</a>
   &nbsp; · &nbsp;
   <a href="docs/ARCHITECTURE.md">Architecture</a>
-  &nbsp; · &nbsp;
-  <a href="docs/SUBMISSION_CHECK.md">Test&nbsp;report</a>
 </p>
 
 ## Five containers. Or four?
@@ -45,7 +43,6 @@ For multi-file selection, correction previews and history, see the [user guide](
 | :---: | :---: | :---: |
 | Supplied-data outputs matched | Unit tests · zero skipped | Local HTTP checks |
 
-**Verified 22 September 2026.** Production build and clean installation also passed. The 520-email result uses supplied **development data**, not an unseen test set or a claim of production accuracy. [See scope, results and limitations →](docs/SUBMISSION_CHECK.md)
 
 ## How it is built
 
