@@ -1,0 +1,264 @@
+{
+  "schema_version": 1,
+  "source_commit": "0a2340cc7edcd3a154f420701461094124e5be04",
+  "engine": "3.2.1",
+  "quality_completed_at": "2026-09-22T00:34:15.1Z",
+  "http_completed_at": "2026-09-22T00:35:01.279Z",
+  "scoring_completed_at": "2026-09-22T00:35:21.127Z",
+  "node": "v24.19.0",
+  "scope": "Fresh local production-build and HTTP verification using an isolated SQLite database; supplied-corpus development agreement, not held-out accuracy or a judging score.",
+  "dependencies": "Full gate used existing dependencies; a separate clean lockfile install and local-start smoke check passed, using npm's package cache.",
+  "external_ai_enabled": false,
+  "provider_reservations": 0,
+  "quality_steps": [
+    {
+      "step": "typecheck",
+      "passed": true,
+      "duration_ms": 57310
+    },
+    {
+      "step": "lint",
+      "passed": true,
+      "duration_ms": 99528
+    },
+    {
+      "step": "unit-tests",
+      "passed": true,
+      "duration_ms": 13189
+    },
+    {
+      "step": "input-integrity",
+      "passed": true,
+      "duration_ms": 8006
+    },
+    {
+      "step": "evaluate-organiser",
+      "passed": true,
+      "duration_ms": 1762
+    },
+    {
+      "step": "independent-accuracy",
+      "passed": true,
+      "duration_ms": 312
+    },
+    {
+      "step": "ocr-assets",
+      "passed": true,
+      "duration_ms": 143
+    },
+    {
+      "step": "build",
+      "passed": true,
+      "duration_ms": 78731
+    }
+  ],
+  "unit_tests": {
+    "passed": 350,
+    "skipped": 0
+  },
+  "http_suites": [
+    {
+      "name": "core",
+      "checks": 72,
+      "passed": true,
+      "duration_ms": 3507,
+      "command": [
+        "node",
+        "scripts/test-api.mjs",
+        "http://127.0.0.1:3071"
+      ]
+    },
+    {
+      "name": "hardening",
+      "checks": 35,
+      "passed": true,
+      "duration_ms": 1730,
+      "command": [
+        "node",
+        "scripts/test-hardening-api.mjs",
+        "http://127.0.0.1:3071"
+      ]
+    },
+    {
+      "name": "governance",
+      "checks": 23,
+      "passed": true,
+      "duration_ms": 6232,
+      "command": [
+        "node",
+        "scripts/test-governance-api.mjs",
+        "http://127.0.0.1:3071"
+      ]
+    },
+    {
+      "name": "release",
+      "checks": 30,
+      "passed": true,
+      "duration_ms": 721,
+      "command": [
+        "node",
+        "scripts/test-release-api.mjs",
+        "http://127.0.0.1:3071"
+      ]
+    },
+    {
+      "name": "revision",
+      "checks": 15,
+      "passed": true,
+      "duration_ms": 6440,
+      "command": [
+        "node",
+        "--import",
+        "tsx",
+        "scripts/test-revision-api.ts",
+        "http://127.0.0.1:3071"
+      ]
+    },
+    {
+      "name": "assistant-preflight",
+      "checks": 25,
+      "passed": true,
+      "duration_ms": 6222,
+      "command": [
+        "node",
+        "scripts/test-assistant-api.mjs",
+        "http://127.0.0.1:3071"
+      ]
+    },
+    {
+      "name": "review-workspace",
+      "checks": 28,
+      "passed": true,
+      "duration_ms": 1131,
+      "command": [
+        "node",
+        "--import",
+        "tsx",
+        "scripts/test-review-workspace-api.ts",
+        "http://127.0.0.1:3071"
+      ]
+    }
+  ],
+  "total_http_assertions": 228,
+  "actual_http_export_scoring": {
+    "schema_version": 1,
+    "generated_at": "2026-09-22T00:35:21.127Z",
+    "engine": "3.2.1",
+    "evidence_scope": "Exact supplied-corpus output agreement, not held-out accuracy, real-world safety or a judging score. Engine version is a caller label; hashes bind this report to its input files.",
+    "predictions_sha256": "b0fac824010298e6bfa3b231c0490452916e50f47bc2df76df249321d659333c",
+    "ground_truth_sha256": "d2d84f55cd68e9e0e7a62f07616d49968f44be2132c7b6b69a77213adfc0babe",
+    "verifier_sha256": "0a556839752c42d9edcefdfc3230b4c1746fef824abec7b9f3a37d582b85a614",
+    "passed": true,
+    "expected_records": 520,
+    "supplied_records": 520,
+    "compared_records": 520,
+    "missing_ids": 0,
+    "extra_ids": 0,
+    "exact_matches": 520,
+    "mismatched_records": 0,
+    "expected_defect_cases": 46,
+    "exact_defect_cases": 46,
+    "expected_review_cases": 20,
+    "exact_review_cases": 20,
+    "false_ok_decisions": 0,
+    "official_scorer": {
+      "sha256": "230b9a2f865b42f5996d462b49a658058a9c2859703b74326716d8308abe13a7",
+      "records": 520,
+      "composite_score": 1,
+      "classification_macro_f1": 1,
+      "defect_f1": 1,
+      "exact_defect_catch_rate": 1,
+      "review_recall": 1
+    }
+  },
+  "public_readonly_snapshot": {
+    "date": "2026-09-22",
+    "origin": "https://cargoguard-averis.onrender.com",
+    "checks": [
+      {
+        "path": "/api/live",
+        "status": 200,
+        "result": "alive",
+        "engine": "3.2.1",
+        "database_checked": false,
+        "observed_duration_ms": 26397
+      },
+      {
+        "path": "/api/health",
+        "status": 200,
+        "result": "ready",
+        "engine": "3.2.1",
+        "observed_duration_ms": 127
+      },
+      {
+        "path": "/",
+        "status": 200,
+        "result": "CargoGuard HTML",
+        "observed_duration_ms": 310
+      }
+    ],
+    "limitations": "Individual read-only observations; not continuous uptime, fresh hosted mutation/restart acceptance, or live OpenAI answer-quality validation."
+  },
+  "public_assistant_preflight": {
+    "checked_at": "2026-09-22T08:40:18.8496013+08:00",
+    "enabled": true,
+    "provider": "openai",
+    "model": "gpt-5.4-mini",
+    "daily_requests_remaining": 50,
+    "lifetime_requests_remaining": 87,
+    "fresh_workspace_requests_remaining": 10,
+    "provider_request_sent": false,
+    "scope": "Read-only configuration/allowance snapshot; not model-answer validation. Shared allowances can change."
+  },
+  "clean_install": {
+    "source_commit": "0a2340cc7edcd3a154f420701461094124e5be04",
+    "node": "v24.19.0",
+    "npm": "11.9.0",
+    "os": "Windows",
+    "finished_at": "2026-09-22T00:42:16.184Z",
+    "duration_ms": 126641,
+    "passed": true,
+    "command": "npm ci --offline --no-audit --no-fund",
+    "packages_installed": 720,
+    "migrations_passed": 5,
+    "ocr_assets_staged": true,
+    "external_ai_enabled": false,
+    "http": [
+      {
+        "route": "/api/live",
+        "status": 200,
+        "duration_ms": 26176,
+        "bytes": 95,
+        "data": {
+          "status": "alive",
+          "engine": "3.2.1",
+          "database_checked": false,
+          "readiness_endpoint": "/api/health"
+        }
+      },
+      {
+        "route": "/api/health",
+        "status": 200,
+        "duration_ms": 739,
+        "bytes": 35,
+        "data": {
+          "status": "ready",
+          "engine": "3.2.1"
+        }
+      },
+      {
+        "route": "/",
+        "status": 200,
+        "duration_ms": 14387,
+        "bytes": 23240,
+        "title_present": true
+      }
+    ],
+    "server_stopped": true,
+    "scope": "New dependency directory installed from lockfile and existing package cache; not a fresh registry download, new production build in that archive, or macOS/Linux verification.",
+    "caveats": [
+      "Initial sandbox cache EPERM; approved retry passed.",
+      "Three nonfatal dependency deprecations and nested-checkout workspace warning."
+    ]
+  }
+}

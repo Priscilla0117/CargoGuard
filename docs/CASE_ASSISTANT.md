@@ -4,18 +4,18 @@ This is a real optional OpenAI LLM feature, separate from the fixed Evidence Nav
 
 ## Judge / employee journey
 
-1. Select the floating **Ask CargoGuard** button from any workspace screen. Search by case ID, subject or sender, for example organiser `email_004`. No external AI request is made by searching or selecting.
-2. Select the case. If it has not been processed, explicitly choose **Verify this case · no AI request** inside the panel. The saved exact result, workflow and revision remain visible. Existing case details also provide an **Ask CargoGuard** shortcut to this same panel.
-3. Select a suggested question or type your own. **Preview data to share** makes no provider call.
+1. Select the floating **Ask CargoGuard** button from any workspace screen. Type a question containing a case ID, such as `email_004`, then choose **Continue** to attach that case inside chat. Alternatively, choose **Attach a case** and search by ID, subject or sender. Neither attaching nor searching sends an external AI request.
+2. If the attached case has not been processed or needs an updated check, choose **Prepare case & continue chat** inside the panel. This prepares the saved evidence without contacting OpenAI. The exact result, workflow and revision remain visible. Existing case details also provide an **Ask CargoGuard** shortcut to this same panel.
+3. Select a suggested question or type your own. **Review & send** prepares the outgoing-data preview; it makes no provider call.
 4. Inspect the exact outgoing case packet. Confirm authorization using the initially unchecked checkbox, then select **Send to AI**.
 5. Inspect each answer's evidence references and use **Open source evidence** to inspect the parsed lines and original document link inside the panel. Transcriptions are explicitly labelled. AI wording can be wrong even when its citation IDs are valid.
 6. Ask a follow-up, with a fresh preview and consent. Each conversation is limited to three turns. Drafts are visibly draft-only; nothing is sent or saved as a case decision.
 
 Judges need no API account or key. The server uses the owner's configured OpenAI key. If AI is unavailable, use the case's contextual action (for example **Resolve case** or **Request correction**) for Evidence Navigator and the full checklist. Manual verification remains usable. Current navigation is documented in [LAPTOP_WORKSPACE.md](LAPTOP_WORKSPACE.md).
 
-The panel starts with deterministic workspace counts and guidance, not an invented AI summary. **Change case** searches only the inbox supplied to this browser workspace. A question naming another standard `email_…` or uploaded-case UUID is rejected by the server before contacting OpenAI; this is an identifier guard, not semantic detection of every possible indirect reference. Cross-case synthesis is intentionally unsupported.
+The welcome panel offers local workspace guidance. Questions such as **What needs attention?** use saved workspace counts, not an LLM-generated summary. **Attach a case** or **Change case** searches only the inbox supplied to this browser workspace. A case-specific AI question naming a different standard `email_…` or uploaded-case UUID is rejected by the server before contacting OpenAI; this is an identifier guard, not semantic detection of every possible indirect reference. Cross-case synthesis is intentionally unsupported.
 
-Up to five case/revision conversations and unsent questions remain in React memory while this tab stays loaded, including when visiting Resolution. No browser localStorage is used. Closing/reopening or switching cases clears the preview and consent; answers and questions remain separated by case/revision. Reloading the whole page clears this tab memory. Each reopen fetches current case data; a new revision starts fresh. The server still checks freshness, history binding and expiry before an AI request.
+Up to five case/revision conversations and unsent questions remain in React memory while this tab stays loaded, including when opening the case's resolution guidance. No browser localStorage is used. Closing/reopening or switching cases clears the preview and consent; answers and questions remain separated by case/revision. Reloading the whole page clears this tab memory. Each reopen fetches current case data; a new revision starts fresh. The server still checks freshness, history binding and expiry before an AI request.
 
 ## Technical boundaries
 
@@ -26,7 +26,7 @@ Up to five case/revision conversations and unsent questions remain in React memo
 - No tools, browsing, email sending, database mutation capabilities or model-chosen endpoints. The API route never calls the case-write or audit-decision functions. Plain React text rendering; model text is not interpreted as HTML or executable links.
 - Same-origin/session checks, strict input schema, bounded streams, 25-second provider timeout and no automatic retries. A changed case revision during generation causes the answer to be discarded; the attempted request still counts.
 - Current contract: `case-advisor-v1`, model allowlist `gpt-5.4-mini`, Responses API, strict JSON schema, `store:false`, up to 1,600 output tokens. No provider key enters the browser.
-- New migration `0004_case_assistant.sql` adds only the advisory reply cache. Engine remains 3.1.0 because the comparison pipeline is unchanged.
+- The initial case-assistant feature introduced migration `0004_case_assistant.sql` for the advisory reply cache and retained engine 3.1.0 at that time. The current application is 3.2.1; see [CLOUD_RELEASE.md](CLOUD_RELEASE.md) for the later runtime and its separately dated acceptance evidence.
 
 ## Cost and retention
 

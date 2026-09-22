@@ -1,5 +1,7 @@
 # A five-minute evidence-first demo
 
+**Historical outline.** For the current submission use [the natural voiceover](RECORDING_VOICEOVER.md), [the exact recording runbook](RECORDING_RUNBOOK.md) and [the requirement-to-proof checklist](REQUIREMENT_PROOF_CHECKLIST.md). They supersede this older sequence and distinguish planned footage from completed evidence. Use [SUBMISSION_CHECK.md](SUBMISSION_CHECK.md) for the latest code verification and remaining submission items.
+
 Do a full rehearsal. Use synthetic examples only. Keep a local preview as a fallback; do not present a recording as a live run.
 
 ## 0:00–0:30 — The business problem
