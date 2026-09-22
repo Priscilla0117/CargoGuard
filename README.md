@@ -1,13 +1,13 @@
 ![CargoGuard — spot the difference, show the evidence](docs/assets/cargoguard-hero.svg)
 
 <p align="center">
-  <a href="https://cargoguard-averis.onrender.com/"><strong>Open live demo ↗</strong></a>
+  <a href="https://cargoguard-averis.onrender.com/"><strong>Live&nbsp;demo&nbsp;↗</strong></a>
   &nbsp; · &nbsp;
-  <a href="docs/RECORDING_RUNBOOK.md">Demo walkthrough</a>
+  <a href="docs/RECORDING_RUNBOOK.md">Demo&nbsp;guide</a>
   &nbsp; · &nbsp;
   <a href="docs/ARCHITECTURE.md">Architecture</a>
   &nbsp; · &nbsp;
-  <a href="docs/SUBMISSION_CHECK.md">Test evidence</a>
+  <a href="docs/SUBMISSION_CHECK.md">Test&nbsp;report</a>
 </p>
 
 <p align="center">
