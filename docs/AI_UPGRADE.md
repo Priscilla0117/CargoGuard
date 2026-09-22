@@ -2,7 +2,7 @@
 
 Current 3.2 changes and release evidence are in [REVIEW_WORKSPACE_V32.md](REVIEW_WORKSPACE_V32.md) and [CLOUD_RELEASE.md](CLOUD_RELEASE.md). The provider acceptance below is dated history, not a claim of new live model testing in 3.2.
 
-Release status: deployed on the public Render service, 21 September 2026. Runtime commit `02462456f08c5916c53e6e7d0335ed76adf9e61b`, engine 3.1.0, recovery contract `evidence-selectors-v3`. The real OpenAI connection and 75 recovery-workflow checks passed on two synthetic unfamiliar-layout documents; a third organiser document was checked through the UI. See [CLOUD_RELEASE.md](CLOUD_RELEASE.md) for scope, earlier failures and limitations. Mocked adapter tests are not proof of model quality.
+Historical initial AI release: deployed on the public Render service, 21 September 2026. Runtime commit `02462456f08c5916c53e6e7d0335ed76adf9e61b`, engine 3.1.0, recovery contract `evidence-selectors-v3`. The real OpenAI connection and 75 recovery-workflow checks passed on two synthetic unfamiliar-layout documents; a third organiser document was checked through the UI. The current application is 3.2.1; see [CLOUD_RELEASE.md](CLOUD_RELEASE.md) for the later runtime, the scope of the earlier provider tests and their limitations. Mocked adapter tests are not proof of model quality.
 
 ## Why this is more than adding a chatbot
 
@@ -48,7 +48,7 @@ Official references: [server-side key handling](https://developers.openai.com/ap
 
 ## Operational feature
 
-The Resolution tab creates a deterministic, evidence-linked next-action checklist and downloadable handoff. It preserves known differences even when another field is uncertain, distinguishes missing evidence from actual mismatches, and directs staff to request, correct and recheck documents. The packet contains the exact revision, policy note, seven-field evidence and original source hashes. It never sends messages or authorises cargo release.
+The case's contextual action, such as **Request correction** or **Resolve case**, opens **Next action** within **Check**. The available guidance includes a deterministic, evidence-linked checklist and a **Full resolution checklist & evidence handoff** section with **Download evidence handoff**. It preserves known differences even when another field is uncertain, distinguishes missing evidence from actual mismatches, and directs staff to request, correct and recheck documents. The packet contains the exact revision, policy note, seven-field evidence and original source hashes. It never sends messages or authorises cargo release. The current case tabs are **Check**, **Sources** and **History**; there is no separate Resolution tab.
 
 ## Reproducible evidence
 
