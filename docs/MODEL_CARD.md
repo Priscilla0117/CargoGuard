@@ -1,65 +1,86 @@
 # Model and validation card
 
-**Version note:** The sections below are the **historical 3.0.1 baseline**, not the current model. The current 3.2 engine uses the learned TF-IDF logistic router, optional external AI, and the safety changes described in [AI_UPGRADE.md](AI_UPGRADE.md) and [REVIEW_WORKSPACE_V32.md](REVIEW_WORKSPACE_V32.md). See CLOUD_RELEASE.md for dated live-provider tests. Historical 73%/391-rule metrics below do not describe the default current router. No version claims perfect unseen-input accuracy.
+CargoGuard 3.2.1 uses learned email routing, deterministic document comparison, browser-local OCR and optional OpenAI assistance. These components have different responsibilities and evidence; a successful comparison benchmark is not an LLM-accuracy result.
 
-## Intended use
+[Architecture](ARCHITECTURE.md) · [Dated cloud/provider evidence](CLOUD_RELEASE.md) · [Latest technical verification](SUBMISSION_CHECK.md)
 
-Triage shipping-related emails into BL_COMPARISON, SI_REQUEST, INVOICE_QUERY, GENERAL and SPAM; compare an SI and draft BL across seven required fields. Human staff remain responsible for final operational decisions.
+## Intended use and decision boundary
 
-## AI implementation
+Route emails into **BL_COMPARISON, SI_REQUEST, INVOICE_QUERY, GENERAL or SPAM**. Only comparison requests proceed to seven-field shipment comparison, with the Shipping Instruction as reference. Missing, ambiguous or unreadable evidence requires human review.
 
-Multinomial Naive Bayes learns token likelihoods from 64 independently authored intent examples in lib/classifier.ts. It uses smoothing and a vocabulary derived only from those examples. Explicit intent rules supplement the model for operational subject conventions, reminders and scam language. These rules were refined while inspecting the supplied development corpus.
+| Component | Responsibility | Limit |
+| --- | --- | --- |
+| Learned router | Identify the email's request | May misclassify or abstain; scores are uncalibrated |
+| Parsers and exact comparison | Extract source-backed fields, normalize supported values and identify differences | Unknown layouts/units and conflicting values require review |
+| Browser OCR | Suggest English text from scanned PDFs | Every field requires inspection and confirmation |
+| OpenAI recovery | Propose field mappings from readable source lines | Quotes can be real but semantically wrong; seven confirmations are required |
+| OpenAI case assistant | Explain a selected saved case and suggest follow-up wording | Advisory only; cannot change a decision, send email or approve cargo |
 
-This is a lightweight hybrid classifier, not a large language model. Routing scores are uncalibrated. No API key is needed. It does not call a commercial AI service, and does not claim semantic understanding of arbitrary documents. Current-message intent takes priority over misleading subject lines. Too little evidence, competing scores or contradictory SI/BL attachments trigger category review. Additional scam/administrative rules were refined against the synthetic challenge sets; those sets are consequently development evidence.
+## Current learned router
 
-An additional pretrained English Tesseract OCR model runs in the browser on image-only PDFs. Its output is a suggestion, never an automatic verification decision. Every field requires human source confirmation. Server-side comparison validates those confirmed values through the same normalizer used for text-layer extraction.
+The server runs an offline-trained **multinomial logistic regression model** with TF-IDF word, word-pair and character features in separate subject, opening-request and body channels. Training uses independently authored synthetic examples, not organiser labels or answer-key lookups. Explicit weights are shipped in [routing-model.json](../lib/routing-model.json); inference needs no external API.
 
-## Evaluation boundary
+- **910 training rows**, plus **182 grouped-by-body validation rows** with **181 correct**. These are generated combinations of authored examples, not 1,092 independent real emails.
+- **9,244 features**; canonical LF-formatted model JSON size **776,816 bytes**.
+- Canonical model SHA-256: `25b36b744cc49e09b383d01bbc2c6560fe984e4cf1670dc02b674ce5b526be2a`. Git's Windows CRLF conversion can change the checked-out byte hash without changing the JSON model; compare the LF artifact produced by the trainer.
+- English-focused; numerical scores are not calibrated probabilities.
+- Safety gates escalate weak evidence, negated verification and competing workflows. An agreeing intent rule may corroborate a moderate learned choice, but cannot replace the learned category or bypass a hard ambiguity gate.
 
-Application imports: supplied email/attachment inputs, authored examples, deterministic parser and comparison code.
+The model was refined after a targeted security-incident-reporting error. Repeated challenge results are therefore development evidence.
 
-Offline-only evaluation: scripts/verify-evaluation.mjs reads an explicitly supplied organiser ground-truth key, invokes their unmodified scorer and fails nonzero on schema, coverage or output differences. It runs in the quality gate. The application never imports that key, metadata labels, generated predictions or an ID-to-answer mapping. Public validation.json contains aggregate metrics and hashes only. Renaming IDs/files does not change predictions in the regression test.
+### Routing evidence and historical baseline
 
-The organiser explicitly clarified that the released Docker key is for participant self-evaluation and the older README restriction was outdated.
+| Dataset / mode | Recorded result | Interpretation |
+| --- | --- | --- |
+| 520 supplied emails, current model alone | Accuracy 1.0; macro-F1 1.0 | Supplied development data, not untouched holdout accuracy |
+| 520 supplied emails, current default router | 513 direct learned decisions; seven agreeing-rule corroborations | These are routing paths, not additional test cases |
+| 60-message authored challenge: 50 clear messages | 48/50 raw learned categories correct | Both incorrect choices were escalated by the default safety wrapper |
+| Same challenge: ten intentionally ambiguous messages | Nine escalated by the default wrapper | One was not escalated; the model is not perfectly uncertainty-aware |
+| Replaced 3.0.1 Naive Bayes model alone, supplied emails | Accuracy 73.27%; macro-F1 0.7282 | Historical baseline, not the current model |
+| Replaced 3.0.1 hybrid, supplied emails | Macro-F1 1.0; 391 rule decisions and 129 model decisions | Rules materially drove that older result |
 
-## Measured development result
+In the current default challenge run, nine of the 50 clear cases also went to review. All 41 accepted clear cases were correct in this small diagnostic set. Abstention reduces accepted errors but creates review work; it does not establish broad real-world safety. The challenge is synthetic and was reused during development.
 
-The final tested development run matches all 520 organiser outputs:
+## Evaluation separation
 
-| Measure | Result |
-|---|---:|
-| Email classification accuracy / macro-F1 | 100% / 1.000 |
-| Defect precision / recall / F1 | 1.000 / 1.000 / 1.000 |
-| Exact end-to-end defect catch | 46 / 46 |
-| Review cases and review reasons | 20 / 20 |
-| Organiser automated composite score | 1.000 |
+The application reads supplied email/attachment inputs, authored training artifacts and implementation code. It does **not** import the organiser ground-truth key, metadata labels, stored predictions or an ID-to-answer map. Regression coverage checks that renaming IDs/files does not change predictions.
 
-These are development-corpus results, not an untouched hold-out benchmark, not real-world accuracy, and not the hackathon judging score. Rules and parser behavior were adjusted after examining errors. Never present these figures as independent evidence of generalization.
+The organiser clarified that the released Docker ground truth is available for participant self-evaluation. The offline verifier reads an explicitly supplied key, checks exact schema/coverage/outputs, and runs the unmodified organiser scorer. [Aggregate validation](../public/validation.json) contains metrics and hashes, not the answer key.
 
-Actual workflow totals: 63 verified pairs, 46 discrepancy pairs, 20 review cases, 91 awaiting-document requests, 300 messages routed elsewhere. The 91 requests have organiser status OK but are never displayed as verified documents.
+The current supplied-data result is **520/520 exact outputs**, including **46/46 defect cases** and **20/20 review cases**. Four additional sets from the same organiser generator also matched, producing **2,600 total development outputs**. These share templates and informed fixes; neither result establishes unseen-document accuracy or a hackathon judging score.
 
-## Additional evidence
+The 91 attachment-free comparison requests use the organiser's `OK` export convention but remain visibly **awaiting documents**, not verified pairs.
 
-197 regression tests in eleven automatically discovered files cover independent field mutations; whole-expression and 400 generated compound-count checks; unit-bearing labels; placeholders; duplicate labels; misleading subjects and quoted threads; correction dependencies; uncertain routing; bounded parsing; source identity; scan confirmation; policies; immutable storage transactions; reverse-proxy origin safety; malformed requests; client ordering; failing accuracy gates and actual PDF font/CMap resource loading. The earlier 126-test gate omitted an inherited test file; this is corrected and disclosed in DEFENSIBILITY.md. Run `npm run quality` for retained logs and the independent organiser accuracy gate.
+## Optional source-quoted recovery
 
-72 local API integration checks cover all 520 records through the standard Next.js/Node/libSQL path, exact exported predictions, isolation, cross-origin protection, uploads, corrections, stale saves, audit integrity, replacement, reprocessing and restricted sources. Another 35 hardening checks and 23 governance checks cover race conditions, scan review, quotas, stale policy previews, historical sources and labelled exports. These are local production-build tests, not proof of hosted performance.
+For an unfamiliar **readable text layout**, the server sends bounded extracted lines to OpenAI after explicit consent. The model proposes exact line IDs and value quotations; the server reconstructs values and validates source membership and units. It does not accept an LLM-generated verdict, tolerance or normalized number.
 
-These tests are engineering regression coverage, not a statistical estimate of unseen accuracy.
+The proposal is bound to workspace, case revision, document SHA-256 and text SHA-256, expires after 30 minutes, and is revalidated before save. The reviewer selects the role and confirms all seven fields individually. Accepted recovery creates a labelled human-reviewed revision, never untouched automatic benchmark evidence.
 
-Four additional same-generator datasets (seeds 7, 20260920, 20260921, 8675309; 520 emails each) were evaluated and used for fixes. Version 3 matches every expected output across these and the original set: 2,600 emails, 267/267 exact defect catches and 100/100 review cases. No expected defect/review case was shown as verified. Seed 8675309 originally exposed a v2 promotional-routing mistake and is now development evidence, not a holdout. The same 12 targeted HarborCheck-comparison probes now pass 12/12 versus v2's 9/12; these deliberately chosen diagnostics are not a random benchmark.
+Corrupt files, image-only scans, known invoices/packing lists, oversized text and truncated sources are excluded from this recovery path. A source quote proves that text exists, not that its meaning or field assignment is correct. Wrong-but-real quotations and incomplete company addresses remain possible.
 
-The supplied-corpus routing ablation is reproducible with `node --import tsx scripts/ablation.ts /path/to/ground_truth.json`: model-only classification accuracy 73.27%, macro-F1 0.7282; hybrid 100%, macro-F1 1.000. Version 3.0.1 uses an explicit rule for 391/520 records and model-only routing for 129/520. The rules matter; these results must not be described as learned-model-only accuracy. A rules-only baseline and independent real-world benchmark remain future evaluation work.
+**Dated live evidence, 21 September:** two synthetic development documents ultimately produced 14/14 expected fields after earlier prompt/validator failures were corrected. One additional organiser document was visually checked without saving. Only three distinct documents were live-tested; eight other recovery fixtures were not. Six provider requests included unsuccessful proposals. This is not production field accuracy or comprehensive adversarial validation. See [the full provider-test scope](CLOUD_RELEASE.md#live-provider-evidence).
 
-All six image-only organiser PDFs were rendered and OCR-read with the shipped model. At 180 DPI, 36/42 candidate fields were syntactically usable; that is **candidate completeness, not transcription accuracy**. Company names, punctuation and numbers still contain errors. Mean per-page model confidence ranged 69–83/100 in this diagnostic run. Browser rendering may yield different text. No scan is cleared from confidence alone; page images, manual edits and seven explicit confirmations are required. Malformed PDFs cannot use the scan-confirmation route.
+OpenAI has no browsing, tool execution, automatic emailing or model-chosen endpoint. Bounded contracts and citations do not establish prompt-injection immunity or hallucination-proof behaviour. [Case assistant documentation](CASE_ASSISTANT.md) describes the separate chat workflow.
 
-## Known limitations and next evaluation
+## OCR and parsing limits
 
-- Excel formulas/error cells require a recalculated, inspected values-only export. No cached formula result is treated as independently verified. Unsupported or conflicting weight units and extra unknown documents are sent for review.
+All six supplied image-only PDFs were rendered and OCR-read in the earlier diagnostic. At 180 DPI, **36/42 candidate fields were syntactically usable**: this measures candidate completeness, **not transcription accuracy**. Names, punctuation and numbers still contained mistakes. Mean per-page OCR confidence ranged 69–83/100; browser rendering may produce different text. Confidence alone never clears a scan.
 
-- OCR is English-only, up to five pages and 5 MB, and may be slow on low-powered devices. Initial model download is several MB. Human-confirmed transcription or readable replacement is required; unattended OCR clearance is intentionally absent.
-- Unfamiliar unlabeled layouts may not extract correctly; review/unknown handling needs a much broader real-document benchmark.
-- Conservative normalization tolerates spacing, punctuation and explicit numeric units. A small explicit list handles matching optional port codes; unknown or contradictory codes are not stripped. It does not guess arbitrary port aliases or accept fuzzy company-name matches.
-- Hand-authored classifier examples are small and English-focused; assess multilingual and forwarded-thread behavior before production.
-- A field correction changes extracted data, not the authoritative original file. Reviewers must actually inspect the source.
-- Benchmark synthetic inputs are clean compared with operational emails. Obtain approved, anonymized historical examples; freeze a hold-out set before further tuning; measure error by format/template/category and human review workload.
-- Extend the measured model-only/hybrid ablation with a rules-only baseline on that future hold-out set. Avoid inflated AI claims.
+Browser OCR is English-only, limited to five pages and 5 MiB, with a three-minute timeout. Human confirmation must include all seven fields, role and source pages. Corrupt PDFs require replacement.
+
+Other limitations include unfamiliar/unlabelled layouts, multilingual requests, forwarded-thread intent and unfamiliar company/address constructions. Formula/error cells in XLSX require an inspected values-only export. Normalization supports explicit units and a small port-code equivalence list; it does not guess arbitrary aliases or fuzzy company matches. An extraction correction changes saved values, not the authoritative original file.
+
+## Reproduce and extend
+
+From the repository root:
+
+```text
+node --import tsx scripts/train-router.ts work/reproduced-model.json
+node --import tsx scripts/evaluate-routing.ts /path/to/ground_truth.json tests/fixtures/ai-routing-challenge.json
+npm run quality -- --build
+```
+
+See [setup and organiser-path overrides](DEVELOPMENT.md#reproduce-the-checks). These are offline/local checks; they do not make paid provider requests. Mocks verify contracts and error handling, not real-model answer quality.
+
+Before production, obtain approved anonymized operational material, freeze independently labelled holdouts before tuning, and measure category errors, extraction accuracy, false clearances and human-review workload by language, format and template. An Averis employee usability study and production ROI measurement remain future work.

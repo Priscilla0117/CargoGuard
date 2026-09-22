@@ -1,35 +1,49 @@
-# Submission readiness check — 22 September 2026
+# CargoGuard — verification report
 
-**Technical verification passed. Final submission is not yet certified complete.** The source, README and public prototype can be inspected; the team must still supply and verify its final video/deck links, declarations and submission receipt. This report distinguishes fresh checks from historical evidence and does not promise a competition result or zero future bugs.
+**Application: 3.2.1.** This report records engineering checks and their limits, not a certificate of zero bugs, production readiness or competition marks.
 
-## Source checked
+## Source and data scope
 
-- Repository: [Priscilla0117/CargoGuard](https://github.com/Priscilla0117/CargoGuard), public, default branch `main`, confirmed using the unauthenticated GitHub API on 22 September.
-- Runtime baseline: `0a2340cc7edcd3a154f420701461094124e5be04`, the merge of the deployment branch into `main`. Its file tree matched the then-current deployment-branch tip `86f093f`; it includes application release commit `15ccb25d737bc233bc15912631a55f954b3f5e50`.
-- Engine: **3.2.1**. The submission-preparation changes after that baseline are documentation only, not a new application release or cloud deployment.
-- Original inputs: **520 emails and 250 document byte sequences** matched both supplied organiser folders. Reference answers were used only for offline scoring, not runtime prediction.
+The 22 September baseline was `0a2340cc7edcd3a154f420701461094124e5be04`, containing released application commit `15ccb25d737bc233bc15912631a55f954b3f5e50`. The repository is public with `main` as its default branch. Subsequent documentation cleanup is not a new cloud deployment.
 
-## Fresh local verification
+Original input integrity: **520 emails and 250 document byte sequences** matched both organiser copies. Reference answers were used by the offline scorer, not the application.
 
-Completed **22 September 2026, 08:35 MYT / 00:35 UTC** using Node 24.19.0. A production build ran against a newly created, isolated SQLite database on localhost. OpenAI was disabled and cloud credentials were removed from the test environment. The server was stopped after testing.
+## Local production verification — 22 September 2026
+
+Completed at **08:35 MYT / 00:35 UTC**, Node 24.19.0, new isolated SQLite database. External AI was disabled and no provider reservation was created.
 
 | Check | Result |
 | --- | --- |
-| Full quality gate | 8/8 steps passed: typecheck, lint, unit tests, input integrity, evaluation, independent scoring, OCR asset staging and production build |
+| Full quality gate | 8/8 passed: typecheck, lint, unit tests, input integrity, evaluation, independent scoring, OCR staging and build |
 | Unit tests | 350 passed; zero skipped |
-| Core HTTP | 72 passed |
-| Hardening HTTP | 35 passed |
-| Governance HTTP | 23 passed |
-| Release HTTP | 30 passed |
-| Revision HTTP | 15 passed |
-| Assistant preflight HTTP | 25 passed |
-| Review-workspace HTTP | 28 passed |
-| Total HTTP assertions | **228 passed** |
-| Actual HTTP baseline export, independently scored | **520/520 exact supplied-corpus outputs**, 46/46 defect cases, 20/20 review cases; zero false-OK decisions |
-| Official supplied-corpus composite | 1.0; this is not a hackathon judging score |
-| Provider reservations created by these HTTP tests | **0**, verified in the isolated database |
+| Core / hardening / governance HTTP | 72 / 35 / 23 passed |
+| Release / revision HTTP | 30 / 15 passed |
+| Assistant preflight / review-workspace HTTP | 25 / 28 passed |
+| Total local HTTP assertions | **228 passed** |
+| Actual HTTP export, independently scored | **520/520 exact supplied outputs**, 46/46 defects, 20/20 review cases, zero false-OK decisions |
+| Organiser composite | 1.0 on the supplied development corpus; not a judging score |
 
-The initial full gate used the checkout's existing installed dependencies. A separate clean-install check also passed, as recorded below. Deliberately malformed PDF fixtures emitted expected parser warnings; the tests correctly retained their review outcomes. Counts overlap in purpose and must not be summed into independent business cases.
+A separate clean-install check at **08:42 MYT** installed 720 packages into a fresh dependency directory using `npm ci --offline`, applied all five migrations, staged OCR assets and started the development server. Liveness, readiness and the page returned HTTP 200. This used the available package cache on Windows, not a fresh registry download or a macOS/Linux validation run. An initial sandbox cache-permission error was resolved before the successful retry; dependency deprecation warnings were nonfatal.
 
-Reproduction commands and organiser-path overrides are in [the development guide](DEVELOPMENT.md#reproduce-the-checks), linked from README.md. The machine-readable [sanitised verification summary](evidence/submission-20260922.json) records the exact baseline and aggregate results. Detailed run logs remain in ignored local QA storage; they are not deployed inputs or source-controlled answer keys.
-ise identity, malware scanner, formal retention system or live corporate mailbox/ERP integration. Free hosting and third-party quotas can interrupt service. These are prototype boundaries and pilot prerequisites, not evidence of guaranteed first place.
+The actual production tests used the original checkout's installed dependencies. Detailed commands, hashes and aggregate results are in [the verification data](evidence/submission-20260922.json). Reproduce them using [DEVELOPMENT.md](DEVELOPMENT.md#reproduce-the-checks). Malformed PDF fixtures emit expected warnings and remain review cases.
+
+### Later source-tree regression check
+
+At **10:19–10:21 MYT / 02:19–02:21 UTC**, the curated source tree based on `26f92d4b793ad5c20212234c97d13ae228e88183` was tested again in a byte-verified 260-file snapshot. All 25 removed preparation/obsolete files were absent. The unchanged scripts passed the full **8-step gate, 350 unit tests and 228 production HTTP assertions** against a new isolated SQLite database.
+
+The actual HTTP export again matched **520/520 supplied outputs**, including all 46 defect and 20 review cases, with zero false-OK decisions. Runtime files stayed unchanged during verification, and no external AI reservation was created. This reused installed dependencies; it was not another clean install, hosted acceptance run or live LLM test. Nonfatal warnings concerned the nested checkout and intentionally damaged input PDFs. The test server was stopped afterward. Subsequent changes were documentation only.
+
+## Public-service snapshot and earlier acceptance
+
+Read-only checks on **22 September, approximately 08:33–08:34 MYT** returned HTTP 200 for `/api/live`, `/api/health` and the page. The first request took about 26.4 seconds; this is an individual observation, not an uptime or latency benchmark. The optional AI configuration was enabled in a separate read-only check; no new paid model answer was generated.
+
+The **177 hosted checks and 12 controlled local outage checks** are separately dated **21 September** in [CLOUD_RELEASE.md](CLOUD_RELEASE.md). They were not silently relabelled as new hosted tests.
+
+## Evidence boundaries
+
+- Supplied and additional same-generator data informed development; they are not independent real-world holdouts.
+- Test counts overlap in purpose and cannot be summed into unique business cases.
+- Assistant preflight and mocked adapter tests do not establish live LLM answer quality. The model card and cloud report disclose the limited real-provider tests and failed development attempts.
+- There is no Averis employee usability study, measured ROI, sustained-load certification or uptime guarantee.
+- Corporate identity/roles, malware screening, formal retention and live corporate-mail/ERP connections remain future work. Browser workspaces and self-entered reviewer names are not enterprise authentication.
+- Free-host wake-up, database availability and shared AI allowances can affect service.
