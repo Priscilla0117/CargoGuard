@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="330" viewBox="0 0 1280 330" role="img" aria-labelledby="title desc">
+  <title id="title">CargoGuard — evidence-led shipping document verification</title>
+  <desc id="desc">Team MozartAI. Spot the difference. Show the evidence. An illustration compares five containers in the shipping instruction with four in the draft bill of lading.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#0D2035"/>
+      <stop offset="1" stop-color="#103B45"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#66E0C7"/>
+      <stop offset="1" stop-color="#66E0C7" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="330" rx="20" fill="url(#bg)"/>
+  <path d="M774 330 992 0M950 330 1168 0M1126 330 1280 98" stroke="#FFFFFF" stroke-opacity=".035" stroke-width="62"/>
+  <rect x="52" y="42" width="5" height="17" rx="2.5" fill="#66E0C7"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <text x="70" y="56" fill="#A9C6CC" font-size="15" font-weight="600" letter-spacing="2">MOZARTAI / AVERIS x MONASH 2026</text>
+    <text x="50" y="143" fill="#FFFFFF" font-size="72" font-weight="700" letter-spacing="-3">Cargo<tspan fill="#66E0C7">Guard</tspan></text>
+    <text x="54" y="194" fill="#E4F1F3" font-size="28">Spot the difference. Show the evidence.</text>
+    <rect x="54" y="219" width="550" height="1" fill="url(#edge)"/>
+    <text x="54" y="259" fill="#A9C6CC" font-size="17">AI-assisted shipping document verification</text>
+    <text x="54" y="288" fill="#A9C6CC" font-size="15">Classify. Extract. Compare. Keep people in control.</text>
+    <g transform="translate(811 59)">
+      <rect width="177" height="214" rx="13" fill="#16394A" stroke="#478078"/>
+      <path d="M23 25h58m-58 9h42" stroke="#78AAAD" stroke-width="3" stroke-linecap="round"/>
+      <text x="22" y="65" fill="#BCDAD9" font-size="13" font-weight="700" letter-spacing="1">SI / REFERENCE</text>
+      <text x="20" y="143" fill="#79E5CF" font-size="70" font-weight="700">05</text>
+      <text x="24" y="171" fill="#C6E0E2" font-size="15">containers</text>
+      <path d="M24 190h65" stroke="#4C7B86" stroke-width="3" stroke-linecap="round"/>
+    </g>
+    <g transform="translate(1005 59)">
+      <rect width="177" height="214" rx="13" fill="#16394A" stroke="#829791"/>
+      <path d="M23 25h58m-58 9h42" stroke="#78AAAD" stroke-width="3" stroke-linecap="round"/>
+      <text x="22" y="65" fill="#BCDAD9" font-size="13" font-weight="700" letter-spacing="1">DRAFT BL</text>
+      <text x="20" y="143" fill="#FFD28A" font-size="70" font-weight="700">04</text>
+      <text x="24" y="171" fill="#C6E0E2" font-size="15">containers</text>
+      <path d="M24 190h65" stroke="#4C7B86" stroke-width="3" stroke-linecap="round"/>
+    </g>
+    <rect x="929" y="254" width="136" height="29" rx="14.5" fill="#F4C983"/>
+    <text x="997" y="274" fill="#183143" font-size="12" font-weight="700" text-anchor="middle" letter-spacing=".8">DIFFERENCE FOUND</text>
+  </g>
+</svg>
