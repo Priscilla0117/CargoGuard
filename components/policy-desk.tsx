@@ -99,16 +99,21 @@ export function PolicyDesk() {
   }
   return (
     <section className="content-card governance-panel">
-      <div className="eyebrow">EXACT EVIDENCE + BUSINESS CONTEXT</div>
-      <h2>Verification policy</h2>
-      <p>
+      <div className="policy-desk-heading">
+        <div>
+          <div className="eyebrow">VERIFICATION SETTINGS</div>
+          <h2>Verification policy</h2>
+        </div>
+        <span className="policy-version">
+          {loaded ? `Active · v${policy.version}` : "Policy not loaded"}
+        </span>
+      </div>
+      <p className="policy-guidance">
         All seven fields remain mandatory. Tolerances annotate weight
         differences; they never erase a defect, bypass missing data, or approve
         a shipment.
       </p>
-      <p>
-        Active policy:{" "}
-        <strong>{loaded ? `v${policy.version}` : "not yet loaded"}</strong>.
+      <p className="policy-provenance">
         Each result retains the policy used when it was processed. Reviewer
         names are self-declared in this demo—not authenticated staff identities.
       </p>
@@ -128,67 +133,76 @@ export function PolicyDesk() {
           {loadingPolicy ? "Loading policy…" : "Retry loading policy"}
         </button>
       )}
-      <div className="policy-inputs">
-        <label>
-          Weight tolerance (kg; 0 disables)
-          <input
-            type="number"
+      <div className="policy-editor">
+        <h3>Tolerance settings</h3>
+        <div className="policy-inputs">
+          <label>
+            Weight tolerance (kg; 0 disables)
+            <input
+              type="number"
+              disabled={busy || !loaded}
+              min="0"
+              max="5000"
+              step="0.001"
+              value={rules.weightToleranceKg}
+              onChange={(e) => {
+                setRules({
+                  ...rules,
+                  weightToleranceKg: Number(e.target.value),
+                });
+                setPreview(null);
+              }}
+            />
+          </label>
+          <label>
+            Weight tolerance (% of SI; 0 disables)
+            <input
+              type="number"
+              disabled={busy || !loaded}
+              min="0"
+              max="5"
+              step="0.01"
+              value={rules.weightTolerancePercent}
+              onChange={(e) => {
+                setRules({
+                  ...rules,
+                  weightTolerancePercent: Number(e.target.value),
+                });
+                setPreview(null);
+              }}
+            />
+          </label>
+        </div>
+        <p>
+          If both limits are enabled, both must be met. An unreadable field is
+          never eligible.
+        </p>
+        <div className="case-actions">
+          <button
+            className="button secondary"
             disabled={busy || !loaded}
-            min="0"
-            max="5000"
-            step="0.001"
-            value={rules.weightToleranceKg}
-            onChange={(e) => {
-              setRules({ ...rules, weightToleranceKg: Number(e.target.value) });
+            onClick={() => void act("preview")}
+          >
+            Preview impact
+          </button>
+          <button
+            className="text-button"
+            disabled={busy}
+            onClick={() => {
+              setRules({ ...DEFAULT_POLICY.rules });
               setPreview(null);
             }}
-          />
-        </label>
-        <label>
-          Weight tolerance (% of SI; 0 disables)
-          <input
-            type="number"
-            disabled={busy || !loaded}
-            min="0"
-            max="5"
-            step="0.01"
-            value={rules.weightTolerancePercent}
-            onChange={(e) => {
-              setRules({
-                ...rules,
-                weightTolerancePercent: Number(e.target.value),
-              });
-              setPreview(null);
-            }}
-          />
-        </label>
-      </div>
-      <p>
-        If both limits are enabled, both must be met. An unreadable field is
-        never eligible.
-      </p>
-      <div className="case-actions">
-        <button
-          className="button secondary"
-          disabled={busy || !loaded}
-          onClick={() => void act("preview")}
-        >
-          Preview impact
-        </button>
-        <button
-          className="text-button"
-          disabled={busy}
-          onClick={() => {
-            setRules({ ...DEFAULT_POLICY.rules });
-            setPreview(null);
-          }}
-        >
-          Restore exact defaults in editor
-        </button>
+          >
+            Reset editor to exact checks
+          </button>
+        </div>
       </div>
       {preview && (
         <div className="policy-preview">
-          <h3>Preview only — no decisions changed</h3>
+          <div className="policy-section-heading">
+            <h3>Impact preview</h3>
+            <span className="policy-version">Not activated</span>
+          </div>
           <p>
             {preview.caseCount} saved cases inspected; {preview.impact.length}{" "}
             have comparison rows.{" "}
@@ -200,10 +214,13 @@ export function PolicyDesk() {
             .filter((i) => i.covered || i.previousCovered)
             .slice(0, 30)
             .map((i) => (
-              <p key={i.id}>
-                {i.id}: {i.differenceKg ?? "—"} kg difference ·{" "}
-                {i.covered ? "within tolerance" : "outside tolerance"} · strict{" "}
-                {i.strictStatus}
+              <p className="policy-impact-row" key={i.id}>
+                <strong>{i.id}</strong>
+                <span>{i.differenceKg ?? "—"} kg difference</span>
+                <span>
+                  {i.covered ? "Within tolerance" : "Outside tolerance"}
+                </span>
+                <span>Exact verdict: {i.strictStatus}</span>
               </p>
             ))}
           <label>
@@ -237,25 +254,60 @@ export function PolicyDesk() {
           </p>
         </div>
       )}
-      <h3>Version history</h3>
-      {(loaded ? [...history, DEFAULT_POLICY] : []).map((p) => (
-        <details key={p.version}>
-          <summary>
-            v{p.version} · {p.actor} · {p.reason}
-          </summary>
-          <pre>{JSON.stringify(p, null, 2)}</pre>
-          <button
-            className="text-button"
-            disabled={busy}
-            onClick={() => {
-              setRules({ ...p.rules });
-              setPreview(null);
-            }}
-          >
-            Preview these settings as a new version
-          </button>
-        </details>
-      ))}
+      <section className="policy-history" aria-label="Policy version history">
+        <h3>Version history</h3>
+        {(loaded ? [...history, DEFAULT_POLICY] : []).map((p) => (
+          <details key={p.version}>
+            <summary>
+              <span className="policy-history-label">
+                v{p.version} · {p.actor}
+              </span>
+              <span className="policy-history-reason">{p.reason}</span>
+            </summary>
+            <dl className="policy-history-facts">
+              <div>
+                <dt>Weight limit</dt>
+                <dd>{p.rules.weightToleranceKg} kg</dd>
+              </div>
+              <div>
+                <dt>Relative limit</dt>
+                <dd>{p.rules.weightTolerancePercent}% of SI</dd>
+              </div>
+              <div>
+                <dt>Recorded</dt>
+                <dd>
+                  <time dateTime={p.created_at}>
+                    {new Date(p.created_at).toLocaleString("en-GB", {
+                      timeZone: "UTC",
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}{" "}
+                    UTC
+                  </time>
+                </dd>
+              </div>
+            </dl>
+            <p className="policy-history-note">
+              A zero limit disables that tolerance. Exact differences remain
+              recorded.
+            </p>
+            <details className="policy-record">
+              <summary>Full saved policy record</summary>
+              <pre>{JSON.stringify(p, null, 2)}</pre>
+            </details>
+            <button
+              className="text-button"
+              disabled={busy}
+              onClick={() => {
+                setRules({ ...p.rules });
+                setPreview(null);
+              }}
+            >
+              Preview these settings as a new version
+            </button>
+          </details>
+        ))}
+      </section>
     </section>
   );
 }

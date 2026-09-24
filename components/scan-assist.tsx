@@ -238,11 +238,12 @@ export function ScanAssist({
   }
   return (
     <section className="scan-assist">
-      <h3>Scan recovery · human-confirmed OCR</h3>
+      <h3>Read a scanned document</h3>
       <p>
-        The OCR model runs in your browser. Document images are not sent to an
-        external AI provider. English, up to 5 pages; first use downloads the
-        model from this site. Suggestions are never automatically approved.
+        Read this PDF in your browser, then check all seven suggested fields
+        against the original. Document images are not sent to an external AI
+        provider. English, up to 5 pages; first use downloads the model from
+        this site. Suggestions are never automatically approved.
       </p>
       <div className="scan-actions">
         <button
@@ -250,14 +251,14 @@ export function ScanAssist({
           disabled={busy || saving}
           onClick={run}
         >
-          Read scan with local OCR
+          Read scanned PDF
         </button>
         {busy && (
           <button
             className="button secondary"
             onClick={() => controller.current?.abort()}
           >
-            Stop OCR
+            Stop reading
           </button>
         )}
       </div>
@@ -290,6 +291,10 @@ export function ScanAssist({
             ))}
           </div>
           <form onSubmit={save}>
+            <p className="recovery-confirmation-count">
+              {FIELDS.filter((field) => draft[field].confirmed).length} of{" "}
+              {FIELDS.length} fields checked against the original
+            </p>
             <label>
               Confirm document role
               <select
@@ -390,7 +395,7 @@ export function ScanAssist({
             >
               {saving
                 ? "Saving confirmed transcription…"
-                : "Save all seven confirmed fields & recompute"}
+                : "Save confirmed fields & recheck"}
             </button>
           </form>
           <details>

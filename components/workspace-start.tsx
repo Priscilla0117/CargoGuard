@@ -114,7 +114,7 @@ export function WorkspaceStart({
   return hasProcessed ? (
     <details className="workspace-start workspace-start-compact">
       <summary className="workspace-start-toggle">
-        Need help getting started?
+        Quick start guide
         <ChevronDown size={20} aria-hidden="true" />
       </summary>
       {content}

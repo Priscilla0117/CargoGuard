@@ -1,0 +1,664 @@
+/* Reports and settings share the operations palette without altering case views. */
+main:is(
+    [data-workspace-view="performance"],
+    [data-workspace-view="activity"],
+    [data-workspace-view="policies"]
+  )
+  .content-card {
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--cg-surface, #fff);
+  box-shadow: none;
+  color: var(--ink);
+}
+main:is(
+    [data-workspace-view="performance"],
+    [data-workspace-view="activity"],
+    [data-workspace-view="policies"]
+  )
+  :is(
+    .content-card p,
+    .content-card label,
+    .content-card dt,
+    .content-card dd,
+    .content-card small,
+    .content-card summary,
+    .content-card .text-button
+  ) {
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+main:is(
+    [data-workspace-view="performance"],
+    [data-workspace-view="activity"],
+    [data-workspace-view="policies"]
+  )
+  .content-card
+  :is(p, dt, small) {
+  color: var(--muted);
+}
+main:is(
+    [data-workspace-view="performance"],
+    [data-workspace-view="activity"],
+    [data-workspace-view="policies"]
+  )
+  .content-card
+  > p {
+  margin: 12px 0;
+}
+main:is([data-workspace-view="performance"], [data-workspace-view="activity"])
+  .card-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  align-items: center;
+  margin: 0 0 18px;
+  padding: 0 0 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--cg-accent, #17645f);
+}
+main:is([data-workspace-view="performance"], [data-workspace-view="activity"])
+  .card-title
+  h2 {
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+main:is([data-workspace-view="performance"], [data-workspace-view="activity"])
+  .count-pill {
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+main:is([data-workspace-view="performance"], [data-workspace-view="activity"])
+  .report-switch {
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0 0 18px;
+  padding: 0 0 12px;
+  border-color: var(--line);
+}
+main:is([data-workspace-view="performance"], [data-workspace-view="activity"])
+  .report-switch
+  button {
+  min-height: 40px;
+  padding: 8px 13px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--muted);
+}
+main:is([data-workspace-view="performance"], [data-workspace-view="activity"])
+  .report-switch
+  button.active {
+  background: var(--cg-accent-soft, #eaf4f1);
+  color: var(--cg-accent, #17645f);
+}
+main[data-workspace-view="performance"] .performance-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+main[data-workspace-view="performance"] .workload-insights .ops-patterns {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px 24px;
+}
+main[data-workspace-view="performance"] .ops-patterns span {
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+main[data-workspace-view="performance"] .ops-patterns b {
+  color: var(--ink);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+main[data-workspace-view="performance"] .ops-patterns > div > div,
+main[data-workspace-view="performance"] .distribution > div > div {
+  height: 6px;
+  border-radius: 3px;
+  background: #edf1f4;
+  overflow: hidden;
+}
+main[data-workspace-view="performance"] .ops-patterns i,
+main[data-workspace-view="performance"] .distribution i.verified {
+  background: var(--cg-accent, #17645f);
+}
+main[data-workspace-view="performance"] .report-scope-note {
+  margin: 18px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+main[data-workspace-view="performance"] .big-rate {
+  color: var(--ink);
+  font-size: 42px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+}
+main[data-workspace-view="performance"] .big-rate > span {
+  color: var(--muted);
+  font-size: 24px;
+}
+main[data-workspace-view="performance"] .distribution {
+  gap: 16px;
+  margin-top: 20px;
+}
+main[data-workspace-view="performance"] .distribution label {
+  font-size: 14px;
+  color: var(--muted);
+}
+main[data-workspace-view="performance"] .distribution strong {
+  color: var(--ink);
+  font-weight: 650;
+}
+main[data-workspace-view="performance"] .distribution i.discrepancy {
+  background: #aa593e;
+}
+main[data-workspace-view="performance"] .distribution i.review {
+  background: #98762c;
+}
+main[data-workspace-view="performance"] .facts > div {
+  grid-template-columns: minmax(105px, 0.7fr) minmax(0, 1.8fr);
+  gap: 14px;
+  padding: 11px 0;
+  border-color: var(--line);
+}
+main[data-workspace-view="performance"] .facts dd {
+  color: var(--ink);
+}
+main[data-workspace-view="performance"] .info-box {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--muted);
+}
+main[data-workspace-view="performance"] .info-box p {
+  margin: 0;
+  font-size: 14px;
+}
+main[data-workspace-view="performance"] .validation-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+main[data-workspace-view="performance"] .validation-metrics > div {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--cg-surface, #fff);
+}
+main[data-workspace-view="performance"] .validation-metrics strong {
+  color: var(--ink);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
+}
+main[data-workspace-view="performance"] .validation-metrics strong span {
+  color: var(--muted);
+  font-size: 18px;
+}
+main[data-workspace-view="performance"] .validation-metrics small {
+  font-size: 14px;
+  line-height: 1.5;
+  text-transform: none;
+}
+main[data-workspace-view="performance"] .validation-extra {
+  margin: 16px 0;
+  padding: 12px 0;
+  border-block: 1px solid var(--line);
+}
+main[data-workspace-view="performance"] .validation-extra summary {
+  color: var(--ink);
+  font-weight: 600;
+}
+main[data-workspace-view="performance"] .validation-extra table {
+  margin: 12px 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+main[data-workspace-view="performance"] .validation-extra :is(th, td) {
+  padding: 10px 12px;
+  border-color: var(--line);
+}
+main[data-workspace-view="performance"] .validation-extra th {
+  background: var(--bg);
+  color: var(--ink);
+  font-weight: 600;
+}
+main[data-workspace-view="activity"] .audit-search {
+  width: min(100%, 520px);
+  min-height: 42px;
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border: 1px solid #becbd5;
+  border-radius: 6px;
+  background: #fff;
+}
+main[data-workspace-view="activity"] .audit-search input {
+  min-height: 24px;
+  font-size: 14px;
+  color: var(--ink);
+}
+main[data-workspace-view="activity"] .timeline {
+  padding: 0;
+  margin-top: 16px;
+}
+main[data-workspace-view="activity"] .timeline > div {
+  gap: 12px;
+  padding: 16px 0;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+main[data-workspace-view="activity"] .timeline > div > div {
+  min-width: 0;
+  flex: 1;
+}
+main[data-workspace-view="activity"] .timeline-icon {
+  width: 30px;
+  height: 30px;
+  background: var(--cg-accent-soft, #eaf4f1);
+  color: var(--cg-accent, #17645f);
+}
+main[data-workspace-view="activity"] .timeline strong {
+  margin: 3px 0 6px;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+main[data-workspace-view="activity"] .timeline strong .mono {
+  color: var(--muted);
+  margin-left: 4px;
+  font-size: 14px;
+}
+main[data-workspace-view="activity"] .audit-detail pre,
+main[data-workspace-view="policies"] .governance-panel pre {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+main[data-workspace-view="policies"] .governance-panel {
+  max-width: 1040px;
+}
+main[data-workspace-view="policies"]
+  :is(.policy-desk-heading, .policy-section-heading) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+main[data-workspace-view="policies"] .policy-desk-heading {
+  padding-bottom: 16px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+main[data-workspace-view="policies"] .policy-desk-heading .eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+}
+main[data-workspace-view="policies"] .policy-desk-heading h2 {
+  margin: 4px 0 0;
+  color: var(--ink);
+  font-size: 21px;
+  line-height: 1.4;
+  font-weight: 650;
+}
+main[data-workspace-view="policies"] .policy-version {
+  display: inline-flex;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+main[data-workspace-view="policies"] .governance-panel .policy-guidance {
+  color: var(--ink);
+}
+main[data-workspace-view="policies"] .governance-panel [role="alert"] {
+  color: #9b3526;
+}
+main[data-workspace-view="policies"] .policy-editor {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+main[data-workspace-view="policies"] .governance-panel h3 {
+  margin: 0 0 12px;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+main[data-workspace-view="policies"] .policy-inputs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 0;
+  margin: 0 0 12px;
+  border: 0;
+  background: transparent;
+}
+main[data-workspace-view="policies"] .governance-panel label {
+  min-width: 0;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+}
+main[data-workspace-view="policies"] .governance-panel :is(input, textarea) {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid #becbd5;
+  border-radius: 6px;
+  padding: 9px 11px;
+  background: var(--cg-surface, #fff);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+main[data-workspace-view="policies"] .governance-panel textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+main[data-workspace-view="policies"] .governance-panel .case-actions {
+  margin-top: 14px;
+  gap: 12px;
+}
+main[data-workspace-view="policies"] .policy-preview {
+  margin: 20px 0 0;
+  padding: 18px;
+  border: 1px solid #bcd6ce;
+  border-radius: 10px;
+  background: #f8fbfa;
+}
+main[data-workspace-view="policies"] .policy-section-heading h3 {
+  margin: 0;
+}
+main[data-workspace-view="policies"] .policy-impact-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+main[data-workspace-view="policies"] .policy-impact-row strong {
+  color: var(--ink);
+}
+main[data-workspace-view="policies"] .policy-history {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+main[data-workspace-view="policies"] .policy-history > details {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+main[data-workspace-view="policies"] .policy-history > details > summary {
+  padding: 13px 0;
+  color: var(--ink);
+}
+main[data-workspace-view="policies"] .policy-history-label {
+  font-weight: 600;
+}
+main[data-workspace-view="policies"] .policy-history-reason {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+}
+main[data-workspace-view="policies"] .policy-history-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+main[data-workspace-view="policies"] .policy-history-facts dt {
+  margin-bottom: 4px;
+}
+main[data-workspace-view="policies"] .policy-history-facts dd {
+  margin: 0;
+  color: var(--ink);
+}
+main[data-workspace-view="policies"] .policy-history .policy-record {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+main[data-workspace-view="policies"] .policy-history > details > .text-button {
+  margin: 0 0 14px;
+  min-height: 36px;
+}
+main[data-workspace-view="policies"] .settings-ai {
+  max-width: 1040px;
+  margin-top: 18px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--cg-surface, #fff);
+}
+main[data-workspace-view="policies"] .settings-ai > summary {
+  padding: 16px 22px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--ink);
+}
+main[data-workspace-view="policies"] .settings-ai .ai-availability {
+  max-width: none;
+  margin: 0;
+  padding: 0 22px 20px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--cg-surface, #fff);
+}
+main[data-workspace-view="policies"] .availability-heading {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+main[data-workspace-view="policies"] .availability-heading .feature-icon {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--cg-accent-soft, #eaf4f1);
+  color: var(--cg-accent, #17645f);
+}
+main[data-workspace-view="policies"] .availability-heading h3 {
+  color: var(--ink);
+  font-size: 17px;
+  line-height: 1.4;
+}
+main[data-workspace-view="policies"] .availability-refresh {
+  margin-left: auto;
+}
+main[data-workspace-view="policies"]
+  .ai-availability
+  :is(p, small, .availability-tip) {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+main[data-workspace-view="policies"] .ai-availability .availability-status {
+  margin: 14px 0;
+  color: var(--ink);
+  font-weight: 600;
+}
+main[data-workspace-view="policies"] .availability-stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+main[data-workspace-view="policies"] .availability-stats > div {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+main[data-workspace-view="policies"] .availability-stats strong {
+  font-size: 26px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+main[data-workspace-view="policies"] .availability-stats span {
+  color: var(--muted);
+  font-size: 14px;
+}
+main[data-workspace-view="policies"] .availability-tip {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-color: var(--line);
+}
+main:is(
+    [data-workspace-view="performance"],
+    [data-workspace-view="activity"],
+    [data-workspace-view="policies"]
+  )
+  .button {
+  min-height: 40px;
+  padding: 9px 13px;
+  border-radius: 6px;
+  font-size: 14px;
+  box-shadow: none;
+}
+main:is(
+    [data-workspace-view="performance"],
+    [data-workspace-view="activity"],
+    [data-workspace-view="policies"]
+  )
+  .button.primary {
+  border-color: var(--cg-accent, #17645f);
+  background: var(--cg-accent, #17645f);
+  color: #fff;
+}
+main:is(
+    [data-workspace-view="performance"],
+    [data-workspace-view="activity"],
+    [data-workspace-view="policies"]
+  )
+  .button.secondary {
+  border-color: #c8d3dc;
+  background: #fff;
+  color: var(--ink);
+}
+main:is(
+    [data-workspace-view="performance"],
+    [data-workspace-view="activity"],
+    [data-workspace-view="policies"]
+  )
+  .button.primary:not(:disabled):hover {
+  border-color: #12534f;
+  background: #12534f;
+}
+@media (max-width: 1050px) {
+  main[data-workspace-view="performance"] .performance-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  main[data-workspace-view="performance"] .workload-insights .ops-patterns {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 650px) {
+  main:is(
+      [data-workspace-view="performance"],
+      [data-workspace-view="activity"],
+      [data-workspace-view="policies"]
+    )
+    .content-card {
+    padding: 16px;
+  }
+  main[data-workspace-view="performance"] .workload-insights .ops-patterns,
+  main[data-workspace-view="performance"] .validation-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  main[data-workspace-view="performance"] .facts > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  main[data-workspace-view="policies"] .policy-inputs,
+  main[data-workspace-view="policies"] .policy-history-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  main[data-workspace-view="policies"] .policy-preview {
+    padding: 14px;
+  }
+  main[data-workspace-view="policies"] .settings-ai > summary {
+    padding: 14px 16px;
+  }
+  main[data-workspace-view="policies"] .settings-ai .ai-availability {
+    padding: 0 16px 16px;
+  }
+  main[data-workspace-view="policies"] .governance-panel :is(input, textarea),
+  main[data-workspace-view="activity"] .audit-search input {
+    font-size: 16px;
+  }
+}
+@media print {
+  main:is(
+      [data-workspace-view="performance"],
+      [data-workspace-view="activity"],
+      [data-workspace-view="policies"]
+    )
+    :is(.report-switch, .audit-search, .button, .text-button) {
+    display: none !important;
+  }
+  main:is(
+      [data-workspace-view="performance"],
+      [data-workspace-view="activity"],
+      [data-workspace-view="policies"]
+    )
+    .content-card {
+    padding: 14px 0;
+    border: 0;
+    border-bottom: 1px solid #cbd5dc;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  main[data-workspace-view="performance"] .performance-grid {
+    display: block;
+  }
+  main[data-workspace-view="performance"]
+    :is(.validation-metrics, .distribution, .ops-patterns),
+  main[data-workspace-view="activity"] .timeline > div,
+  main[data-workspace-view="policies"] .policy-history > details {
+    break-inside: avoid;
+  }
+  main[data-workspace-view="policies"] :is(.policy-editor, .policy-preview) {
+    display: none;
+  }
+  main[data-workspace-view="activity"] .audit-detail pre,
+  main[data-workspace-view="policies"] .governance-panel pre {
+    max-height: none;
+    overflow: visible;
+  }
+}

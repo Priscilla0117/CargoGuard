@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   ShieldCheck,
   ArrowUpRight,
@@ -133,6 +133,7 @@ export function CaseAssistant({
   sourceContent?: ReactNode;
   onDraft?: (text: string) => void;
 }) {
+  const questionId = useId();
   const [question, setQuestion] = useState(initialMemory?.question ?? "");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [reply, setReply] = useState<AssistantReply | null>(
@@ -253,10 +254,10 @@ export function CaseAssistant({
         {sourceContent}
         {!reply && !preview && (
           <div className="assistant-intro">
-            <h4>Ready to talk about this shipment.</h4>
+            <h4>Explore this case’s evidence</h4>
             <p>
-              Ask below, or try a starting point. I’ll use this case’s saved
-              evidence.
+              Choose a starting point or ask a question. You’ll preview the
+              evidence before sharing it with AI.
             </p>
           </div>
         )}
@@ -384,7 +385,7 @@ export function CaseAssistant({
             aria-label="AI sharing consent"
           >
             <h4 ref={consentHeading} tabIndex={-1}>
-              One check before sending
+              Review what you share
             </h4>
             <div
               className={`assistant-capacity ${preview.availability.allowed ? "available" : "unavailable"}`}
@@ -510,18 +511,18 @@ export function CaseAssistant({
             void submit("preview");
           }}
         >
-          <label htmlFor="assistant-question">
+          <label htmlFor={questionId}>
             {reply ? "Ask a follow-up" : "Your question"}
           </label>
           <textarea
-            id="assistant-question"
+            id={questionId}
             value={question}
             maxLength={800}
             rows={2}
             disabled={!!busy || (reply?.turns.length ?? 0) >= 3}
             onChange={(event) => editQuestion(event.target.value)}
             placeholder="What should I check in this shipment?"
-            aria-describedby="assistant-input-note"
+            aria-describedby={`${questionId}-note`}
             onKeyDown={(event) => {
               if (
                 event.key === "Enter" &&
@@ -538,7 +539,7 @@ export function CaseAssistant({
             }}
           />
           <div className="assistant-compose-footer">
-            <small id="assistant-input-note">
+            <small id={`${questionId}-note`}>
               {question.length}/800 · No secrets, please.
             </small>
             <button
@@ -550,7 +551,7 @@ export function CaseAssistant({
                 (reply?.turns.length ?? 0) >= 3
               }
             >
-              {busy === "preview" ? "Preparing…" : "Review & send"}
+              {busy === "preview" ? "Preparing…" : "Preview AI request"}
               <Send size={14} />
             </button>
           </div>

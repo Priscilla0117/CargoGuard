@@ -52,22 +52,17 @@ export function AssistantHome({
           <div className="assistant-welcome-icon">
             <MessageSquareText size={26} />
           </div>
-          <h3>
-            A little help.
-            <br />A clearer next step.
-          </h3>
+          <h3>What needs your attention?</h3>
           <p>
-            Ask about your work. Attach a shipment when you need its evidence.
+            Ask about your queue, or attach a case to explore its saved
+            evidence.
           </p>
         </div>
         <div
           className="assistant-quick-prompts"
           aria-label="Workspace suggestions"
         >
-          {[
-            "What needs attention?",
-            "How does checking work?",
-          ].map((text) => (
+          {["What needs attention?", "How does checking work?"].map((text) => (
             <button key={text} onClick={() => ask(text)}>
               {text}
               <ArrowUp size={14} />

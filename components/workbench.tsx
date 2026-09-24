@@ -856,12 +856,10 @@ export default function Workbench() {
             <ShieldCheck size={25} />
           </span>
           <span>
-            CargoGuard<span className="brand-sub">SHIPPING INTELLIGENCE</span>
+            CargoGuard<span className="brand-sub">Document review</span>
           </span>
         </Link>
-        <div className="workspace-label">
-          WORKSPACE <span>01</span>
-        </div>
+        <div className="workspace-label">YOUR WORKSPACE</div>
         <nav aria-label="Workspace navigation">
           <button
             className={view === "inbox" ? "active" : ""}
@@ -893,15 +891,11 @@ export default function Workbench() {
           </button>
         </nav>
         <div className="sidebar-info">
-          <span className="eyebrow">DEMO WORKSPACE</span>
+          <span className="eyebrow">DEMO DATA</span>
           <div>
-            <Layers3 size={16} /> Organiser sample data
+            <Layers3 size={16} /> Sample inbox
           </div>
-          <p>
-            520 emails · 250 documents
-            <br />
-            TXT, PDF, Word & Excel
-          </p>
+          <p>520 emails · 250 source documents</p>
           <div className="sidebar-progress">
             <i
               style={{
@@ -914,21 +908,13 @@ export default function Workbench() {
           </small>
         </div>
         <div className="sidebar-bottom">
-          <div className="averis-word">
-            averis
-            <span />
-          </div>
-          <p>
-            Built for Averis × Monash
-            <br />
-            Hackathon 2026
-          </p>
           <div className="avatar-line">
-            <span className="avatar">OP</span>
+            <ShieldCheck size={19} aria-hidden="true" />
             <span>
-              Operations workspace<small>Private working session</small>
+              Browser workspace<small>Keep your cookies to return</small>
             </span>
           </div>
+          <p className="workspace-credit">Averis × Monash · 2026</p>
         </div>
       </Sidebar>
       <div className="main-shell">
@@ -962,15 +948,14 @@ export default function Workbench() {
                     : "Not yet synced"}
             </span>
             <button
-              className="icon-button"
+              className="button secondary refresh-workspace"
               onClick={refreshWorkspace}
               title="Refresh workspace"
               aria-label="Refresh workspace"
               disabled={loading}
             >
-              <RefreshCw size={17} />
+              <RefreshCw size={16} /> Refresh
             </button>
-            <span className="avatar small">OP</span>
           </div>
         </header>
         <main data-workspace-view={view}>
@@ -1008,8 +993,8 @@ export default function Workbench() {
                 {view === "inbox"
                   ? "Open a case to see what needs checking, or upload your documents."
                   : view === "policies"
-                    ? "Versioned policies and cloud AI availability."
-                    : "Workspace results, validation and recorded decisions."}
+                    ? "Manage comparison rules and optional AI assistance."
+                    : "See results, evaluation evidence and review history."}
               </p>
             </div>
             {view === "inbox" && (
@@ -1018,10 +1003,10 @@ export default function Workbench() {
                   className="button secondary"
                   onClick={() => setMailboxOpen(true)}
                 >
-                  <Mail size={17} /> Gmail
+                  <Mail size={17} /> Gmail inbox
                 </button>
                 <button
-                  className="button secondary"
+                  className="button primary"
                   disabled={loading || !inboxReady}
                   onClick={startImport}
                 >
@@ -1176,36 +1161,45 @@ export default function Workbench() {
           )}
           {view === "inbox" && (
             <>
-              <WorkspaceStart
-                ready={inboxReady && !loading}
-                busy={running || !!busyId}
-                hasProcessed={counts.processed > 0}
-                sampleCount={
-                  cases.filter((row) => row.email.email_id.startsWith("email_"))
-                    .length
-                }
-                onExample={() => void openCase("email_313")}
-                onImport={startImport}
-              />
-              <details className="queue-planning">
-                <summary>
-                  Calendar &amp; priority filters
-                  {(scheduleFilter !== "all" ||
-                    calendarDay ||
-                    priorityFilter !== "all") && <span> · Filters active</span>}
-                </summary>
-                <WorkspaceSchedule
-                  cases={cases}
-                  filter={scheduleFilter}
-                  onFilter={setScheduleFilter}
-                  selectedDay={calendarDay}
-                  onDay={setCalendarDay}
-                  kind={calendarKind}
-                  onKind={setCalendarKind}
-                  priority={priorityFilter}
-                  onPriority={setPriorityFilter}
+              <div
+                className={`queue-utilities ${counts.processed ? "" : "first-use"}`}
+              >
+                <WorkspaceStart
+                  ready={inboxReady && !loading}
+                  busy={running || !!busyId}
+                  hasProcessed={counts.processed > 0}
+                  sampleCount={
+                    cases.filter((row) =>
+                      row.email.email_id.startsWith("email_"),
+                    ).length
+                  }
+                  onExample={() => void openCase("email_313")}
+                  onImport={startImport}
                 />
-              </details>
+                <details className="queue-planning">
+                  <summary>
+                    <SlidersHorizontal size={16} aria-hidden="true" /> Dates
+                    &amp; priority
+                    {(scheduleFilter !== "all" ||
+                      calendarDay ||
+                      priorityFilter !== "all") && (
+                      <span className="active-filter-note">Filters active</span>
+                    )}
+                    <ChevronDown size={17} aria-hidden="true" />
+                  </summary>
+                  <WorkspaceSchedule
+                    cases={cases}
+                    filter={scheduleFilter}
+                    onFilter={setScheduleFilter}
+                    selectedDay={calendarDay}
+                    onDay={setCalendarDay}
+                    kind={calendarKind}
+                    onKind={setCalendarKind}
+                    priority={priorityFilter}
+                    onPriority={setPriorityFilter}
+                  />
+                </details>
+              </div>
               <section className="inbox-panel">
                 <div className="table-toolbar">
                   <div className="filter-tabs" aria-label="Filter by outcome">
@@ -1297,18 +1291,15 @@ export default function Workbench() {
                   <span>
                     {visible.length} matching cases · action cases first
                   </span>
-                  <span>
-                    Counts above cover this workspace · checked ≠ cargo release
-                  </span>
+                  <span>Document checks do not approve cargo release</span>
                 </div>
                 <div className="table-scroll">
                   <Table className="email-table">
                     <TableHeader>
                       <TableRow>
-                        <TableHead>EMAIL / SHIPMENT</TableHead>
-                        <TableHead>CATEGORY</TableHead>
-                        <TableHead>STATUS</TableHead>
-                        <TableHead>NEXT ACTION</TableHead>
+                        <TableHead>Email / shipment</TableHead>
+                        <TableHead>Result</TableHead>
+                        <TableHead>Next step</TableHead>
                         <TableHead aria-label="Open case" />
                       </TableRow>
                     </TableHeader>
@@ -1323,7 +1314,7 @@ export default function Workbench() {
                           }
                           onClick={() => void openCase(c.email.email_id)}
                         >
-                          <TableCell>
+                          <TableCell className="queue-subject-cell">
                             <button
                               className="email-title"
                               onClick={(e) => {
@@ -1365,22 +1356,23 @@ export default function Workbench() {
                                 )}
                                 <small>
                                   <span className="mono">
-                                    {c.email.email_id.replace("email_", "#")}
+                                    {c.email.email_id.startsWith("email_")
+                                      ? c.email.email_id.replace("email_", "#")
+                                      : "Uploaded"}
                                   </span>
                                   <span className="separator-dot">·</span>
                                   {c.email.from}
                                 </small>
+                                {c.result && (
+                                  <small className="queue-category">
+                                    {categoryNames[c.result.category]}
+                                  </small>
+                                )}
                               </span>
                             </button>
                           </TableCell>
-                          <TableCell>
-                            <span className="category-label">
-                              {c.result
-                                ? categoryNames[c.result.category]
-                                : "—"}
-                            </span>
-                          </TableCell>
-                          <TableCell>
+                          <TableCell className="queue-result-cell">
+                            <span className="mobile-cell-label">Result</span>
                             <Status value={c.result?.workflow ?? "pending"} />
                             {!!c.result?.defect_fields.length && (
                               <small className="field-count">
@@ -1391,7 +1383,8 @@ export default function Workbench() {
                               </small>
                             )}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="queue-next-cell">
+                            <span className="mobile-cell-label">Next step</span>
                             <span className="queue-next-action">
                               {LANE_DETAILS[laneFor(c)].action}
                             </span>
@@ -1400,7 +1393,7 @@ export default function Workbench() {
                               {c.result ? ` · v${c.result.version}` : ""}
                             </small>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="queue-open-cell">
                             <button
                               className="queue-open-button"
                               aria-label={`Open case: ${c.email.subject}`}
@@ -2618,16 +2611,16 @@ export default function Workbench() {
                     : replacementDocument
                       ? "Replace one source document."
                       : "Replace source documents."
-                  : "Upload documents with their email."}
+                  : "Add a new document check"}
               </DialogTitle>
             </div>
             <button
-              className="icon-button"
+              className="button secondary"
               aria-label="Close upload"
               disabled={uploading || addingFiles}
               onClick={() => setUpload(false)}
             >
-              <X size={20} />
+              <X size={16} /> Cancel
             </button>
           </div>
           <p>
@@ -2818,7 +2811,7 @@ export default function Workbench() {
                       ? attachmentMode === "append"
                         ? "Add documents & recheck"
                         : "Replace documents & recheck"
-                      : "Import & check email"}
+                      : "Check documents"}
               </button>
             </fieldset>
           </form>

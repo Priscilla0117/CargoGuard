@@ -73,13 +73,16 @@ export function DecisionHistory({ result }: { result: CaseResult }) {
     <section className="decision-history">
       <div className="revision-title">
         <div>
-          <span className="eyebrow">VERSIONED EVIDENCE</span>
-          <h3>What changed?</h3>
-          <p>Earlier saved decision → current v{result.version}. Read-only.</p>
+          <span className="eyebrow">CASE HISTORY</span>
+          <h3>Changes between revisions</h3>
+          <p>
+            Compare an earlier saved check with revision {result.version}.
+            Viewing history does not change the case.
+          </p>
         </div>
         {history.some((r) => r.version < result.version) && (
           <label>
-            Compare from
+            Earlier revision
             <select
               aria-label="Earlier revision"
               value={loadingVersion ?? snapshot?.version ?? ""}
@@ -92,7 +95,8 @@ export function DecisionHistory({ result }: { result: CaseResult }) {
                 .filter((r) => r.version < result.version)
                 .map((r) => (
                   <option key={r.version} value={r.version}>
-                    v{r.version} · {r.action.replaceAll("_", " ").toLowerCase()}
+                    Revision {r.version} ·{" "}
+                    {r.action.replaceAll("_", " ").toLowerCase()}
                   </option>
                 ))}
             </select>
@@ -124,7 +128,7 @@ export function DecisionHistory({ result }: { result: CaseResult }) {
       {snapshot && (
         <details className="revision-snapshot">
           <summary>
-            Inspect full earlier snapshot and original files · v
+            Earlier check and original files · revision
             {snapshot.version}
           </summary>
           <div className="policy-preview">
@@ -158,7 +162,7 @@ export function DecisionHistory({ result }: { result: CaseResult }) {
               </p>
             ))}
             <details>
-              <summary>Full snapshot JSON</summary>
+              <summary>Technical record (JSON)</summary>
               <pre>{JSON.stringify(snapshot, null, 2)}</pre>
             </details>
           </div>

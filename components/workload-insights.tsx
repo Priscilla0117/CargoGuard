@@ -9,8 +9,10 @@ export function WorkloadInsights({ cases }: { cases: CaseSummary[] }) {
     <section className="content-card wide workload-insights">
       <div className="card-title">
         <BarChart3 size={19} />
-        <h2>Where drafts differ</h2>
-        <span className="count-pill">{snapshot.lanes.amend.length} cases</span>
+        <h2>Discrepancies by field</h2>
+        <span className="count-pill">
+          {snapshot.lanes.amend.length} discrepancy cases
+        </span>
       </div>
       <div className="ops-patterns">
         {FIELDS.map((field) => (
@@ -19,7 +21,7 @@ export function WorkloadInsights({ cases }: { cases: CaseSummary[] }) {
               {FIELD_LABELS[field]}
               <b>{snapshot.fieldCounts[field]}</b>
             </span>
-            <div>
+            <div aria-hidden="true">
               <i
                 style={{
                   width: `${(snapshot.fieldCounts[field] / maximum) * 100}%`,
@@ -29,7 +31,7 @@ export function WorkloadInsights({ cases }: { cases: CaseSummary[] }) {
           </div>
         ))}
       </div>
-      <p>
+      <p className="report-scope-note">
         Completed, current-engine discrepancy cases only. Review cases may
         contain further differences. Counts show workload—not root causes,
         supplier performance or measured savings.

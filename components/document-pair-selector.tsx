@@ -71,7 +71,7 @@ export function DocumentPairSelector({
         <div>
           <h3>
             {result.document_selection
-              ? "Selected comparison pair"
+              ? "Documents used for this check"
               : "Choose the documents to compare"}
           </h3>
           <p>
@@ -83,10 +83,12 @@ export function DocumentPairSelector({
       {result.document_selection && (
         <div className="selected-pair">
           <p>
-            <b>SI</b> {result.document_selection.si.name}
+            <b>Shipping instruction</b>{" "}
+            <span>{result.document_selection.si.name}</span>
           </p>
           <p>
-            <b>BL</b> {result.document_selection.bl.name}
+            <b>Draft bill of lading</b>{" "}
+            <span>{result.document_selection.bl.name}</span>
           </p>
           <small>
             Selected by {result.document_selection.actor} · recorded in decision
@@ -97,7 +99,7 @@ export function DocumentPairSelector({
       <details open={!result.document_selection}>
         <summary>
           {result.document_selection
-            ? "Change comparison pair"
+            ? "Change the documents used"
             : "Select SI and draft BL"}
         </summary>
         <form onSubmit={save}>
@@ -193,7 +195,7 @@ export function DocumentPairSelector({
             ) : (
               <ShieldCheck size={16} />
             )}
-            {saving ? "Saving selection…" : "Confirm pair & compare"}
+            {saving ? "Saving selection…" : "Use these documents & compare"}
           </button>
         </form>
       </details>

@@ -8,6 +8,10 @@ import "./review-workspace.css";
 import "./workflow-tools.css";
 import "./workspace-start.css";
 import "./readable-workspace.css";
+import "./site-redesign.css";
+import "./redesign-reports.css";
+import "./redesign-cases.css";
+import "./redesign-correspondence.css";
 
 export const metadata: Metadata = {
   title: "CargoGuard | Shipping document verification",

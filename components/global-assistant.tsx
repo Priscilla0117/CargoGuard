@@ -214,7 +214,7 @@ export function GlobalAssistant({
         >
           <header className="assistant-panel-header">
             <div>
-              <span className="eyebrow">A HELPING HAND FOR YOUR WORKDAY</span>
+              <span className="eyebrow">WORKSPACE ASSISTANT</span>
               <DialogTitle>Ask CargoGuard</DialogTitle>
             </div>
             <button
@@ -229,7 +229,7 @@ export function GlobalAssistant({
             id="assistant-panel-description"
             className="assistant-panel-description"
           >
-            Clear answers. Traceable evidence. You stay in control.
+            Workspace guidance and answers from saved case evidence.
           </p>
           <AssistantHome
             cases={cases}

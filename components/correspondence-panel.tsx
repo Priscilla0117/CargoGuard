@@ -280,7 +280,7 @@ export function CorrespondencePanel({
     <section className="correspondence-panel" aria-label="Email correspondence">
       <header className="correspondence-heading">
         <div>
-          <span className="eyebrow">SHIPMENT CORRESPONDENCE</span>
+          <span className="eyebrow">CASE CORRESPONDENCE</span>
           <h3>
             <Mail size={20} /> Gmail & replies
           </h3>
@@ -294,14 +294,6 @@ export function CorrespondencePanel({
         </button>
       </header>
       {!mailbox && !error && <p role="status">Loading mailbox connection…</p>}
-      {mailbox && (
-        <p>
-          {mailbox.connected
-            ? `Connected to ${mailbox.accountEmail ?? "Gmail"}.`
-            : (mailbox.reason ??
-              "Connect Gmail to import messages and send reviewed replies.")}
-        </p>
-      )}
       {error && (
         <p className="alert error" role="alert">
           {error}
@@ -312,35 +304,61 @@ export function CorrespondencePanel({
           {notice}
         </p>
       )}
-      <div className="case-actions">
-        {mailbox?.enabled && !mailbox.connected && (
-          <button
-            className="button primary"
-            disabled={!!busy}
-            onClick={() => void action("connect")}
-          >
-            Connect Gmail
-          </button>
-        )}
-        {mailbox?.connected && (
-          <>
-            <button
-              className="button secondary"
-              disabled={!!busy}
-              onClick={() => void action("sync")}
-            >
-              {busy === "sync" ? "Synchronizing…" : "Sync messages"}
-            </button>
-            <button
-              className="text-button"
-              disabled={!!busy}
-              onClick={() => void action("disconnect")}
-            >
-              Disconnect
-            </button>
-          </>
-        )}
-      </div>
+      {mailbox && (
+        <div
+          className={`mailbox-connection ${mailbox.connected ? "connected" : "disconnected"}`}
+        >
+          <div className="mailbox-connection-copy">
+            <span className="mailbox-connection-icon" aria-hidden="true">
+              <Mail size={20} />
+            </span>
+            <div>
+              <strong>
+                {mailbox.connected
+                  ? (mailbox.accountEmail ?? "Gmail connected")
+                  : mailbox.enabled
+                    ? "Connect your Gmail"
+                    : "Gmail is not configured"}
+              </strong>
+              <p>
+                {mailbox.connected
+                  ? "Sync messages, then choose one to review."
+                  : (mailbox.reason ??
+                    "Import messages and send replies after your review.")}
+              </p>
+            </div>
+          </div>
+          <div className="case-actions mailbox-connection-actions">
+            {mailbox?.enabled && !mailbox.connected && (
+              <button
+                className="button primary"
+                disabled={!!busy}
+                onClick={() => void action("connect")}
+              >
+                Connect Gmail
+              </button>
+            )}
+            {mailbox?.connected && (
+              <>
+                <button
+                  className="button primary"
+                  disabled={!!busy}
+                  onClick={() => void action("sync")}
+                >
+                  {busy === "sync" ? "Synchronizing…" : "Sync messages"}
+                </button>
+                <button
+                  className="text-button"
+                  disabled={!!busy}
+                  onClick={() => void action("disconnect")}
+                >
+                  Disconnect
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       {!initialResult && (
         <label className="correspondence-case">
           Case for this correspondence
@@ -374,64 +392,87 @@ export function CorrespondencePanel({
           Prepare this case
         </button>
       )}
-      <div className="correspondence-messages">
-        {messages.length === 0 && mailbox?.connected && (
-          <p>
-            No messages loaded. Sync Gmail, then choose a message to link to
-            this case.
-          </p>
+      <section className="correspondence-inbox" aria-label="Mailbox messages">
+        {(messages.length > 0 || mailbox?.connected) && (
+          <div className="correspondence-section-heading">
+            <h4>Messages</h4>
+            <span>{messages.length} loaded</span>
+          </div>
         )}
-        {messages.map((item) => (
-          <button
-            key={item.id}
-            className={item.id === selectedId ? "selected" : ""}
-            disabled={!!busy}
-            onClick={() => selectMessage(item)}
-          >
-            <span>{item.direction === "outbound" ? "Sent" : item.from}</span>
-            <strong>{item.subject || "(No subject)"}</strong>
-            <small>
-              {item.receivedAt
-                ? new Date(item.receivedAt).toLocaleString()
-                : "Unknown received date"}{" "}
-              · {item.caseId ? `Case ${item.caseId}` : "Not linked to a case"}
-            </small>
-          </button>
-        ))}
-      </div>
+        <div className="correspondence-messages">
+          {messages.length === 0 && mailbox?.connected && (
+            <div className="correspondence-empty">
+              <Mail size={24} aria-hidden="true" />
+              <strong>Your messages will appear here</strong>
+              <p>
+                Sync Gmail to load messages, then select one to import or link
+                to a case.
+              </p>
+            </div>
+          )}
+          {messages.map((item) => (
+            <button
+              key={item.id}
+              className={item.id === selectedId ? "selected" : ""}
+              aria-pressed={item.id === selectedId}
+              disabled={!!busy}
+              onClick={() => selectMessage(item)}
+            >
+              <span>{item.direction === "outbound" ? "Sent" : item.from}</span>
+              <strong>{item.subject || "(No subject)"}</strong>
+              <small>
+                {item.receivedAt
+                  ? new Date(item.receivedAt).toLocaleString()
+                  : "Unknown received date"}{" "}
+                · {item.caseId ? `Case ${item.caseId}` : "Not linked to a case"}
+              </small>
+            </button>
+          ))}
+        </div>
+      </section>
       {message && (
         <article className="correspondence-message">
-          <h4>{message.subject}</h4>
+          <div className="correspondence-section-heading">
+            <span>Selected message</span>
+            <span className="correspondence-link-state">
+              {message.caseId ? "Linked to case" : "Not linked"}
+            </span>
+          </div>
+          <h4>{message.subject || "(No subject)"}</h4>
           <p>
             <b>From:</b> {message.from}
           </p>
           <pre>{message.body}</pre>
-          {!message.caseId && result && (
-            <button
-              className="button secondary"
-              disabled={!!busy}
-              onClick={() =>
-                void action("link_message", {
-                  messageId: message.id,
-                  caseId: result.email.email_id,
-                  version: result.version,
-                })
-              }
-            >
-              Link this message to {result.email.email_id}
-            </button>
-          )}
-          {!message.caseId && message.direction === "inbound" && (
-            <button
-              className="button secondary"
-              disabled={!!busy}
-              onClick={() =>
-                void action("import_message", { messageId: message.id })
-              }
-            >
-              {busy === "import_message" ? "Importing…" : "Import as new case"}
-            </button>
-          )}
+          <div className="case-actions correspondence-message-actions">
+            {!message.caseId && result && (
+              <button
+                className="button secondary"
+                disabled={!!busy}
+                onClick={() =>
+                  void action("link_message", {
+                    messageId: message.id,
+                    caseId: result.email.email_id,
+                    version: result.version,
+                  })
+                }
+              >
+                Link this message to {result.email.email_id}
+              </button>
+            )}
+            {!message.caseId && message.direction === "inbound" && (
+              <button
+                className="button secondary"
+                disabled={!!busy}
+                onClick={() =>
+                  void action("import_message", { messageId: message.id })
+                }
+              >
+                {busy === "import_message"
+                  ? "Importing…"
+                  : "Import as new case"}
+              </button>
+            )}
+          </div>
           {!!message.attachments.length && (
             <div className="correspondence-attachments">
               <h4>
@@ -501,7 +542,12 @@ export function CorrespondencePanel({
         message?.caseId === result.email.email_id &&
         message.direction === "inbound" && (
           <section className="reply-editor">
-            <h3>Review a reply</h3>
+            <div className="reply-editor-heading">
+              <h3>Draft a reply</h3>
+              <span className="reply-thread-note">
+                <Mail size={14} aria-hidden="true" /> Original Gmail thread
+              </span>
+            </div>
             <p>
               The reply stays in the selected Gmail thread. Saving a draft does
               not send it.
@@ -577,7 +623,7 @@ export function CorrespondencePanel({
                 }
               />
             )}
-            <fieldset disabled={!!busy || lockedDraft}>
+            <fieldset className="reply-fields" disabled={!!busy || lockedDraft}>
               <label>
                 To
                 <input
@@ -599,7 +645,7 @@ export function CorrespondencePanel({
                   }}
                 />
               </label>
-              <label>
+              <label className="reply-subject-field">
                 Subject
                 <input
                   value={
@@ -611,7 +657,7 @@ export function CorrespondencePanel({
                   readOnly
                 />
               </label>
-              <label>
+              <label className="reply-body-field">
                 Message
                 <textarea
                   rows={12}
@@ -621,7 +667,7 @@ export function CorrespondencePanel({
                 />
               </label>
               <button
-                className="button secondary"
+                className={`button reply-save ${usableDraft ? "secondary" : "primary"}`}
                 disabled={!body.trim() || !to.trim()}
                 onClick={() =>
                   void action("save_draft", {
@@ -740,7 +786,7 @@ export function CorrespondencePanel({
               }}
             >
               <strong>{saved.subject}</strong>
-              <span>
+              <span className={`reply-history-status draft-${saved.status}`}>
                 {saved.status} · case revision {saved.caseVersion} · draft{" "}
                 {saved.version}
               </span>

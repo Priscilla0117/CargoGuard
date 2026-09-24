@@ -115,9 +115,9 @@ export function AmendmentStudio({ result }: { result: CaseResult }) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   return (
-    <section className="amendment-studio" aria-label="Amendment Studio">
-      <span className="eyebrow">FROM FINDING TO REQUEST</span>
-      <h3>Amendment Studio</h3>
+    <section className="amendment-studio" aria-label="Correction request draft">
+      <span className="eyebrow">REQUEST CORRECTION</span>
+      <h3>Correction request draft</h3>
       <p>{draft.reason}</p>
       {draft.available && (
         <>

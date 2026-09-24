@@ -1,0 +1,1105 @@
+/* Case support panels. The field-comparison grid keeps its existing layout. */
+:is(.document-view, .decision-history, .resolution-desk) {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+:is(.document-view, .decision-history, .resolution-desk) :is(p, li, label) {
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+:is(.document-view, .decision-history, .resolution-desk) :is(h3, h4) {
+  color: var(--ink);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+:is(.document-view, .decision-history, .resolution-desk) h3 {
+  font-size: 17px;
+  font-weight: 650;
+}
+
+:is(.document-view, .decision-history, .resolution-desk) summary {
+  min-height: 40px;
+  padding-block: 9px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.6;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+:is(.document-view, .decision-history, .resolution-desk) summary:focus-visible {
+  outline: 3px solid var(--cg-accent);
+  outline-offset: 3px;
+}
+
+:is(.document-view, .decision-history, .resolution-desk) .button {
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 7px;
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: normal;
+  box-shadow: none;
+}
+
+:is(.document-view, .decision-history, .resolution-desk) .button.primary {
+  border-color: var(--cg-accent);
+  background: var(--cg-accent);
+  color: #fff;
+}
+
+:is(.document-view, .decision-history, .resolution-desk)
+  .button.primary:not(:disabled):hover {
+  border-color: #104d49;
+  background: #104d49;
+}
+
+:is(.document-view, .decision-history, .resolution-desk) .button.secondary {
+  border-color: #b9c8d0;
+  background: var(--cg-surface);
+  color: var(--ink);
+}
+
+:is(.document-view, .decision-history, .resolution-desk) .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--cg-accent);
+  text-align: left;
+  white-space: normal;
+}
+
+:is(.document-view, .decision-history, .resolution-desk) .text-button:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Sources: wrap full names, then separate file selection from file content. */
+.document-view .source-back {
+  margin-bottom: 14px;
+}
+
+.document-view
+  :is(.pair-selector, .source-email, .source-recovery, .scan-assist) {
+  margin: 0 0 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--cg-surface);
+  box-shadow: none;
+}
+
+.document-view :is(.source-email, .source-recovery) {
+  padding: 3px 16px;
+}
+
+.document-view .source-email .email-source {
+  padding: 0 0 12px;
+}
+
+.document-view .source-recovery .scan-assist {
+  margin: 0;
+  padding: 10px 0 14px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.document-view .email-source :is(.facts dt, .facts dd, pre) {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--ink);
+}
+
+.document-view .email-source .facts dt {
+  color: var(--muted);
+}
+
+.document-view .email-source pre {
+  margin: 12px 0 0;
+  padding-top: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.document-view .document-select {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.document-view .document-select > button {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--cg-surface);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.document-view .document-select > button:hover {
+  border-color: #88b0a9;
+}
+
+.document-view .document-select > button.selected {
+  border-color: var(--cg-accent);
+  background: var(--cg-accent-soft);
+  box-shadow: inset 3px 0 var(--cg-accent);
+}
+
+.document-view .document-select > button > svg {
+  margin-top: 3px;
+  color: var(--cg-accent);
+}
+
+.document-view .document-select > button > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.document-view .document-select small {
+  margin-top: 5px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.document-view .format-pill {
+  margin-top: 1px;
+  padding: 2px 5px;
+  border-color: var(--line);
+  background: var(--cg-surface);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.document-view .source-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  margin: 20px 0 12px;
+}
+
+.document-view .source-toolbar strong {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.document-view .source-paper {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--cg-surface);
+  box-shadow: none;
+}
+
+.document-view .paper-heading {
+  gap: 8px;
+  padding-bottom: 14px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+.document-view .paper-heading svg {
+  color: var(--cg-accent);
+}
+
+.document-view .source-line {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 14px;
+  padding: 7px 0;
+  border-bottom: 1px solid #f0f3f5;
+}
+
+.document-view .source-line > span {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.document-view .source-line p {
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.document-view .source-line.highlighted-source {
+  margin: 4px -8px;
+  padding: 10px 8px;
+  border-radius: 6px;
+  background: #fff6d8;
+  outline: 2px solid #b68c30;
+}
+
+.document-view .deferred-document {
+  margin-top: 0;
+  padding: 16px;
+  color: var(--ink);
+  background: var(--bg);
+  border-color: var(--line);
+}
+
+.document-view .deferred-document p {
+  margin: 6px 0 12px;
+  color: var(--muted);
+}
+
+/* Document choice and recovery use the same form rhythm. */
+.pair-selector .pair-heading {
+  color: var(--cg-accent);
+}
+
+.pair-selector .pair-heading p {
+  margin: 4px 0 10px;
+  color: var(--muted);
+}
+
+.pair-selector .selected-pair {
+  padding: 12px;
+  border-color: var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.pair-selector .selected-pair p {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.pair-selector .selected-pair b {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pair-selector :is(.selected-pair small, .excluded-documents small) {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pair-selector :is(.pair-help, .excluded-documents p) {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.pair-selector .pair-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.pair-selector .pair-selected-filename {
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.pair-selector .pair-selected-filename strong {
+  font-weight: 600;
+}
+
+.document-view :is(.pair-fields, .scan-assist) label {
+  gap: 6px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.document-view
+  :is(.pair-fields, .scan-assist)
+  :is(input:not([type="checkbox"]), select, textarea),
+.decision-history .revision-title select,
+.resolution-desk .amendment-preview-label textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  max-width: 100%;
+  padding: 9px 10px;
+  border: 1px solid #b9c8d0;
+  border-radius: 7px;
+  background: var(--cg-surface);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.document-view .scan-assist h3 {
+  margin: 0;
+}
+
+.document-view .scan-assist p {
+  margin: 10px 0;
+  color: var(--muted);
+}
+
+.document-view .scan-assist p[role="status"]:empty {
+  display: none;
+}
+
+.document-view .scan-assist form {
+  gap: 14px;
+}
+
+.document-view .scan-assist fieldset {
+  min-width: 0;
+  padding: 14px;
+  border-color: var(--line);
+  border-radius: 8px;
+  background: var(--cg-surface);
+}
+
+.document-view .scan-assist legend {
+  padding-inline: 6px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.document-view .scan-assist .recovery-confirmation-count {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #c5ded8;
+  border-radius: 7px;
+  background: var(--cg-accent-soft);
+  color: var(--cg-accent);
+  font-weight: 600;
+}
+
+.document-view
+  .scan-assist
+  :is(.recovery-consent, .scan-field-check label:last-child) {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--ink);
+  font-weight: 400;
+}
+
+.document-view .scan-assist input[type="checkbox"],
+.resolution-desk .amendment-confirm input {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  accent-color: var(--cg-accent);
+}
+
+.document-view .scan-field-check {
+  gap: 12px 18px;
+}
+
+.document-view .scan-field-check label:first-child {
+  flex: 0 0 110px;
+}
+
+.document-view .scan-field-check label:last-child {
+  flex: 1 1 240px;
+}
+
+.document-view .scan-pages {
+  max-height: 480px;
+  gap: 16px;
+  margin: 16px 0;
+  border-color: var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.document-view .scan-pages figcaption {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #edf2f5;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.document-view .recovery-heading {
+  color: var(--cg-accent);
+}
+
+.document-view .scan-assist .recovery-value {
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.document-view .recovery-citation {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-left: 3px solid #8fb7ad;
+  border-radius: 0 6px 6px 0;
+  background: var(--bg);
+}
+
+.document-view .recovery-citation p {
+  margin: 0 0 6px;
+  color: var(--ink);
+}
+
+.document-view .recovery-citation .source-link {
+  min-height: 32px;
+  color: var(--cg-accent);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.document-view .ocr-text {
+  margin: 6px 0 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* History separates the revision picker, summary, and source-linked values. */
+.decision-history .revision-title {
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.decision-history .revision-title > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.decision-history .revision-title h3 {
+  margin: 4px 0;
+}
+
+.decision-history .revision-title :is(p, label) {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.decision-history .revision-title p {
+  margin: 0;
+  max-width: 65ch;
+}
+
+.decision-history .revision-title label {
+  flex: 0 1 280px;
+  min-width: 0;
+  gap: 6px;
+  margin: 0;
+}
+
+.decision-history .revision-title .eyebrow {
+  color: var(--cg-accent);
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+.decision-history .revision-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.decision-history .revision-overview > span {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--cg-surface);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.decision-history .revision-overview strong {
+  color: var(--cg-accent);
+  font-size: 24px;
+  font-weight: 650;
+}
+
+.decision-history .revision-overview > .has-issue {
+  background: #fffaf0;
+  border-color: #e8d7ad;
+  color: #775318;
+}
+
+.decision-history .revision-overview > .has-issue strong {
+  color: #775318;
+}
+
+.decision-history :is(.revision-current-status, .revision-footnote) {
+  margin: 12px 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.decision-history .revision-warning {
+  gap: 10px;
+  padding: 12px;
+  margin: 14px 0;
+  border: 1px solid #e5d3a6;
+  border-radius: 8px;
+  background: #fffaf0;
+  color: #775318;
+}
+
+.decision-history .revision-warning p {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.decision-history .revision-warning p:last-child {
+  margin-bottom: 0;
+}
+
+.decision-history :is(.revision-grid-heading, .revision-field) {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 12px;
+}
+
+.decision-history .revision-grid-heading {
+  border-bottom: 1px solid var(--line);
+  border-radius: 6px 6px 0 0;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.decision-history .revision-field {
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--cg-surface);
+}
+
+.decision-history .revision-field-label h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.decision-history .revision-field-label > span {
+  display: inline-block;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.decision-history :is(.fixed, .now_checked) .revision-field-label > span {
+  background: var(--cg-accent-soft);
+  color: var(--cg-accent);
+}
+
+.decision-history .new_issue .revision-field-label > span {
+  background: #fff0e8;
+  color: #974820;
+}
+
+.decision-history :is(.unresolved, .not_compared) .revision-field-label > span {
+  background: #fff6dc;
+  color: #775318;
+}
+
+.decision-history .revision-field-label > small {
+  font-size: 12px;
+  color: #775318;
+}
+
+.revision-value-column {
+  min-width: 0;
+}
+
+.revision-column-label {
+  display: none;
+}
+
+.decision-history .revision-values > div {
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 8px;
+  padding: 4px 0 8px;
+}
+
+.decision-history .revision-values b {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.decision-history .revision-values span {
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.decision-history .revision-values a {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  width: fit-content;
+  min-height: 30px;
+  padding-top: 6px;
+  color: var(--cg-accent);
+  font-size: 12px;
+  line-height: 1.5;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.decision-history .revision-values a svg {
+  margin-top: 3px;
+}
+
+.decision-history .revision-values small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.decision-history :is(.revision-empty, .revision-unavailable) {
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.decision-history :is(.revision-log, .revision-snapshot),
+.case-history .case-event-log {
+  margin: 12px 0 0;
+  padding: 3px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--cg-surface);
+}
+
+.case-history .case-event-log > summary {
+  min-height: 40px;
+  padding-block: 9px;
+  font-size: 14px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.decision-history .revision-log ol {
+  padding: 0;
+  margin: 6px 0 10px;
+  list-style: none;
+}
+
+.decision-history .revision-log li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.decision-history .revision-log li:last-child {
+  border-bottom: 0;
+}
+
+.decision-history .revision-log li span {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.decision-history .revision-snapshot .policy-preview {
+  margin: 4px 0 12px;
+  padding: 14px;
+  border-color: var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.decision-history .revision-snapshot a {
+  color: var(--cg-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.decision-history .revision-snapshot :is(pre, .normalized-value) {
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* Next actions: one surface per task, without a second surrounding card. */
+.resolution-desk {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.resolution-desk :is(.case-navigator, .amendment-studio, .resolution-playbook) {
+  padding: 16px;
+  margin: 0 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--cg-surface);
+  box-shadow: none;
+}
+
+.resolution-desk .resolution-playbook {
+  padding-block: 3px;
+}
+
+.resolution-desk .resolution-playbook > .case-navigator {
+  margin: 0;
+  padding: 12px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.resolution-desk :is(.navigator-heading, .resolution-heading) {
+  gap: 10px;
+  margin-top: 10px;
+  color: var(--cg-accent);
+}
+
+.resolution-desk :is(.navigator-heading h3, .amendment-studio h3) {
+  font-size: 17px;
+  color: var(--ink);
+}
+
+.resolution-desk
+  :is(.navigator-heading .eyebrow, .amendment-studio > .eyebrow) {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+.resolution-desk .navigator-revision {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.resolution-desk
+  :is(.navigator-disclosure, .resolution-note, .amendment-studio > p) {
+  margin: 10px 0 14px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.resolution-desk .navigator-questions {
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.resolution-desk .navigator-questions button {
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--cg-surface);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.resolution-desk .navigator-questions button.active {
+  border-color: #8fb7ad;
+  background: var(--cg-accent-soft);
+  color: var(--cg-accent);
+}
+
+.resolution-desk .navigator-answer {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.resolution-desk .navigator-answer h4 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.resolution-desk .navigator-answer p {
+  margin: 8px 0 0;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.resolution-desk .navigator-evidence article {
+  padding: 12px;
+  border-color: var(--line);
+  border-radius: 8px;
+  background: var(--cg-surface);
+}
+
+.resolution-desk .navigator-evidence h4 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.resolution-desk .navigator-evidence h4 span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.resolution-desk .navigator-evidence article > div {
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 6px 10px;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.resolution-desk .navigator-evidence article > div > .text-button {
+  grid-column: 2;
+  font-size: 13px;
+}
+
+.resolution-desk .amendment-summary {
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.resolution-desk .amendment-summary span {
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.resolution-desk .amendment-preview-label {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.resolution-desk .amendment-preview-label textarea {
+  min-height: 230px;
+  margin-top: 6px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.resolution-desk .amendment-confirm {
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.resolution-desk .amendment-studio .amendment-safety {
+  margin-bottom: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.resolution-desk ol > li {
+  padding: 16px 0 16px 34px;
+  border-color: var(--line);
+}
+
+.resolution-desk ol > li::before {
+  top: 16px;
+  color: var(--cg-accent);
+  font-size: 14px;
+}
+
+.resolution-desk ol > li h4 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.resolution-desk ol > li p {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+@media (max-width: 700px) {
+  .document-view .document-select,
+  .pair-selector .pair-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .document-view .source-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .document-view .source-toolbar strong {
+    grid-column: 1 / -1;
+  }
+
+  .document-view .source-paper {
+    padding: 14px;
+  }
+
+  .document-view .source-line {
+    grid-template-columns: 80px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .pair-selector .selected-pair p {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .decision-history .revision-title {
+    flex-direction: column;
+  }
+
+  .decision-history .revision-title label {
+    flex-basis: auto;
+    width: 100%;
+  }
+
+  .decision-history .revision-grid-heading {
+    display: none;
+  }
+
+  .decision-history .revision-field {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding: 14px 0;
+  }
+
+  .decision-history .revision-field-label {
+    grid-column: 1 / -1;
+  }
+
+  .decision-history .revision-field-label h4 {
+    display: inline;
+    margin-right: 8px;
+  }
+
+  .decision-history .revision-column-label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  :is(.document-view, .decision-history, .resolution-desk)
+    :is(.button, .text-button, summary),
+  .resolution-desk .navigator-questions button {
+    min-height: 44px;
+  }
+
+  .document-view
+    :is(.pair-fields, .scan-assist)
+    :is(input:not([type="checkbox"]), select, textarea) {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 440px) {
+  .document-view .source-line {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .decision-history .revision-overview {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .decision-history .revision-overview > span {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .decision-history .revision-field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media print {
+  .document-view
+    :is(
+      .source-back,
+      .document-select,
+      .pair-selector form,
+      .scan-assist form,
+      .scan-actions
+    ),
+  .document-view .source-toolbar .button,
+  .resolution-desk :is(.navigator-questions, .amendment-confirm, button),
+  .decision-history :is(.revision-title label, button) {
+    display: none !important;
+  }
+
+  .document-view :is(.source-paper, .pair-selector, .source-email),
+  .resolution-desk
+    :is(.case-navigator, .amendment-studio, .resolution-playbook) {
+    border-color: #aaa;
+    background: #fff;
+    box-shadow: none;
+  }
+
+  .document-view .scan-pages,
+  .document-view .ocr-text,
+  .decision-history pre {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .decision-history .revision-field {
+    grid-template-columns: minmax(120px, 0.7fr) repeat(2, minmax(0, 1fr));
+    break-inside: avoid;
+  }
+
+  .decision-history .revision-field-label {
+    grid-column: auto;
+  }
+
+  .decision-history .revision-grid-heading {
+    display: grid;
+  }
+
+  .decision-history .revision-column-label {
+    display: none;
+  }
+}

@@ -159,13 +159,13 @@ export function EvidenceRecovery({
     >
       <div className="recovery-heading">
         <Sparkles size={19} />
-        <h3>Evidence Recovery Copilot</h3>
+        <h3>Recover fields with AI</h3>
       </div>
       <p>
-        For unfamiliar text layouts: an LLM proposes the seven shipment fields
-        with exact source quotes. Citation checks prove the text exists, not
-        that the model chose the right field. You must confirm each field; AI
-        cannot approve a shipment.
+        For unfamiliar layouts, AI suggests the seven shipment fields with exact
+        source quotes. Citation checks prove the text exists, not that the model
+        chose the right field. You must confirm each field; AI cannot approve a
+        shipment.
       </p>
       {!availability && !configError && (
         <p role="status">Checking AI availability…</p>
@@ -219,7 +219,9 @@ export function EvidenceRecovery({
             ) : (
               <Sparkles size={16} />
             )}
-            {busy ? "Reading source evidence…" : "Propose source-linked fields"}
+            {busy
+              ? "Reading source evidence…"
+              : "Suggest fields from this document"}
           </button>
           <p>
             One document per request. Daily limits protect the public demo.
@@ -242,15 +244,18 @@ export function EvidenceRecovery({
             unchanged. Proposal expires{" "}
             {new Date(proposal.expires_at).toLocaleString()}.
           </p>
-          <p>
-            Provider model: {proposal.resolved_model ?? proposal.model}
-            {proposal.latency_ms !== undefined
-              ? ` · ${Math.round(proposal.latency_ms)} ms`
-              : ""}
-            {proposal.usage
-              ? ` · ${proposal.usage.input_tokens} input / ${proposal.usage.output_tokens} output tokens`
-              : " · Token usage unavailable"}
-          </p>
+          <details className="recovery-run-details">
+            <summary>AI request details</summary>
+            <p>
+              Provider model: {proposal.resolved_model ?? proposal.model}
+              {proposal.latency_ms !== undefined
+                ? ` · ${Math.round(proposal.latency_ms)} ms`
+                : ""}
+              {proposal.usage
+                ? ` · ${proposal.usage.input_tokens} input / ${proposal.usage.output_tokens} output tokens`
+                : " · Token usage unavailable"}
+            </p>
+          </details>
           {!!proposal.warnings.length && (
             <ul className="recovery-warnings">
               {proposal.warnings.map((warning, i) => (
@@ -259,6 +264,10 @@ export function EvidenceRecovery({
             </ul>
           )}
           <form onSubmit={save}>
+            <p className="recovery-confirmation-count">
+              {FIELDS.filter((field) => confirmed[field]).length} of{" "}
+              {FIELDS.length} fields checked against the original
+            </p>
             <label>
               Confirm document role from its original heading
               <select
@@ -305,7 +314,7 @@ export function EvidenceRecovery({
                               )
                             }
                           >
-                            L{citation.line} ·{" "}
+                            View source · L{citation.line} ·{" "}
                             {doc.lines[citation.line - 1]?.location ??
                               "Source line"}
                             {i >= suggestion.citations.length
@@ -385,7 +394,7 @@ export function EvidenceRecovery({
               <ShieldCheck size={16} />
               {saving
                 ? "Saving confirmed evidence…"
-                : "Confirm seven fields & rerun strict checks"}
+                : "Save confirmed fields & recheck"}
             </button>
             <p>
               Creates a human-reviewed revision, retaining source fingerprints

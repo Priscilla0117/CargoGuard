@@ -4,17 +4,19 @@ Implemented on `Chan-modify`. The hosted demo is not automatically updated by th
 
 ## Getting started and reading a case
 
-The first visit shows three steps: **Add files**, **Review differences**, and **Prepare a reply**. Choose **Try one example** to check a single supplied case, or **Upload documents** to use your files. **Check all emails** remains available for batch processing. After a case has been processed, the guide stays available under **Need help getting started?**.
+The workspace uses a flat navy sidebar, white panels and teal actions. The first visit shows three steps: **Add files**, **Review differences**, and **Prepare a reply**. Choose **Try one example** to check a single supplied case, or **Upload documents** to use your files. **Check all emails** remains available for batch processing. After a case has been processed, the guide stays available under **Quick start guide**.
 
-Choose **Open** beside a case. Each shipment field has clearly labelled shipping-instruction and draft-bill-of-lading panels, with full names and addresses wrapping onto as many lines as needed. Values use 17 px text. **View source** and **Correct value** are visible buttons; the latter opens the correction form directly. **Before you save** still previews all seven checks. **Save correction & recheck** keeps the current case open, while **Save correction & next case** advances through the queue. If the next case cannot load, the current case stays open with an error message.
+The four-column queue shows each category beneath its email subject. Uploaded cases display **Uploaded** instead of a UUID; the full ID remains in **Case details**. Choose **Open** beside a case. Each shipment field has labelled shipping-instruction and draft-bill-of-lading panels, with full names and addresses wrapping onto as many lines as needed. **View source** and **Correct value** are visible buttons; the latter opens the correction form directly. **Before you save** still previews all seven checks. **Save correction & recheck** keeps the current case open, while **Save correction & next case** advances through the queue. If the next case cannot load, the current case stays open with an error message.
 
 The case header groups the outcome, subject and short result summary above a compact sender/revision row. **Priority & dates** and **Case details** expand when needed. Elevated priority, due dates and follow-up dates remain visible on the scheduling control. Underlined **Field checks**, **Sources**, **History** and **Email & replies** sections show where you are; **How to review** explains the source and correction buttons on demand.
 
-Use **Back to field checks** when reading a source and **Back to queue** when finished with a case. Calendar filters and comparison-rule explanations are expandable, leaving the main task easier to find. Navigation keeps text labels on smaller screens, and comparison panels stack vertically on narrow screens.
+Use **Back to field checks** when reading a source and **Back to queue** when finished with a case. **Dates & priority** and comparison-rule explanations are expandable. On mobile, the queue and comparison panels stack vertically; navigation stays visible with text labels.
+
+Reports distinguish saved workflow outcomes from development evaluation results. Settings group the active policy, tolerance editor, impact preview and version history. Saved policy records remain available, and tolerances never erase exact differences or approve a shipment.
 
 ## Documents and corrected attachments
 
-Use **Upload documents** and add files in separate selections. The list accumulates selections; remove an individual file before submitting if needed. Exact repeated selections are deduplicated. Intake accepts TXT, PDF, DOCX and XLSX, up to ten files, 5 MB per file and 20 MB combined. When choosing the SI and BL, the full selected filenames appear below their selectors.
+Choose **Upload documents** to open **Add a new document check**, then add files in separate selections. The list accumulates selections; remove an individual file before submitting if needed. Exact repeated selections are deduplicated. Intake accepts TXT, PDF, DOCX and XLSX, up to ten files, 5 MB per file and 20 MB combined. When choosing the SI and BL, the full selected filenames appear below their selectors.
 
 In a case's **Sources** tab, use **Add documents** for an absent SI or draft. Select a document and choose **Replace this document** for a damaged or revised file. Replacing the whole packet remains available. Every change requires a reviewer and reason, checks the current case revision, rechecks the evidence and retains previous originals in **History**. The case ID stays the same. Incoming Gmail message IDs and attachment IDs identify returned files; they do not overwrite old storage objects.
 
@@ -22,13 +24,13 @@ Corrections belong to a specific source. Corrections to unchanged sources surviv
 
 ## Daily workload and urgency
 
-Expand **Calendar & priority filters**, open **Daily workload calendar** and choose emails received, cases imported, due dates or follow-ups. Clicking a date filters the queue. **Received today**, **Overdue**, **Due in 3 days**, **Follow up** and priority filters give shorter working lists. Each case counts once per selected date type.
+Expand **Dates & priority**, open **Daily workload calendar** and choose emails received, cases imported, due dates or follow-ups. Clicking a date filters the queue. **Received today**, **Overdue**, **Due in 3 days**, **Follow up** and priority filters give shorter working lists. Each case counts once per selected date type.
 
-Open **Set priority & dates** in a case to record normal, high or urgent priority, a due date, a follow-up date and your name. All displayed and entered dates use Kuala Lumpur time (UTC+8). Priority, then deadlines and arrival dates, determine queue order. These settings do not change the document verdict or its revision. Unknown receipt dates stay in the undated group; reprocessing never invents a new arrival date.
+Open **Priority & dates** in a case to record normal, high or urgent priority, a due date, a follow-up date and your name. Scheduling dates use Kuala Lumpur time (UTC+8). Priority, then deadlines and arrival dates, determine queue order. These settings do not change the document verdict or its revision. Unknown receipt dates stay in the undated group; reprocessing never invents a new arrival date.
 
 ## Replies in the existing email conversation
 
-Follow [Gmail setup](GMAIL_SETUP.md) to configure the bounded mailbox pilot. **Sync now** retrieves messages; import an unlinked message as a new case or link it to a current case. Later messages in a uniquely linked thread belong to that same case. Ambiguous links require a person to choose.
+Follow [Gmail setup](GMAIL_SETUP.md) to configure the bounded mailbox pilot. Open **Gmail inbox** and choose **Sync now** to retrieve messages; import an unlinked message as a new case or link it to a current case. Later messages in a uniquely linked thread belong to that same case. Ambiguous links require a person to choose.
 
 In **Email & replies**, inspect the returned attachment and choose the source to replace or add it as another attachment. Review and submit the new document revision. Correspondence alone does not mark a discrepancy resolved.
 
@@ -46,18 +48,20 @@ The [unseen pilot protocol](UNSEEN_PILOT.md) supplies immutable manifests, indep
 
 Validation uses local synthetic workspaces and mocked Gmail responses. No real messages were sent and no live Google OAuth/delivery test was performed. Gmail requires the owner's configured Cloud OAuth client and mailbox; app authentication must integrate the documented ownership check before widening access.
 
-Local validation on 24 September 2026:
+For the current whole-site redesign, all **420 unit/regression tests**, **TypeScript**, **ESLint** and the **optimized production build** passed. Browser checks covered the queue, getting-started guide, upload dialog, long source values, sources, revision history, correction draft, reports, settings and disabled Gmail messaging. Phone-width checks covered queue stacking, labelled navigation, reports, settings, history and the assistant, with no horizontal page overflow observed. The production preview loaded its saved workspace without browser warnings or errors. Connected Gmail and live AI states were not exercised in this visual walkthrough.
 
-| Check | Result |
-| --- | --- |
-| Unit/regression suite | 420 passed, zero failed/skipped; includes 22 mocked Gmail checks |
-| Existing HTTP suites | 228 passed across core, hardening, governance, release, revision history, review workspace and assistant preflight |
-| New workflow HTTP suite | 18 passed: individual replacement, history, version conflicts, unknown parties, scheduling isolation, deferred routing and disabled Gmail |
-| Correction persistence journey | Passed append → unresolved pair → persisted read → pair selection, summary privacy, historical evidence and explicit reset |
-| Supplied development set | 520/520 exact outputs with the independent official scorer; 46/46 defect cases and 20/20 review cases |
-| Source integrity | All 520 email records and 250 original document copies unchanged |
-| Build checks | TypeScript, ESLint and optimized production build passed; core and new workflow HTTP checks also passed against the production server |
-| Browser walkthrough | Separate file selections accumulate; single-source replacement retains case/history; append retains originals; deadlines survive editing; calendar date filters match the queue; production page loads |
-| Readability walkthrough | First-visit guide and single-example entry; full company name/address at desktop and 390 px widths without comparison overflow; visible source/correction buttons; correction focus and cancel return; validation preview and saved revision preserve a discrepancy; queue Open buttons fit; saved case loads in the production build |
+Earlier local workflow validation, recorded on 24 September 2026 before the whole-site redesign:
+
+| Check                           | Result                                                                                                                                                             |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Unit/regression suite           | 420 passed, zero failed/skipped; includes 22 mocked Gmail checks                                                                                                   |
+| Existing HTTP suites            | 228 passed across core, hardening, governance, release, revision history, review workspace and assistant preflight                                                 |
+| New workflow HTTP suite         | 18 passed: individual replacement, history, version conflicts, unknown parties, scheduling isolation, deferred routing and disabled Gmail                          |
+| Correction persistence journey  | Passed append → unresolved pair → persisted read → pair selection, summary privacy, historical evidence and explicit reset                                         |
+| Supplied development set        | 520/520 exact outputs with the independent official scorer; 46/46 defect cases and 20/20 review cases                                                              |
+| Source integrity                | All 520 email records and 250 original document copies unchanged                                                                                                   |
+| Earlier build checks            | TypeScript, ESLint and optimized production build passed for the earlier workflow version; core and new workflow HTTP checks passed against that production server |
+| Earlier browser walkthrough     | File accumulation, replacement/append history, deadlines and calendar filters passed; the earlier production page loaded                                           |
+| Earlier readability walkthrough | Desktop and 390 px source-value wrapping, visible actions, correction focus/cancel, preview and saved discrepancy checks passed for the earlier interface          |
 
 This evidence does not establish unseen operational accuracy, employee time savings, live Gmail delivery, hosted persistence or scale. The 520-case results describe development data already supplied to the project.

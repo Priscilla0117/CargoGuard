@@ -11,39 +11,49 @@ import { FIELD_LABELS, type CaseResult, type ComparisonRow } from "@/lib/types";
 function RevisionValue({
   result,
   row,
+  label,
 }: {
   result: CaseResult;
   row?: ComparisonRow;
+  label: "Earlier" | "Current";
 }) {
-  if (!row)
-    return (
-      <p className="revision-unavailable">
-        No field comparison at this revision
-      </p>
-    );
   return (
-    <div className="revision-values">
-      {(["si", "bl"] as const).map((side) => {
-        const url = revisionSourceUrl(result, row[side].source);
-        return (
-          <div key={side}>
-            <b>{side === "si" ? "SI" : "BL"}</b>
-            <span>
-              {row[side].raw || "Missing value"}
-              {(row[side].issue || row[side].extraction_issue) && (
-                <small>{row[side].issue || row[side].extraction_issue}</small>
-              )}
-              {url && (
-                <a href={url} target="_blank" rel="noreferrer">
-                  <FileText size={12} />{" "}
-                  {row[side].evidence || "Original source"} · v{result.version}
-                </a>
-              )}
-            </span>
-          </div>
-        );
-      })}
-      <small className="revision-verdict">Recorded: {row.result}</small>
+    <div className="revision-value-column">
+      <div className="revision-column-label">
+        {label} · revision {result.version}
+      </div>
+      {!row ? (
+        <p className="revision-unavailable">
+          No field comparison at this revision
+        </p>
+      ) : (
+        <div className="revision-values">
+          {(["si", "bl"] as const).map((side) => {
+            const url = revisionSourceUrl(result, row[side].source);
+            return (
+              <div key={side}>
+                <b>{side === "si" ? "SI" : "BL"}</b>
+                <span>
+                  {row[side].raw || "Missing value"}
+                  {(row[side].issue || row[side].extraction_issue) && (
+                    <small>
+                      {row[side].issue || row[side].extraction_issue}
+                    </small>
+                  )}
+                  {url && (
+                    <a href={url} target="_blank" rel="noreferrer">
+                      <FileText size={12} /> View source ·{" "}
+                      {row[side].evidence || "Original document"} · v
+                      {result.version}
+                    </a>
+                  )}
+                </span>
+              </div>
+            );
+          })}
+          <small className="revision-verdict">Recorded: {row.result}</small>
+        </div>
+      )}
     </div>
   );
 }
@@ -145,8 +155,8 @@ export function RevisionComparison({
             <span>{CHANGE_LABELS[change.kind]}</span>
             {change.referenceChanged && <small>SI reference changed</small>}
           </div>
-          <RevisionValue result={before} row={change.before} />
-          <RevisionValue result={after} row={change.after} />
+          <RevisionValue result={before} row={change.before} label="Earlier" />
+          <RevisionValue result={after} row={change.after} label="Current" />
         </article>
       ))}
       {!visible.length && (
@@ -157,6 +167,7 @@ export function RevisionComparison({
       {diff.counts.unchanged > 0 && (
         <button
           className="text-button"
+          aria-expanded={showAll}
           onClick={() => setShowAll((value) => !value)}
         >
           {showAll

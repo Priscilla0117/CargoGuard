@@ -72,11 +72,10 @@ export function AiAvailability() {
           <Sparkles size={20} />
         </span>
         <div>
-          <span className="eyebrow">ASK CARGOGUARD</span>
           <h3>AI availability</h3>
         </div>
         <button
-          className="icon-button"
+          className="button secondary availability-refresh"
           aria-label="Refresh AI allowance"
           disabled={loading}
           onClick={() => {
@@ -85,9 +84,12 @@ export function AiAvailability() {
           }}
         >
           <RefreshCw size={16} className={loading ? "spin" : ""} />
+          Refresh
         </button>
       </div>
-      <p role="status">{state}</p>
+      <p className="availability-status" role="status">
+        {state}
+      </p>
       {!loading && !error && budget && (
         <>
           <div className="availability-stats">
@@ -100,11 +102,11 @@ export function AiAvailability() {
               <span>token units left*</span>
             </div>
           </div>
-          <small>
+          <p className="availability-note">
             *Snapshot: refresh for latest capacity. Lowest remaining daily /
             lifetime allowance for this workspace. Larger questions can use it
             sooner. This is reserved capacity, not billed usage.
-          </small>
+          </p>
           <p className="availability-reset">
             Daily reset · {new Date(budget.resetsAt).toLocaleString()}
             <br />
@@ -114,7 +116,7 @@ export function AiAvailability() {
         </>
       )}
       <div className="availability-tip">
-        Tap <strong>Ask CargoGuard</strong> to explain a case or prepare a
+        Open <strong>Ask CargoGuard</strong> to explain a case or prepare a
         handover. Each question gets a free capacity check before consent.
         Evidence Navigator and manual review work without cloud AI.
       </div>
