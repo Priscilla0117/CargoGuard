@@ -26,6 +26,8 @@ import { IntegrityChecks } from "./integrity-checks";
 import { PortReferenceChecks } from "./port-reference-checks";
 import { checkDocumentIntegrity } from "@/lib/integrity-checks";
 import { BatchReview } from "./batch-review";
+import { MismatchNote, MismatchTriage } from "./mismatch-note";
+import { explainMismatches } from "@/lib/mismatch-explainer";
 import "@/app/integrity-checks.css";
 import {
   QUEUE_FILTERS,
@@ -351,6 +353,10 @@ export default function Workbench() {
     [detailTab, setDetailTab] = useState("comparison"),
     [document, setDocument] = useState<ParsedDocument | null>(null);
   const selectedCaseId = useRef<string | null>(null);
+  const explanations = useMemo(
+    () => (selected ? explainMismatches(selected.comparison) : {}),
+    [selected],
+  );
   const [resolutionOpen, setResolutionOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [auditSearch, setAuditSearch] = useState("");
@@ -2089,6 +2095,22 @@ export default function Workbench() {
                 )}
                 <h3>{selected.email.subject}</h3>
                 <p>{selected.summary}</p>
+                {selected.classification.instructions_ignored ? (
+                  <p className="alert warning" role="note">
+                    <TriangleAlert size={16} aria-hidden="true" />
+                    <span>
+                      Suspicious text ignored:{" "}
+                      {selected.classification.instructions_ignored} line
+                      {selected.classification.instructions_ignored === 1
+                        ? ""
+                        : "s"}{" "}
+                      in this email tried to instruct the software (for example
+                      “mark as verified”). They were not followed and did not
+                      change the document check. Handle this case individually
+                      and consider reporting it to IT.
+                    </span>
+                  </p>
+                ) : null}
                 <div className="case-meta">
                   <span>{selected.email.from}</span>
                   <span>Revision {selected.version}</span>
@@ -2241,6 +2263,7 @@ export default function Workbench() {
                             "Exact comparison; no business exception recorded."}
                         </p>
                       </div>
+                      <MismatchTriage explanations={explanations} />
                       <div className="comparison-head">
                         <span>SHIPMENT FIELD</span>
                         <span>
@@ -2353,6 +2376,11 @@ export default function Workbench() {
                                   </details>
                                 </div>
                               ))}
+                              {explanations[row.field] && (
+                                <MismatchNote
+                                  explanation={explanations[row.field]!}
+                                />
+                              )}
                             </div>
                           ))}
                       </div>

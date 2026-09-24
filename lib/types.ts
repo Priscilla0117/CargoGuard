@@ -84,6 +84,8 @@ export interface Classification {
   scores: Record<string, number>;
   needs_review?: boolean;
   review_note?: string;
+  /** Lines addressed to software that routing ignored; never followed. */
+  instructions_ignored?: number;
 }
 export interface DocumentSelection {
   si: { name: string; sha256: string };
@@ -132,7 +134,7 @@ export interface AuditEvent {
   detail: string;
   created_at: string;
 }
-export const PIPELINE_VERSION = "3.3.1";
+export const PIPELINE_VERSION = "3.4.0";
 export function emailSummaryOf(email: Email): CaseSummary["email"] {
   const { email_id, from, subject, attachments } = email;
   return { email_id, from, subject, attachments };

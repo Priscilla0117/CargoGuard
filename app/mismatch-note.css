@@ -1,0 +1,62 @@
+.mismatch-note {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 2px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.mismatch-note svg {
+  margin-top: 3px;
+}
+.mismatch-note p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.mismatch-note small {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.mismatch-note.clerical {
+  background: #eef6fb;
+  color: #2f5d7c;
+  border: 1px solid #d3e5f1;
+}
+.mismatch-note.material {
+  background: #fff4ec;
+  color: #8a4516;
+  border: 1px solid #f3d6c1;
+}
+.mismatch-kind {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #ffffffb3;
+}
+.mismatch-triage {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid #dfe7ef;
+  border-radius: 7px;
+  background: #f7fafc;
+  color: #4d6a84;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.mismatch-triage svg {
+  margin-top: 3px;
+  flex-shrink: 0;
+}

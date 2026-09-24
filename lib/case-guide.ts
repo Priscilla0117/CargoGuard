@@ -1,3 +1,4 @@
+import { explainMismatches } from "./mismatch-explainer";
 import {
   FIELDS,
   FIELD_LABELS,
@@ -174,6 +175,7 @@ export function amendmentDraft(r: CaseResult): {
           : !differences.length
             ? "No supported difference to request. Recover uncertain values first; never invent an amendment."
             : "";
+  const explanations = explainMismatches(r.comparison);
   if (blocked)
     return {
       available: false,
@@ -205,6 +207,9 @@ export function amendmentDraft(r: CaseResult): {
         `${i + 1}. ${FIELD_LABELS[row.field]}`,
         `SI reference: ${row.si.raw}`,
         `Current draft BL: ${row.bl.raw}`,
+        ...(explanations[row.field]
+          ? [`What changed: ${explanations[row.field]!.title}`]
+          : []),
         `SI evidence: ${row.si.source} | ${row.si.evidence}`,
         `BL evidence: ${row.bl.source} | ${row.bl.evidence}`,
       ]),

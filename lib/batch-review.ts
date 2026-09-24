@@ -67,6 +67,8 @@ export function batchReviewBlocker(result: CaseResult): string | null {
     )
   )
     return "Human-reviewed, recovered, selected-source or rule-assisted evidence requires individual completion.";
+  if (result.classification.instructions_ignored)
+    return "The email contained text addressed to software; handle it individually.";
   if (checkDocumentIntegrity(result).requires_attention)
     return "An independent document integrity finding needs individual review.";
   // Reference-data advisories may reflect an outdated snapshot; a code whose

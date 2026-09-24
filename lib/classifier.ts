@@ -6,6 +6,7 @@ import {
 } from "./types";
 import { classifyLearned } from "./routing";
 import { routingReviewGate } from "./routing-features";
+import { shieldEmail } from "./instruction-shield";
 // Independently authored intent examples. The application never loads organiser
 // IDs or answer-key labels. Token probabilities are fitted from this corpus.
 export const TRAINING: Record<Category, string[]> = {
@@ -275,6 +276,32 @@ export function classifyLegacy(
 export function classify(
   email: Email,
   mode: "hybrid" | "model" | "learned" | "legacy" = "hybrid",
+): Classification {
+  // Route on what a person wrote; lines addressed to software are evidence only.
+  const shielded = shieldEmail(email);
+  const result = classifyCore(shielded.email, mode);
+  if (!shielded.ignored) return result;
+  const note = `Ignored ${shielded.ignored} line${shielded.ignored === 1 ? "" : "s"} addressed to software rather than a person (for example "ignore previous instructions" or "mark as verified"). They were not followed.`;
+  // A document request still gets its full check. Any other message that tried
+  // to steer the software is shown to a person instead of being routed silently.
+  const hold = result.category !== "BL_COMPARISON";
+  return {
+    ...result,
+    instructions_ignored: shielded.ignored,
+    signals: [note, ...result.signals],
+    ...(hold
+      ? {
+          needs_review: true,
+          review_note:
+            "This message contains text that tries to instruct the software. Confirm its category and consider reporting it to IT.",
+        }
+      : {}),
+  };
+}
+
+function classifyCore(
+  email: Email,
+  mode: "hybrid" | "model" | "learned" | "legacy",
 ): Classification {
   if (mode === "model") return classifyLegacy(email, "model");
   if (mode === "legacy") return classifyLegacy(email, "hybrid");

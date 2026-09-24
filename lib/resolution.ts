@@ -1,3 +1,4 @@
+import { explainMismatches } from "./mismatch-explainer";
 import { FIELD_LABELS, type CaseResult } from "./types";
 
 export interface ResolutionStep {
@@ -122,6 +123,7 @@ export function resolutionPlan(result: CaseResult) {
 
 export function resolutionPacket(result: CaseResult): string {
   const plan = resolutionPlan(result);
+  const explanations = explainMismatches(result.comparison);
   return [
     "CARGOGUARD — EVIDENCE HANDOFF / DRAFT",
     "Deterministic checklist; not an LLM response. Nothing has been sent.",
@@ -151,6 +153,11 @@ export function resolutionPacket(result: CaseResult): string {
     ...(result.comparison.length
       ? result.comparison.flatMap((row) => [
           `${FIELD_LABELS[row.field]}: ${row.result.toUpperCase()}`,
+          ...(explanations[row.field]
+            ? [
+                `Why (${explanations[row.field]!.kind}): ${explanations[row.field]!.title}. ${explanations[row.field]!.detail}`,
+              ]
+            : []),
           `SI: ${row.si.raw || "[missing]"}`,
           `SI evidence: ${row.si.source}; ${row.si.evidence}; ${row.si.method}`,
           `Draft BL: ${row.bl.raw || "[missing]"}`,

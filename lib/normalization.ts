@@ -13,6 +13,30 @@ const missing =
   /^(?:[\s?_\-–—.\/]+|t\.?\s*b\.?\s*[acd]\.?|n\.?\s*\/?\s*a\.?|nil|none|null|unknown|pending|unavailable|not\s+(?:available|provided|specified|stated|known|confirmed|applicable)|to\s+be\s+(?:advised|confirmed|determined|provided|decided)|awaiting\s+(?:confirmation|details|instructions)|same\s+as\s+above)$/i;
 const unitPlaceholder =
   /^(?:[?_\-–—.\s]+)\s*(?:kgs?|kilograms?|mt|metric tonnes?|tonnes?)$/i;
+// A document that points elsewhere does not state the value itself.
+const referral =
+  /^(?:see\s+(?:attached|attachment|annex|appendix|below|above|remarks?|si|shipping\s+instructions?)|as\s+per\s+(?:attached|attachment|si|shipping\s+instructions?|booking|previous|last)|refer\s+to\s+(?:attached|attachment|si|shipping\s+instructions?|booking)|x{2,}|\*+|to\s+follow|will\s+(?:advise|confirm|follow))$/i;
+// Markers that say a stated value is still unconfirmed.
+const unconfirmed =
+  /^(?:t\.?\s*b\.?\s*[acd]\.?|pending|not\s+(?:yet\s+)?confirmed|to\s+be\s+(?:advised|confirmed|determined|provided|decided)|awaiting\s+(?:confirmation|details|instructions)|subject\s+to\s+confirmation)$/i;
+const segmentsOf = (value: string) =>
+  value
+    .replace(/\bn\s*\/\s*a\b/gi, "NA")
+    .split(/[/|;,()[\]{}]+|\s+(?:or|and|&)\s+|\s[-–—]\s/i)
+    .map((part) => part.trim())
+    .filter((part) => /[\p{L}\p{N}]/u.test(part));
+/** "TBA / TBC", "TO BE ADVISED (TBA)" or "SEE ATTACHED" state no value at all. */
+export function placeholderOnly(value: string) {
+  const parts = segmentsOf(value);
+  return (
+    parts.length > 0 &&
+    parts.every((part) => missing.test(part) || referral.test(part))
+  );
+}
+/** A real value with a "(TBC)" style marker is not yet confirmed by its issuer. */
+export function hasUnconfirmedMarker(value: string) {
+  return segmentsOf(value).some((part) => unconfirmed.test(part));
+}
 export const sameAsConsignee = (raw: string) =>
   /^(?:same as|as per)\s+(?:the\s+)?consignee\.?$/i.test(
     raw.normalize("NFKC").trim(),
@@ -63,12 +87,15 @@ export function normalizeValue(field: Field, raw: string): NormalizedValue {
   if (
     !value ||
     !/[\p{L}\p{N}]/u.test(value) ||
+    placeholderOnly(value) ||
     value
       .split(/\r?\n/)
       .some(
         (line) =>
           line.trim() &&
-          (missing.test(line.trim()) || unitPlaceholder.test(line.trim())),
+          (missing.test(line.trim()) ||
+            unitPlaceholder.test(line.trim()) ||
+            placeholderOnly(line)),
       )
   ) {
     return {
@@ -76,6 +103,12 @@ export function normalizeValue(field: Field, raw: string): NormalizedValue {
       issue: "Required value is missing or is a placeholder.",
     };
   }
+  if (hasUnconfirmedMarker(value))
+    return {
+      value: null,
+      issue:
+        "The value is marked as unconfirmed (for example TBA or TBC). Confirm it with the issuer; matching unconfirmed text in both documents is not a verified match.",
+    };
   if (field === "container_count") {
     const parts = value.split(/\s*(?:\+|;|&|\band\b)\s*/i);
     let total = 0;

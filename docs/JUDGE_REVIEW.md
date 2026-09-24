@@ -35,8 +35,15 @@ These are one reviewer's estimates, not organiser scores.
 4. **No LLM in the default path.** Many finalists will lead with GPT/Gemini vision. Turn that into a strength (section 3, point 4). Also show the existing optional Evidence Recovery Copilot live on synthetic data if a key is available: *AI proposes, the server checks the quote is verbatim, a human confirms*.
 5. **No measured impact.** See section 5. One real number from a timed trial beats any estimate.
 6. **Bug found and fixed in this review.** The work-queue **Independent checks** tab silently opened the *Check* tab: `caseDestination()` mapped `"integrity"` to `"comparison"`. That made the ISO 6346 differentiator unreachable from the work queue. It is fixed in `lib/work-queue.ts`, with a regression test in `tests/work-queue.test.ts` and a browser check. Re-rehearse any demo path that opens that tab.
+7. **Preliminary-judge feedback is now addressed in code (engine 3.4.0).** See [JUDGE_FEEDBACK_RESPONSE.md](JUDGE_FEEDBACK_RESPONSE.md):
+   - "TBA / TBC" and similar placeholders now go to review;
+   - hostile text can no longer hide a discrepancy;
+   - spam attachments are never opened;
+   - every mismatch is explained.
 
-## 3. Competitive advantage: say it in four sentences
+   Open the pitch with a **"You told us — we fixed it"** slide and a 10-second live demo: import a pair where both shippers say `TBA / TBC` and show that it goes to review.
+
+## 3. Competitive advantage in five points
 
 Everyone is building the same thing: classify → extract → compare → review button. Finalists will look alike in the first 60 seconds. Win on what happens **after** the side-by-side table.
 
@@ -48,6 +55,12 @@ Everyone is building the same thing: classify → extract → compare → review
 2. **A correction cycle, not a one-shot compare.** The corrected BL fixes the weight but introduces a new port error. CargoGuard re-checks all seven fields against the unchanged SI, keeps every revision, and refuses completion while anything is open.
 3. **Every value is traceable to evidence.** Each extracted value links to page/line/cell and a SHA-256 of the source. Decisions bind to a revision, so a stale "approved" can never carry over to a new draft. That is audit-grade, not demo-grade.
 4. **Deterministic where facts matter, AI where language is fuzzy.** A learned intent router handles messy email, and local OCR handles scans. Shipment facts are never *generated*, so a model cannot invent a weight. The core runs on a laptop with no per-page API cost, and customer documents never leave the company. Averis handles confidential customer paperwork, so that is a procurement advantage, not a limitation.
+
+5. **It explains every mismatch, not just shows it.** Each difference is labelled either:
+   - a *likely clerical slip* (swapped digits, tonnes vs kg, a port code kept but the name changed, parties swapped), where staff just ask for a correction; or
+   - a *different value*, where staff confirm with the shipper first.
+
+   On the organiser inbox that is 39 clerical slips and 47 different values, out of 86 mismatches. This is the triage an experienced clerk does in their head, done for every junior employee.
 
 **Closing line:** *"Other tools tell you the two documents differ. CargoGuard tells you which one is wrong, what to ask the issuer for, and proves it when the corrected draft comes back."*
 
@@ -92,7 +105,7 @@ A small honest measurement beats "could save X%". Present it as *indicative*, th
 
 ## 7. Verified in this review
 
-Run on this branch on 24 September 2026:
+Run on this branch on 24 September 2026. Figures below are from the first review (engine 3.3.1); the current engine 3.4.0 verification, now with more tests, is recorded in [JUDGE_FEEDBACK_RESPONSE.md](JUDGE_FEEDBACK_RESPONSE.md#verification):
 
 - `npm run typecheck` ✔
 - `npm run lint` ✔
