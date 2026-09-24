@@ -1,28 +1,15 @@
 "use client";
 import { Fragment, useMemo, useState } from "react";
 import {
-  Archive,
   ArrowRight,
-  CalendarClock,
-  CheckCircle2,
-  CircleHelp,
-  Clock,
-  FileText,
-  Inbox,
-  ListChecks,
-  Mails,
-  Receipt,
-  TriangleAlert,
-  BellRing,
-  ScanSearch,
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  ListChecks,
   Loader2,
   MessagesSquare,
   Paperclip,
   Search,
-  Target,
   X,
 } from "lucide-react";
 import type { ThreadInfo } from "@/lib/mail-intel";
@@ -46,35 +33,26 @@ import {
 import { categoryWords, rowStatus } from "@/lib/case-status";
 import { CATEGORIES, type CaseSummary } from "@/lib/types";
 
-const WORK_CARDS: {
-  key: TodoReason;
-  icon: typeof Inbox;
-  hint: string;
-  always?: boolean;
-}[] = [
-  {
-    key: "differences",
-    icon: TriangleAlert,
-    hint: "BL does not match the SI",
-    always: true,
-  },
-  {
-    key: "missing",
-    icon: Paperclip,
-    hint: "Ask for the SI or BL",
-    always: true,
-  },
-  {
-    key: "unclear",
-    icon: CircleHelp,
-    hint: "Confirm what was not clear",
-    always: true,
-  },
-  { key: "si_request", icon: FileText, hint: "Customer is waiting for an SI" },
-  { key: "invoice", icon: Receipt, hint: "Answer the billing question" },
-  { key: "follow_up", icon: BellRing, hint: "A promised follow-up is due" },
-  { key: "unprocessed", icon: ScanSearch, hint: "Press “Check new emails”" },
+/** Kinds of to-do work, in the order an officer usually handles them. */
+const WORK_KINDS: TodoReason[] = [
+  "differences",
+  "missing",
+  "unclear",
+  "si_request",
+  "invoice",
+  "follow_up",
+  "unprocessed",
 ];
+/** Short chip labels; the full wording appears in rows and the plan. */
+const CHIP_LABELS: Record<TodoReason, string> = {
+  differences: "Differences",
+  missing: "Missing documents",
+  unclear: "Unclear",
+  si_request: "Send SI",
+  invoice: "Invoice",
+  follow_up: "Follow-up due",
+  unprocessed: "Not checked",
+};
 
 export interface InboxFilters {
   bucket: Bucket | "all";
@@ -169,6 +147,11 @@ function Row({
   const deadline = deadlineText(plan, now);
   const insight = row.email.insight;
   const ref = insight?.refs.shipment[0] ?? insight?.refs.po[0];
+  // The date column already shows the deadline; give the other reason here.
+  const why = plan.reasons.find(
+    (reason) =>
+      !/due|cut-off|etd|eta|payment|deadline|overdue|waiting \d/i.test(reason),
+  );
   return (
     <button
       type="button"
@@ -206,9 +189,7 @@ function Row({
       </span>
       <span className="cg-row-status">
         <span className={`cg-pill ${status.tone}`}>{status.text}</span>
-        {plan.bucket === "todo" && plan.reasons.length > 0 && (
-          <small>{plan.reasons.slice(0, 2).join(" · ")}</small>
-        )}
+        {plan.bucket === "todo" && why && <small>{why}</small>}
       </span>
       <span className="cg-row-date">
         {received ? (
@@ -372,34 +353,31 @@ export function InboxView({
   return (
     <>
       {focus && !loading && (
-        <section className="cg-focus-card" aria-label="Suggested next email">
-          <span className="cg-focus-icon" aria-hidden="true">
-            <Target size={26} />
-          </span>
-          <div style={{ minWidth: 0 }}>
-            <span className="cg-focus-label">Start here — most urgent</span>
-            <h2>{focus.row.email.subject}</h2>
-            <p>
+        <section
+          className={`cg-nextup ${focus.plan.level}`}
+          aria-label="Suggested next email"
+        >
+          <div className="cg-nextup-main">
+            <span className="cg-nextup-label">
+              Next up
+              {focus.plan.level === "urgent" && (
+                <span className="cg-tag urgent">Urgent</span>
+              )}
+            </span>
+            <strong
+              className="cg-nextup-subject"
+              title={focus.row.email.subject}
+            >
+              {focus.row.email.subject}
+            </strong>
+            <span className="cg-nextup-why">
               {focus.plan.reasons.slice(0, 3).join(" · ") ||
                 rowStatus(focus.row).text}
-            </p>
-            <div className="cg-plan-stats">
-              {urgentCount > 0 && (
-                <span className="cg-pill urgent">{urgentCount} urgent</span>
-              )}
-              {dueSoon > 0 && (
-                <span className="cg-pill high">
-                  <CalendarClock size={15} /> {dueSoon} due within 3 days
-                </span>
-              )}
-              {late > 0 && (
-                <span className="cg-pill red">{late} past a deadline</span>
-              )}
-            </div>
+            </span>
           </div>
-          <div className="cg-focus-actions">
+          <div className="cg-nextup-actions">
             <button
-              className="cg-btn primary large"
+              className="cg-btn primary"
               onClick={() =>
                 onOpen(
                   focus.row.email.email_id,
@@ -409,102 +387,95 @@ export function InboxView({
                 )
               }
             >
-              Open this email <ArrowRight size={20} />
+              Open <ArrowRight size={18} />
             </button>
             {onPlan && (
               <button className="cg-btn" onClick={onPlan}>
-                <ListChecks size={19} /> See today&apos;s plan
+                <ListChecks size={18} /> Today&apos;s plan
               </button>
             )}
           </div>
+          {(urgentCount > 0 || dueSoon > 0 || late > 0) && (
+            <div className="cg-nextup-stats">
+              {urgentCount > 0 && (
+                <span>
+                  <b className="urgent">{urgentCount}</b> urgent
+                </span>
+              )}
+              {dueSoon > 0 && (
+                <span>
+                  <b>{dueSoon}</b> due within 3 days
+                </span>
+              )}
+              {late > 0 && (
+                <span>
+                  <b className="urgent">{late}</b> past a deadline
+                </span>
+              )}
+            </div>
+          )}
         </section>
       )}
-      <section className="cg-board" aria-label="Your work">
-        <div className="cg-board-head">
-          <h2>Your work</h2>
-          <span>Pick a card to see only those emails</span>
-        </div>
-        <div className="cg-cards" role="group" aria-label="Kinds of work">
-          <button
-            className="cg-card-btn total"
-            aria-pressed={filters.bucket === "todo" && filters.reason === "all"}
-            onClick={() => {
-              setFilters({ bucket: "todo", reason: "all" });
-              setLimit(40);
-            }}
-          >
-            <span className="cg-card-top">
-              <span className="cg-card-icon">
-                <Inbox size={20} />
-              </span>
-              All to do
-            </span>
-            <strong>
-              {loading ? "–" : bucketCounts.todo.toLocaleString()}
-            </strong>
-            <small>Everything that needs you</small>
-          </button>
-          {WORK_CARDS.filter(
-            (card) => card.always || (reasonCounts[card.key] ?? 0) > 0,
-          ).map((card) => {
-            const Icon = card.icon;
-            const count = reasonCounts[card.key] ?? 0;
-            return (
-              <button
-                key={card.key}
-                className={`cg-card-btn ${card.key}`}
-                aria-pressed={
-                  filters.bucket === "todo" && filters.reason === card.key
-                }
-                onClick={() => {
-                  setFilters({
-                    bucket: "todo",
-                    reason:
-                      filters.bucket === "todo" && filters.reason === card.key
-                        ? "all"
-                        : card.key,
-                  });
-                  setLimit(40);
-                }}
-              >
-                <span className="cg-card-top">
-                  <span className="cg-card-icon">
-                    <Icon size={20} />
-                  </span>
-                  {TODO_REASON_LABELS[card.key]}
-                </span>
-                <strong>{loading ? "–" : count.toLocaleString()}</strong>
-                <small>{count ? card.hint : "All clear"}</small>
-              </button>
-            );
-          })}
-        </div>
-        <div className="cg-status-strip" role="group" aria-label="Other lists">
-          {(["waiting", "done", "other", "all"] as const).map((key) => (
+      <section className="cg-queue" aria-label="Email lists">
+        <div className="cg-qtabs" role="tablist" aria-label="Lists">
+          {(["todo", "waiting", "done", "other", "all"] as const).map((key) => (
             <button
               key={key}
-              className="cg-strip-btn"
-              aria-pressed={filters.bucket === key}
+              role="tab"
+              className="cg-qtab"
+              aria-selected={filters.bucket === key}
               title={key === "all" ? "Every email" : BUCKET_HINTS[key]}
               onClick={() => {
                 setFilters({ bucket: key, reason: "all" });
                 setLimit(40);
               }}
             >
-              {key === "waiting" ? (
-                <Clock size={17} />
-              ) : key === "done" ? (
-                <CheckCircle2 size={17} />
-              ) : key === "other" ? (
-                <Archive size={17} />
-              ) : (
-                <Mails size={17} />
-              )}
               {key === "all" ? "All emails" : BUCKET_LABELS[key]}
-              <b>{loading ? "–" : bucketCounts[key].toLocaleString()}</b>
+              <span className="cg-qcount">
+                {loading ? "–" : bucketCounts[key].toLocaleString()}
+              </span>
             </button>
           ))}
         </div>
+        {filters.bucket === "todo" && (
+          <div
+            className="cg-qchips"
+            role="group"
+            aria-label="Filter the to-do list by kind of work"
+          >
+            <button
+              className="cg-qchip"
+              aria-pressed={filters.reason === "all"}
+              onClick={() => {
+                setFilters({ reason: "all" });
+                setLimit(40);
+              }}
+            >
+              All
+              <span>{bucketCounts.todo.toLocaleString()}</span>
+            </button>
+            {WORK_KINDS.filter((key) => (reasonCounts[key] ?? 0) > 0).map(
+              (key) => (
+                <button
+                  key={key}
+                  className={`cg-qchip ${key}`}
+                  aria-pressed={filters.reason === key}
+                  title={TODO_REASON_LABELS[key]}
+                  onClick={() => {
+                    setFilters({
+                      reason: filters.reason === key ? "all" : key,
+                    });
+                    setLimit(40);
+                  }}
+                >
+                  <i aria-hidden="true" />
+                  {CHIP_LABELS[key]}
+                  <span>{(reasonCounts[key] ?? 0).toLocaleString()}</span>
+                </button>
+              ),
+            )}
+          </div>
+        )}
       </section>
       {filters.bucket === "done" && bucketCounts.done > 0 && doneTools && (
         <div style={{ paddingTop: 14 }}>{doneTools}</div>
@@ -528,7 +499,7 @@ export function InboxView({
             </button>
           )}
         </label>
-        <label className="cg-filter">
+        <label className="cg-filter cg-f-range">
           Received
           <select
             className="cg-select"
@@ -564,7 +535,7 @@ export function InboxView({
             </label>
           </>
         )}
-        <label className="cg-filter">
+        <label className="cg-filter cg-f-type">
           Type
           <select
             className="cg-select"
@@ -579,7 +550,7 @@ export function InboxView({
             ))}
           </select>
         </label>
-        <label className="cg-filter">
+        <label className="cg-filter cg-f-sort">
           Sort
           <select
             className="cg-select"
@@ -592,14 +563,6 @@ export function InboxView({
               </option>
             ))}
           </select>
-        </label>
-        <label className="cg-check cg-small">
-          <input
-            type="checkbox"
-            checked={filters.grouped}
-            onChange={(e) => setFilters({ grouped: e.target.checked })}
-          />
-          Group conversations
         </label>
       </div>
       <div className="cg-list-caption">
@@ -616,6 +579,14 @@ export function InboxView({
             and {undated === 1 ? "is" : "are"} hidden by the date filter
           </span>
         )}
+        <label className="cg-check cg-small cg-caption-check">
+          <input
+            type="checkbox"
+            checked={filters.grouped}
+            onChange={(e) => setFilters({ grouped: e.target.checked })}
+          />
+          Group conversations
+        </label>
         {filtered && (
           <button
             className="cg-link"

@@ -10,7 +10,7 @@ The existing URL, https://cargoguard-averis.onrender.com/, is an **older release
 
 Point-by-point: [MENTOR_FEEDBACK_RESPONSE.md](docs/MENTOR_FEEDBACK_RESPONSE.md).
 
-- **Simpler screens**: one sidebar on every page; the inbox has *To do · Waiting for reply · Done · FYI & spam · All* tabs and a *Start here — most urgent* card; a case opens with one plain-language status and one recommended button; one type scale with no text below 13 px.
+- **Simpler screens**: one sidebar on every page; the inbox has a *Next up* bar, *To do · Waiting for reply · Done · FYI & spam · All emails* tabs and filter chips with counts; a case opens with one plain-language status line and one recommended button, followed by the SI vs BL check; one type scale with no text below 14 px.
 - **Side-by-side check with in-place editing** and highlighted differing words.
 - **Reply like Gmail**: a draft written from the checked values (six reply types, three tones), then send, save to Gmail drafts, open in Gmail or copy. Optional AI wording with a fact guard.
 - **Date/time filter and urgency planning**: received dates, deadlines found in the email text, urgency words, *Download today's plan*.

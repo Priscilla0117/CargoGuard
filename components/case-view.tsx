@@ -44,7 +44,7 @@ import {
   type Field,
   type ParsedDocument,
 } from "@/lib/types";
-import { CompareTable, DiffSnippet, type FieldEdit } from "./compare-table";
+import { CompareTable, type FieldEdit } from "./compare-table";
 import { ReplyComposer, type MailboxState } from "./reply-composer";
 import { DocumentPairSelector } from "./document-pair-selector";
 import { ScanAssist } from "./scan-assist";
@@ -62,18 +62,14 @@ export type CaseTab =
   | "documents"
   | "followup"
   | "history";
-export const CASE_TABS: { id: CaseTab; label: string; step?: number }[] = [
-  { id: "compare", label: "Check the details", step: 1 },
-  { id: "reply", label: "Reply", step: 2 },
-  { id: "followup", label: "Finish", step: 3 },
+export const CASE_TABS: { id: CaseTab; label: string }[] = [
+  { id: "compare", label: "SI vs BL check" },
+  { id: "reply", label: "Reply" },
+  { id: "followup", label: "Follow-up" },
   { id: "conversation", label: "Email & conversation" },
   { id: "documents", label: "Documents" },
   { id: "history", label: "History" },
 ];
-const short = (value: string) => {
-  const line = value.split(/\r?\n/)[0].trim();
-  return line.length > 46 ? `${line.slice(0, 45)}…` : line || "(empty)";
-};
 /** Old deep links (assistant, citations) keep working. */
 export function tabFor(target: string): CaseTab {
   if (target === "resolution") return "reply";
@@ -120,12 +116,12 @@ export function AuditDetail({ detail }: { detail: string }) {
 }
 
 const STATUS_ICON: Record<string, ReactNode> = {
-  differences: <AlertTriangle size={26} />,
-  missing: <Paperclip size={26} />,
-  unclear: <CircleHelp size={26} />,
-  unprocessed: <CircleHelp size={26} />,
-  done: <CheckCircle2 size={26} />,
-  other: <Inbox size={26} />,
+  differences: <AlertTriangle size={20} />,
+  missing: <Paperclip size={20} />,
+  unclear: <CircleHelp size={20} />,
+  unprocessed: <CircleHelp size={20} />,
+  done: <CheckCircle2 size={20} />,
+  other: <Inbox size={20} />,
 };
 
 export interface CaseViewProps {
@@ -191,7 +187,6 @@ export function CaseView(props: CaseViewProps) {
   const highlighted = useRef<HTMLDivElement | null>(null);
   const plan = plans.get(result.email.email_id);
   const status = caseStatus(result, plan);
-  const attention = result.comparison.filter((row) => row.result !== "match");
   const received = formatReceived(result.email.received_at);
   const insight = emailInsight(result.email);
   const refs = insight.refs;
@@ -364,182 +359,113 @@ export function CaseView(props: CaseViewProps) {
             <p>{props.error}</p>
           </div>
         )}
-        <header className={`cg-case-head tone-${status.tone}`}>
-          <span className="cg-case-kicker">
-            {categoryWords(result.category)}
-            {received ? ` · received ${received.day} ${received.time}` : ""}
-          </span>
-          <h2>{result.email.subject}</h2>
-          <div className="cg-case-meta">
-            <span className="cg-meta-chip">
-              <User size={16} />
-              {insight.sender_name ? `${insight.sender_name} · ` : ""}
-              {result.email.from}
+        <header className={`cg-casehead tone-${status.tone}`}>
+          <div className="cg-casehead-body">
+            <span className="cg-casehead-kicker">
+              {categoryWords(result.category)}
+              {received && (
+                <>
+                  <span aria-hidden="true"> · </span>
+                  Received {received.day} {received.time}
+                </>
+              )}
+              {plan?.bucket === "todo" &&
+                (plan.level === "urgent" || plan.level === "high") && (
+                  <span className={`cg-tag ${plan.level}`}>
+                    {plan.level === "urgent" ? "Urgent" : "High priority"}
+                  </span>
+                )}
             </span>
-            {refs?.shipment[0] && (
-              <span className="cg-meta-chip">
-                <Hash size={16} /> Order {refs.shipment.join(", ")}
+            <h2>{result.email.subject}</h2>
+            <p className="cg-casehead-meta">
+              <span>
+                <User size={15} aria-hidden="true" />
+                {insight.sender_name ? `${insight.sender_name} · ` : ""}
+                {result.email.from}
               </span>
-            )}
-            {refs?.po[0] && (
-              <span className="cg-meta-chip">PO {refs.po.join(", ")}</span>
-            )}
-            <button className="cg-meta-chip" onClick={() => go("documents")}>
-              <Paperclip size={16} /> {result.documents.length} document
-              {result.documents.length === 1 ? "" : "s"}
-            </button>
-            {thread && (
-              <button
-                className="cg-meta-chip link"
-                onClick={() => go("conversation")}
-              >
-                <MessagesSquare size={16} /> {thread.ids.length} emails in this
-                conversation
-              </button>
-            )}
-          </div>
-        </header>
-        <section
-          className={`cg-status-card ${status.tone}`}
-          aria-label="Result and next step"
-        >
-          <span className="cg-status-icon" aria-hidden="true">
-            {STATUS_ICON[status.tone]}
-          </span>
-          <div>
-            <span className="cg-status-kicker">Result</span>
-            <h3>{status.title}</h3>
-            {attention.length > 0 ? (
-              <ul className="cg-attention">
-                {attention.map((row) => {
-                  const same =
-                    row.si.raw.trim().toUpperCase() ===
-                    row.bl.raw.trim().toUpperCase();
-                  return (
-                    <li key={row.field} className={row.result}>
-                      <strong>{FIELD_LABELS[row.field]}</strong>
-                      {row.result === "uncertain" ? (
-                        <span>
-                          Could not be read with certainty —{" "}
-                          {row.bl.issue || row.si.issue || "please check"}
-                        </span>
-                      ) : same ? (
-                        <span>
-                          Both say “{short(row.si.raw)}” — it follows the
-                          consignee, which differs.
-                        </span>
-                      ) : (
-                        <>
-                          <span className="cg-att-side">
-                            SI:{" "}
-                            <b>
-                              <DiffSnippet
-                                value={row.si.raw}
-                                other={row.bl.raw}
-                              />
-                            </b>
-                          </span>
-                          <span className="cg-att-side">
-                            BL:{" "}
-                            <b>
-                              <DiffSnippet
-                                value={row.bl.raw}
-                                other={row.si.raw}
-                              />
-                            </b>
-                          </span>
-                        </>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <p>{status.detail}</p>
-            )}
-            {attention.length > 0 && (
-              <p className="cg-next-line">
-                <strong>Next:</strong>{" "}
-                {status.tone === "differences"
-                  ? "ask the sender to correct the draft BL — the reply is written for you."
-                  : "compare with the document and correct the value if it was read wrongly."}
-              </p>
-            )}
-            {plan && plan.bucket === "todo" && plan.reasons.length > 0 && (
-              <p className="cg-priority-line">
-                <span className={`cg-pill ${plan.level}`}>
-                  {plan.level[0].toUpperCase() + plan.level.slice(1)} priority
+              {refs?.shipment[0] && (
+                <span>
+                  <Hash size={15} aria-hidden="true" />
+                  Order {refs.shipment.join(", ")}
                 </span>
-                {plan.reasons.join(" · ")}
-              </p>
-            )}
-          </div>
-          <div className="cg-status-actions">
-            {status.action && (
-              <button
-                className="cg-btn primary large"
-                onClick={() => act(status.action!.target)}
-              >
-                {status.action.label} <ArrowRight size={19} />
+              )}
+              {refs?.po[0] && <span>PO {refs.po.join(", ")}</span>}
+              <button type="button" onClick={() => go("documents")}>
+                <Paperclip size={15} aria-hidden="true" />
+                {result.documents.length} document
+                {result.documents.length === 1 ? "" : "s"}
               </button>
-            )}
-            {status.secondary && (
-              <button
-                className="cg-btn"
-                onClick={() =>
-                  act(status.secondary!.target, status.secondary!.label)
-                }
-              >
-                {status.secondary.label}
-              </button>
-            )}
+              {thread && (
+                <button type="button" onClick={() => go("conversation")}>
+                  <MessagesSquare size={15} aria-hidden="true" />
+                  {thread.ids.length} emails in this conversation
+                </button>
+              )}
+            </p>
           </div>
-        </section>
+          <section
+            className="cg-casehead-status"
+            aria-label="Result and next step"
+          >
+            <span className="cg-casehead-icon" aria-hidden="true">
+              {STATUS_ICON[status.tone]}
+            </span>
+            <div className="cg-casehead-result">
+              <strong>{status.title}</strong>
+              <span>{status.detail}</span>
+              {plan?.bucket === "todo" && plan.reasons.length > 0 && (
+                <small>{plan.reasons.join(" · ")}</small>
+              )}
+            </div>
+            <div className="cg-casehead-actions">
+              {status.secondary &&
+                !(
+                  status.secondary.target === "compare" && tab === "compare"
+                ) && (
+                  <button
+                    className="cg-btn"
+                    onClick={() =>
+                      act(status.secondary!.target, status.secondary!.label)
+                    }
+                  >
+                    {status.secondary.label}
+                  </button>
+                )}
+              {status.action && (
+                <button
+                  className="cg-btn primary"
+                  onClick={() => act(status.action!.target)}
+                >
+                  {status.action.label} <ArrowRight size={18} />
+                </button>
+              )}
+            </div>
+          </section>
+        </header>
         <nav className="cg-case-tabs" aria-label="Case sections">
-          <div className="cg-steps-nav" role="tablist">
-            {CASE_TABS.filter((item) => item.step).map((item) => (
+          <div className="cg-ctabs" role="tablist">
+            {CASE_TABS.map((item) => (
               <button
                 key={item.id}
                 role="tab"
-                className="cg-step-tab"
+                className="cg-ctab"
                 aria-selected={tab === item.id}
                 onClick={() => {
                   setMarkDoneFor(null);
                   onTab(item.id);
                 }}
               >
-                <span className="cg-step-number">{item.step}</span>
                 {item.label}
                 {item.id === "compare" && result.defect_fields.length > 0 && (
-                  <span className="cg-count red">
+                  <span className="cg-qcount red">
                     {result.defect_fields.length}
                   </span>
                 )}
-              </button>
-            ))}
-          </div>
-          <div
-            className="cg-more-tabs"
-            role="tablist"
-            aria-label="More about this email"
-          >
-            {CASE_TABS.filter((item) => !item.step).map((item) => (
-              <button
-                key={item.id}
-                role="tab"
-                className="cg-more-tab"
-                aria-selected={tab === item.id}
-                onClick={() => {
-                  setMarkDoneFor(null);
-                  onTab(item.id);
-                }}
-              >
-                {item.label}
                 {item.id === "conversation" && thread && (
-                  <span className="cg-count">{thread.ids.length}</span>
+                  <span className="cg-qcount">{thread.ids.length}</span>
                 )}
                 {item.id === "documents" && (
-                  <span className="cg-count">{result.documents.length}</span>
+                  <span className="cg-qcount">{result.documents.length}</span>
                 )}
               </button>
             ))}

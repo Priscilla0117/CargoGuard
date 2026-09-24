@@ -43,7 +43,7 @@ Code: `lib/reply.ts`, `components/reply-composer.tsx`, `lib/reply-ai.ts`,
 | "Correct value" hidden inside Details | Every value in the comparison has an **Edit** button beside it. Editing happens in place. |
 | Buttons everywhere, up and down | A case has **one action area**: the top bar (Back, Previous/Next, More ▾) and **one recommended button** in the status card. Rarely used actions (upload corrected BL, read documents again, change email type, print, assistant) are under *More*. |
 | Need action / Differences / Review boxes overlap | Replaced with simple tabs: **To do · Waiting for reply · Done · FYI & spam · All**. *To do* has optional chips (Fix differences, Check unclear info, Missing documents, Send SI, Invoice question, Not checked yet, Follow-up due). |
-| Where do I focus? | A **Start here — most urgent** card at the top of the inbox with the reason ("Documents do not match · Cut-off tomorrow · Waiting 6 days") and one big *Open* button. Previous/Next keeps the same order inside a case. |
+| Where do I focus? | A slim **Next up** bar at the top of the inbox with the reason ("Documents do not match · Cut-off tomorrow · Waiting 6 days") and one *Open* button. Previous/Next keeps the same order inside a case. |
 | Opening a case catches the wrong attention | The case opens with the subject, the sender and date, then **one coloured status card** in plain words ("3 details do not match the SI — Different: consignee, gross weight. Ask the sender to correct the draft BL.") and its button. Details sit in tabs below. |
 | Typography: words suddenly big or small | One type scale (13 / 14 / 15 / 16 / 18 / 22 / 26 / 30 px) across every page, with nothing below 13 px. More than 30 sizes (8–58 px) and over 550 rules were normalised. |
 | Better comparison design | Side by side: *Detail · Shipping Instruction (the correct value) · Draft BL*. Problems are listed first; the **differing words are highlighted**. **Edit** opens in place and shows the effect before saving ("This fixes 1 difference"). After saving the row flashes green and keeps a *Corrected by a reviewer* badge. The rows do not jump around while you work. |
@@ -148,7 +148,7 @@ A custom LLM gives an answer; CargoGuard gives an answer **you can check**:
 
 | Who | What they get |
 | --- | --- |
-| Documentation officer | One inbox sorted by urgency, a *Start here* card, side-by-side check with edit in place, one-click reply draft, Gmail drafts |
+| Documentation officer | One inbox sorted by urgency, a *Next up* bar, side-by-side check with edit in place, one-click reply draft, Gmail drafts |
 | Reviewer / supervisor | Every correction with name and reason, full history per case, activity log, bulk completion of matching cases |
 | Team lead / manager | Reports, where drafts differ, downloadable plan / shift brief / follow-up handover |
 | Customer, carrier and finance counterparts | Faster, precise replies that quote the exact SI value and reference numbers |
@@ -163,21 +163,27 @@ the exact words that differ, writes the reply with the correct values, groups
 the whole order conversation, and puts the most urgent email first, with every
 decision recorded.
 
-## Round 2 changes (UI/UX review)
+## Round 2 and 3 changes (UI/UX review)
 
-- **Colour cards are back** on the inbox (*All to do*, *Fix differences*,
-  *Missing documents*, *Check unclear info*, plus *Send SI*, *Invoice
-  question*, *Follow-up due* when they have work), with the *Start here — most
-  urgent* card shown on every tab so the page always looks the same.
-- **Averis logo** in the sidebar and phone header.
+Designed like the work queues Averis staff already know (Outlook, Gmail,
+ticket desks): calm, dense enough to scan, large enough to read.
+
+- **Inbox as one work queue**: a slim **Next up** bar (most urgent email, why,
+  *Open* and *Today's plan*), then one panel with tabs *To do · Waiting for
+  reply · Done · FYI & spam · All emails* and small filter chips with counts
+  (*Differences 5 · Missing documents 1 · Unclear 4 · Send SI 2 · Invoice 4*).
+  The list is a single table-like panel; urgent rows have a red edge.
+- **Case page without a separate result box**: the header card shows the
+  subject, sender, order number, documents and conversation, and ends with one
+  status line (*3 details do not match the SI — Different: consignee, notify
+  party, gross weight*, or **No mismatch detected**) with the recommended
+  button. Standard tabs follow: *SI vs BL check · Reply · Follow-up · Email &
+  conversation · Documents · History*. The SI/BL values, with the differing
+  characters highlighted, are directly underneath — nothing is shown twice.
+- **Averis logo** in the sidebar and phone header; no demo banner.
 - **Today's plan opens as a pop-up** (Do first / Next / Then / When you have
   time, numbered, each with *Open*). Copy, Download and Print are optional.
-- **Simpler case page**: one result card that says exactly what is wrong in the
-  Averis format (*SI: 90420 / BL: 90240*, differing characters highlighted), or
-  **No mismatch detected** when all seven details match; then three numbered
-  steps: *1 Check the details → 2 Reply → 3 Finish*. Email, documents and
-  history are one click away but out of the way.
-- **Bigger text everywhere** (minimum 14 px, body 17 px) and one set of
+- **Readable text everywhere** (minimum 14 px, body 17 px) and one set of
   colours and buttons on every page, including Shipments, Insights, Label
   rules and SI templates.
 - **Plain words**: no router jargon, no PDF coordinates ("See in document ·
@@ -186,10 +192,10 @@ decision recorded.
 ## How to demo in five minutes
 
 1. Inbox → *Import email* → **Load 28 practice emails**.
-2. The *Start here* card shows the most urgent email (`5RFR-36541` draft BL,
+2. The *Next up* bar shows the most urgent email (`5RFR-36541` draft BL,
    due tomorrow). Click **Open**.
-3. The red status card says what is wrong. Scroll the side-by-side check: the
-   differing words are highlighted. Click **Edit** on a value to see in-place
+3. The red status line says what is wrong. Below it, the SI vs BL check shows
+   both values side by side with the differing characters highlighted. Click **Edit** on a value to see in-place
    correction.
 4. Click **Write correction email**: the reply is ready with the exact values.
 5. Open *Email & conversation*: every email about `5RFR-36541`, with numbers

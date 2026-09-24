@@ -973,7 +973,7 @@ export default function Workbench({
                 ? loading && !inboxReady
                   ? "Loading your emails…"
                   : todoCount
-                    ? `${todoCount} email${todoCount === 1 ? " needs" : "s need"} your attention. The most urgent is at the top.`
+                    ? `${todoCount.toLocaleString()} email${todoCount === 1 ? " needs" : "s need"} action · most urgent first`
                     : "You are all caught up."
                 : heading.text}
             </p>
