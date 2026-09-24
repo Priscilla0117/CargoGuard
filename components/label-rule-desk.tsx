@@ -125,22 +125,14 @@ export function LabelRuleDesk() {
       aria-labelledby="rules-page-title"
     >
       <header>
-        <p className="workspace-eyebrow">Reviewer-approved learning</p>
-        <h1 id="rules-page-title">Learned document headings</h1>
-        <p>
-          Teach an unfamiliar heading once, after reviewing its impact. Rules
-          map labels only; they never change a company, weight, quantity or
-          comparison tolerance.
+        <p className="cg-crumb">
+          <a href="/settings">Settings</a> / Label rules
         </p>
-        <details className="rule-scope-details">
-          <summary>How mapping scope protects your evidence</summary>
-          <p>
-            Each mapping is limited to the same document role, file format and
-            exact set of headings. This template signature does not establish an
-            issuer’s identity. Rule-assisted cases remain separately identified
-            from untouched benchmark results.
-          </p>
-        </details>
+        <h1 id="rules-page-title">Label rules</h1>
+        <p>
+          When a document uses a heading CargoGuard does not know (for example
+          “Load Port”), map it once to the right detail.
+        </p>
       </header>
       {error && (
         <p className="alert error" role="alert">
@@ -162,21 +154,25 @@ export function LabelRuleDesk() {
           Checking the saved evidence and updating this registry…
         </p>
       )}
-      {registry && (
-        <div className="rule-metrics">
-          <p>
-            <strong>{registry.approved_last_7_days}</strong> rules approved in
-            the last 7 days
-          </p>
-          <p>
-            <strong>{registry.active_rules}</strong> active mappings
-          </p>
-          <p>
-            <strong>{registry.cases_assisted}</strong> saved cases with rule
-            evidence
-          </p>
-        </div>
-      )}
+      {registry &&
+        registry.approved_last_7_days +
+          registry.active_rules +
+          registry.cases_assisted >
+          0 && (
+          <div className="rule-metrics">
+            <p>
+              <strong>{registry.approved_last_7_days}</strong> rules approved in
+              the last 7 days
+            </p>
+            <p>
+              <strong>{registry.active_rules}</strong> active mappings
+            </p>
+            <p>
+              <strong>{registry.cases_assisted}</strong> saved cases with rule
+              evidence
+            </p>
+          </div>
+        )}
       <section>
         <h2>
           <span className="workspace-step" aria-hidden="true">
@@ -185,8 +181,7 @@ export function LabelRuleDesk() {
           Propose from an original document
         </h2>
         <p className="rule-help">
-          Choose a saved case, inspect its original document, then map the
-          unfamiliar heading to one verified field.
+          Choose a checked email, then map the unknown heading to one detail.
         </p>
         {registry && !cases.length && (
           <div className="workspace-empty">
@@ -340,11 +335,7 @@ export function LabelRuleDesk() {
           </span>
           Preview, approve and manage
         </h2>
-        <p>
-          Approval and disabling require a reviewer or administrator in team
-          mode. Disabling is the rollback operation; existing revisions and
-          their original rule evidence remain immutable.
-        </p>
+        <p>A reviewer approves each rule. Disable a rule to undo it.</p>
         {registry?.rules.length === 0 && (
           <div className="workspace-empty">
             <strong>No custom mappings yet</strong>

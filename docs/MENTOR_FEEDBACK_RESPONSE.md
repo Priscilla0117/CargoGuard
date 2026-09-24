@@ -39,10 +39,10 @@ Code: `lib/reply.ts`, `components/reply-composer.tsx`, `lib/reply-ai.ts`,
 
 | Problem raised | What changed |
 | --- | --- |
-| Navigation is a big issue | **One sidebar on every page**, same order and plain words: *Daily work* (Inbox, Shipments, Insights, Reports) and *Setup* (Email accounts, Label rules, SI templates, Settings). The second navigation bar is gone. On phones it becomes a ☰ menu. |
+| Navigation is a big issue | **One sidebar on every page**, same order and plain words: *Daily work* (Inbox, Shipments, Reports) and *Setup* (Email accounts, Settings); occasional tools sit inside Settings. The second navigation bar is gone. On phones it becomes a ☰ menu. |
 | "Correct value" hidden inside Details | Every value in the comparison has an **Edit** button beside it. Editing happens in place. |
 | Buttons everywhere, up and down | A case has **one action area**: the top bar (Back, Previous/Next, More ▾) and **one recommended button** in the status card. Rarely used actions (upload corrected BL, read documents again, change email type, print, assistant) are under *More*. |
-| Need action / Differences / Review boxes overlap | Replaced with simple tabs: **To do · Waiting for reply · Done · FYI & spam · All**. *To do* has optional chips (Fix differences, Check unclear info, Missing documents, Send SI, Invoice question, Not checked yet, Follow-up due). |
+| Need action / Differences / Review boxes overlap | Replaced with three colour tiles (**Mismatch · Needs review · Reply needed**) and simple tabs: **To do · Waiting for reply · Done · FYI & spam · All**. |
 | Where do I focus? | A slim **Next up** bar at the top of the inbox with the reason ("Documents do not match · Cut-off tomorrow · Waiting 6 days") and one *Open* button. Previous/Next keeps the same order inside a case. |
 | Opening a case catches the wrong attention | The case opens with the subject, the sender and date, then **one coloured status card** in plain words ("3 details do not match the SI — Different: consignee, gross weight. Ask the sender to correct the draft BL.") and its button. Details sit in tabs below. |
 | Typography: words suddenly big or small | One type scale (13 / 14 / 15 / 16 / 18 / 22 / 26 / 30 px) across every page, with nothing below 13 px. More than 30 sizes (8–58 px) and over 550 rules were normalised. |
@@ -163,31 +163,35 @@ the exact words that differ, writes the reply with the correct values, groups
 the whole order conversation, and puts the most urgent email first, with every
 decision recorded.
 
-## Round 2 and 3 changes (UI/UX review)
+## Round 2–4 changes (UI/UX review)
 
-Designed like the work queues Averis staff already know (Outlook, Gmail,
-ticket desks): calm, dense enough to scan, large enough to read.
+Designed around what an operations officer needs from the use case — *which
+email, is there a mismatch, what needs attention* — and nothing more on screen.
 
-- **Inbox as one work queue**: a slim **Next up** bar (most urgent email, why,
-  *Open* and *Today's plan*), then one panel with tabs *To do · Waiting for
-  reply · Done · FYI & spam · All emails* and small filter chips with counts
-  (*Differences 5 · Missing documents 1 · Unclear 4 · Send SI 2 · Invoice 4*).
-  The list is a single table-like panel; urgent rows have a red edge.
-- **Case page without a separate result box**: the header card shows the
-  subject, sender, order number, documents and conversation, and ends with one
-  status line (*3 details do not match the SI — Different: consignee, notify
-  party, gross weight*, or **No mismatch detected**) with the recommended
-  button. Standard tabs follow: *SI vs BL check · Reply · Follow-up · Email &
-  conversation · Documents · History*. The SI/BL values, with the differing
-  characters highlighted, are directly underneath — nothing is shown twice.
-- **Averis logo** in the sidebar and phone header; no demo banner.
-- **Today's plan opens as a pop-up** (Do first / Next / Then / When you have
-  time, numbered, each with *Open*). Copy, Download and Print are optional.
-- **Readable text everywhere** (minimum 14 px, body 17 px) and one set of
-  colours and buttons on every page, including Shipments, Insights, Label
-  rules and SI templates.
-- **Plain words**: no router jargon, no PDF coordinates ("See in document ·
-  Page 1"), dates written as "Fri 25 Sep".
+- **Five menu items**: Inbox, Shipments, Reports, Email accounts, Settings.
+  Occasional tools (Label rules, SI templates, Search saved results) sit under
+  Settings with a breadcrumb back.
+- **Inbox**: a slim **Next up** bar, then three colour tiles for the kinds of
+  work — **Mismatch**, **Needs review** (unclear or missing documents) and
+  **Reply needed** (SI requests, invoice questions, follow-ups). One list panel
+  with *To do · Waiting for reply · Done · FYI & spam · All emails* tabs, a
+  search box, date/type/sort filters and table-like rows.
+- **Case page**: one header card that ends in a single status line
+  (*1 detail does not match the SI — Different: notify party*, or **No
+  mismatch detected**) with the recommended button; standard tabs *SI vs BL
+  check · Reply · Follow-up · Email & conversation · Documents · History*; the
+  SI and BL values with the differing characters highlighted directly below.
+- **Reports**: one summary strip (Emails checked · Mismatch found · Needs
+  review · No mismatch detected), a **Document checks** table (email, result,
+  what to check — click to open), common differences and other emails.
+  *Today's plan* and one *Download* menu in the header. Engineering and
+  accuracy detail moved to a separate *Accuracy* tab.
+- **Shorter wording everywhere**: no demo banner, no explanatory paragraphs on
+  Shipments, Settings, Label rules or SI templates, no server variable names
+  shown to staff, empty panels hidden.
+- **Averis logo**, readable text (minimum 14 px, body 17 px), one set of
+  colours and buttons on every page, and plain words (no router jargon, no PDF
+  coordinates, dates like "Fri 25 Sep").
 
 ## How to demo in five minutes
 
@@ -200,9 +204,11 @@ ticket desks): calm, dense enough to scan, large enough to read.
 4. Click **Write correction email**: the reply is ready with the exact values.
 5. Open *Email & conversation*: every email about `5RFR-36541`, with numbers
    and deadlines.
-6. Back to the inbox: try *Received → Today*, the *To do* chips, and *Group
-   conversations*.
-7. *Email accounts*: connect Gmail with an app password; new mail arrives by
+6. Back to the inbox: click the **Mismatch** tile, try *Received → Today*
+   and *Group conversations*.
+7. *Reports*: the Document checks table lists every checked email with its
+   result and what to check.
+8. *Email accounts*: connect Gmail with an app password; new mail arrives by
    itself.
-8. **Ask CargoGuard** (bottom right): *What should I do first today?*, then
+9. **Ask CargoGuard** (bottom right): *What should I do first today?*, then
    type `5RFR-36541` or *Show open POs*. Click *Open* on any answer.

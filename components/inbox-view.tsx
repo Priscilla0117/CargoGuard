@@ -19,7 +19,6 @@ import {
   DATE_RANGE_LABELS,
   LEVEL_LABELS,
   SORT_LABELS,
-  TODO_REASON_LABELS,
   comparePlanned,
   dateWindow,
   inDateWindow,
@@ -33,30 +32,31 @@ import {
 import { categoryWords, rowStatus } from "@/lib/case-status";
 import { CATEGORIES, type CaseSummary } from "@/lib/types";
 
-/** Kinds of to-do work, in the order an officer usually handles them. */
-const WORK_KINDS: TodoReason[] = [
-  "differences",
-  "missing",
-  "unclear",
-  "si_request",
-  "invoice",
-  "follow_up",
-  "unprocessed",
-];
-/** Short chip labels; the full wording appears in rows and the plan. */
-const CHIP_LABELS: Record<TodoReason, string> = {
-  differences: "Differences",
-  missing: "Missing documents",
-  unclear: "Unclear",
-  si_request: "Send SI",
-  invoice: "Invoice",
-  follow_up: "Follow-up due",
-  unprocessed: "Not checked",
+/** The three kinds of work shown as colour tiles above the list. */
+export type WorkGroup = "mismatch" | "review" | "reply";
+export const WORK_GROUPS: Record<
+  WorkGroup,
+  { label: string; hint: string; reasons: TodoReason[] }
+> = {
+  mismatch: {
+    label: "Mismatch",
+    hint: "BL differs from the SI",
+    reasons: ["differences"],
+  },
+  review: {
+    label: "Needs review",
+    hint: "Unclear or missing documents",
+    reasons: ["unclear", "missing"],
+  },
+  reply: {
+    label: "Reply needed",
+    hint: "SI requests, invoices, follow-ups",
+    reasons: ["si_request", "invoice", "follow_up"],
+  },
 };
-
 export interface InboxFilters {
   bucket: Bucket | "all";
-  reason: TodoReason | "all";
+  reason: WorkGroup | "all";
   search: string;
   category: string;
   range: DateRange;
@@ -147,11 +147,6 @@ function Row({
   const deadline = deadlineText(plan, now);
   const insight = row.email.insight;
   const ref = insight?.refs.shipment[0] ?? insight?.refs.po[0];
-  // The date column already shows the deadline; give the other reason here.
-  const why = plan.reasons.find(
-    (reason) =>
-      !/due|cut-off|etd|eta|payment|deadline|overdue|waiting \d/i.test(reason),
-  );
   return (
     <button
       type="button"
@@ -189,7 +184,6 @@ function Row({
       </span>
       <span className="cg-row-status">
         <span className={`cg-pill ${status.tone}`}>{status.text}</span>
-        {plan.bucket === "todo" && why && <small>{why}</small>}
       </span>
       <span className="cg-row-date">
         {received ? (
@@ -306,7 +300,8 @@ export function InboxView({
             (filters.bucket === "all" || plan.bucket === filters.bucket) &&
             (filters.bucket !== "todo" ||
               filters.reason === "all" ||
-              plan.reason === filters.reason),
+              (!!plan.reason &&
+                WORK_GROUPS[filters.reason].reasons.includes(plan.reason))),
         )
         .sort((a, b) => comparePlanned(a, b, filters.sort)),
     [base, filters.bucket, filters.reason, filters.sort],
@@ -416,6 +411,34 @@ export function InboxView({
           )}
         </section>
       )}
+      <section className="cg-tiles" aria-label="Kinds of work to do">
+        {(Object.keys(WORK_GROUPS) as WorkGroup[]).map((key) => {
+          const group = WORK_GROUPS[key];
+          const count = group.reasons.reduce(
+            (sum, reason) => sum + (reasonCounts[reason] ?? 0),
+            0,
+          );
+          const active = filters.bucket === "todo" && filters.reason === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              className={`cg-tile ${key}`}
+              aria-pressed={active}
+              onClick={() => {
+                setFilters({ bucket: "todo", reason: active ? "all" : key });
+                setLimit(40);
+              }}
+            >
+              <strong>{loading ? "–" : count.toLocaleString()}</strong>
+              <span>
+                <b>{group.label}</b>
+                <small>{count ? group.hint : "All clear"}</small>
+              </span>
+            </button>
+          );
+        })}
+      </section>
       <section className="cg-queue" aria-label="Email lists">
         <div className="cg-qtabs" role="tablist" aria-label="Lists">
           {(["todo", "waiting", "done", "other", "all"] as const).map((key) => (
@@ -437,45 +460,6 @@ export function InboxView({
             </button>
           ))}
         </div>
-        {filters.bucket === "todo" && (
-          <div
-            className="cg-qchips"
-            role="group"
-            aria-label="Filter the to-do list by kind of work"
-          >
-            <button
-              className="cg-qchip"
-              aria-pressed={filters.reason === "all"}
-              onClick={() => {
-                setFilters({ reason: "all" });
-                setLimit(40);
-              }}
-            >
-              All
-              <span>{bucketCounts.todo.toLocaleString()}</span>
-            </button>
-            {WORK_KINDS.filter((key) => (reasonCounts[key] ?? 0) > 0).map(
-              (key) => (
-                <button
-                  key={key}
-                  className={`cg-qchip ${key}`}
-                  aria-pressed={filters.reason === key}
-                  title={TODO_REASON_LABELS[key]}
-                  onClick={() => {
-                    setFilters({
-                      reason: filters.reason === key ? "all" : key,
-                    });
-                    setLimit(40);
-                  }}
-                >
-                  <i aria-hidden="true" />
-                  {CHIP_LABELS[key]}
-                  <span>{(reasonCounts[key] ?? 0).toLocaleString()}</span>
-                </button>
-              ),
-            )}
-          </div>
-        )}
       </section>
       {filters.bucket === "done" && bucketCounts.done > 0 && doneTools && (
         <div style={{ paddingTop: 14 }}>{doneTools}</div>

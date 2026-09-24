@@ -380,10 +380,8 @@ export function MailDesk() {
             </button>
             {!status.google_available && (
               <p className="cg-small cg-muted" style={{ marginTop: 12 }}>
-                Not available yet: an administrator needs to add
-                CARGO_GOOGLE_CLIENT_ID, CARGO_GOOGLE_CLIENT_SECRET and
-                CARGO_PUBLIC_ORIGIN (see docs/GMAIL_SETUP.md). Use the app
-                password option on the right meanwhile.
+                Not set up yet — your IT administrator can switch it on. Until
+                then, use the email & app password option.
               </p>
             )}
           </section>

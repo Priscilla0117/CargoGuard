@@ -99,18 +99,11 @@ export function PolicyDesk() {
   }
   return (
     <section className="content-card governance-panel">
-      <div className="eyebrow">EXACT EVIDENCE + BUSINESS CONTEXT</div>
-      <h2>Verification policy</h2>
+      <h2>Comparison rules</h2>
       <p>
-        All seven fields remain mandatory. Tolerances annotate weight
-        differences; they never erase a defect, bypass missing data, or approve
-        a shipment.
-      </p>
-      <p>
-        Active policy:{" "}
-        <strong>{loaded ? `v${policy.version}` : "not yet loaded"}</strong>.
-        Each result retains the policy used when it was processed. Reviewer
-        names are self-declared in this demo—not authenticated staff identities.
+        All seven details are always checked. A weight tolerance only adds a
+        note to small weight differences — it never hides a mismatch. Active
+        version: <strong>{loaded ? `v${policy.version}` : "loading…"}</strong>
       </p>
       {error && (
         <p role="alert" className="field-issue">
@@ -130,7 +123,7 @@ export function PolicyDesk() {
       )}
       <div className="policy-inputs">
         <label>
-          Weight tolerance (kg; 0 disables)
+          Weight tolerance in kg (0 = off)
           <input
             type="number"
             disabled={busy || !loaded}
@@ -145,7 +138,7 @@ export function PolicyDesk() {
           />
         </label>
         <label>
-          Weight tolerance (% of SI; 0 disables)
+          Weight tolerance in % of the SI (0 = off)
           <input
             type="number"
             disabled={busy || !loaded}
@@ -163,10 +156,6 @@ export function PolicyDesk() {
           />
         </label>
       </div>
-      <p>
-        If both limits are enabled, both must be met. An unreadable field is
-        never eligible.
-      </p>
       <div className="case-actions">
         <button
           className="button secondary"
@@ -183,7 +172,7 @@ export function PolicyDesk() {
             setPreview(null);
           }}
         >
-          Restore exact defaults in editor
+          Reset to exact match
         </button>
       </div>
       {preview && (
@@ -237,25 +226,27 @@ export function PolicyDesk() {
           </p>
         </div>
       )}
-      <h3>Version history</h3>
-      {(loaded ? [...history, DEFAULT_POLICY] : []).map((p) => (
-        <details key={p.version}>
-          <summary>
-            v{p.version} · {p.actor} · {p.reason}
-          </summary>
-          <pre>{JSON.stringify(p, null, 2)}</pre>
-          <button
-            className="text-button"
-            disabled={busy}
-            onClick={() => {
-              setRules({ ...p.rules });
-              setPreview(null);
-            }}
-          >
-            Preview these settings as a new version
-          </button>
-        </details>
-      ))}
+      <details className="policy-history">
+        <summary>Version history</summary>
+        {(loaded ? [...history, DEFAULT_POLICY] : []).map((p) => (
+          <details key={p.version}>
+            <summary>
+              v{p.version} · {p.actor} · {p.reason}
+            </summary>
+            <pre>{JSON.stringify(p, null, 2)}</pre>
+            <button
+              className="text-button"
+              disabled={busy}
+              onClick={() => {
+                setRules({ ...p.rules });
+                setPreview(null);
+              }}
+            >
+              Preview these settings as a new version
+            </button>
+          </details>
+        ))}
+      </details>
     </section>
   );
 }

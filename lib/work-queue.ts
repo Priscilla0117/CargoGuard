@@ -2,7 +2,12 @@ import { laneFor, type Lane } from "./operations";
 import type { CaseSummary } from "./types";
 import { effectiveFollowUp, followUpOverdue, type FollowUp } from "./follow-up";
 
-export type WorkspaceView = "inbox" | "performance" | "activity" | "policies";
+export type WorkspaceView =
+  | "inbox"
+  | "performance"
+  | "accuracy"
+  | "activity"
+  | "policies";
 export const QUEUE_FILTERS = [
   ["all", "All cases"],
   ["action", "Needs action"],

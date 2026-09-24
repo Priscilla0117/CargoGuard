@@ -131,12 +131,13 @@ export function SiTemplateDesk() {
     >
       <header>
         <div>
-          <p className="insights-eyebrow">Approved party details only</p>
-          <h1 id="templates-page-title">SI template registry</h1>
+          <p className="cg-crumb">
+            <a href="/settings">Settings</a> / SI templates
+          </p>
+          <h1 id="templates-page-title">SI templates</h1>
           <p>
-            Propose stable party fields from a saved SI, inspect the evidence,
-            and approve a named customer template. Shipment quantities and
-            voyage details remain blank.
+            Save a customer&apos;s shipper, consignee and notify party once and
+            reuse them when preparing a new SI.
           </p>
         </div>
       </header>
@@ -171,8 +172,7 @@ export function SiTemplateDesk() {
           Propose a template
         </h2>
         <p className="insights-help">
-          Start with a readable SI. Keep reusable party details separate from
-          the voyage, dates, containers and quantities of each shipment.
+          Start from a checked SI. Only the party details are saved.
         </p>
         {data && !cases.length && (
           <div className="workspace-empty">
@@ -229,10 +229,7 @@ export function SiTemplateDesk() {
           </button>
         </form>
         <p className="insights-help">
-          Only shipper, consignee and notify party are copied from an
-          unambiguous, readable SI. A reviewer must approve the proposal before
-          a shipment task can use it. The customer&apos;s recorded name must
-          match exactly apart from case and spacing.
+          A reviewer approves each template before it can be used.
         </p>
       </section>
       <section className="insights-card">
@@ -400,11 +397,7 @@ export function SiTemplateDesk() {
         )}
       </section>
       <footer>
-        <p>
-          Templates assist preparation only. Confirm every field against the
-          current order before issuing an SI. Approval is not cargo-release
-          authorization.
-        </p>
+        <p>Always confirm each detail against the current order.</p>
       </footer>
     </main>
   );

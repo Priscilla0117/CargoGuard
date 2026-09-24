@@ -67,14 +67,14 @@ export function NotificationCenter() {
     }
   }
   const unread = rows.filter((r) => !r.acknowledged_at);
+  // Nothing due soon: show nothing rather than an empty panel.
+  if (!rows.length && !error) return null;
   return (
-    <details className="shipment-card">
-      <summary>Deadline reminders · {unread.length} unacknowledged</summary>
+    <details className="shipment-card" open={unread.length > 0}>
+      <summary>Deadline reminders · {unread.length} new</summary>
       <p>
-        Confirmed action deadlines within 24 hours. Checks run every minute
-        while this workspace is open{checked ? `; last checked ${checked}` : ""}
-        . Acknowledgement does not complete the shipment. External delivery
-        requires configured Microsoft access and a reviewed action below.
+        Confirmed deadlines within the next 24 hours
+        {checked ? ` · checked ${checked}` : ""}.
       </p>
       {error && <p role="alert">{error}</p>}
       <button

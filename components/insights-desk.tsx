@@ -102,15 +102,14 @@ export function InsightsDesk() {
     >
       <header>
         <div>
-          <p className="insights-eyebrow">Evidence for the next action</p>
-          <h1 id="insights-page-title">Workspace insights</h1>
-          <p>
-            Search saved cases, inspect where discrepancies occur, and read a
-            digest linked to the original evidence.
+          <p className="cg-crumb">
+            <a href="/settings">Settings</a> / Search saved results
           </p>
+          <h1 id="insights-page-title">Search saved results</h1>
+          <p>Find checked emails by status, port, customer or deadline.</p>
         </div>
         <button onClick={() => void load(latestQuery.current)} disabled={busy}>
-          Refresh snapshot
+          Refresh
         </button>
       </header>
       {error && (
@@ -135,11 +134,7 @@ export function InsightsDesk() {
         className="insights-card"
         aria-labelledby="insights-search-heading"
       >
-        <h2 id="insights-search-heading">Ask the inbox</h2>
-        <p>
-          Supported questions become visible filters. Results come from saved
-          cases; the system does not generate shipping facts.
-        </p>
+        <h2 id="insights-search-heading">Search</h2>
         <form className="insights-question" onSubmit={ask}>
           <label>
             Question
@@ -329,7 +324,10 @@ export function InsightsDesk() {
         )}
       </section>
       {data && (
-        <>
+        <details className="insights-more">
+          <summary>
+            More analysis: trends, general updates, customer history
+          </summary>
           <section
             className="insights-card"
             aria-labelledby="insights-quality-heading"
@@ -545,12 +543,8 @@ export function InsightsDesk() {
           </section>
           <footer>
             <p>{data.scope}</p>
-            <p>
-              No emails or notifications are sent from this page. Shipment
-              release is not authorized by a comparison metric.
-            </p>
           </footer>
-        </>
+        </details>
       )}
     </main>
   );
