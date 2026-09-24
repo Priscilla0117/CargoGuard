@@ -7,7 +7,6 @@ import {
   type FormEvent,
 } from "react";
 import Link from "next/link";
-import { WorkspaceNav } from "./workspace-nav";
 import { requestJson } from "@/lib/client-api";
 import {
   approvedComparison,
@@ -256,7 +255,6 @@ export function ShipmentDesk() {
       tabIndex={-1}
       aria-labelledby="shipment-page-title"
     >
-      <WorkspaceNav active="/shipments" />
       <header className="shipment-top">
         <div>
           <p className="eyebrow">CARGOGUARD / OPERATIONS</p>

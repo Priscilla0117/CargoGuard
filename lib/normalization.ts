@@ -54,6 +54,31 @@ function ambiguousParty(value: string) {
   return names.size > 1;
 }
 
+const NUMBER_WORDS: Record<string, number> = Object.fromEntries(
+  [
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+    "eighteen",
+    "nineteen",
+    "twenty",
+  ].map((word, index) => [word, index + 1]),
+);
+
 /** Consume the whole expression. A valid prefix must never hide a conflicting suffix. */
 export function normalizeValue(field: Field, raw: string): NormalizedValue {
   const value = raw
@@ -79,7 +104,16 @@ export function normalizeValue(field: Field, raw: string): NormalizedValue {
   if (field === "container_count") {
     const parts = value.split(/\s*(?:\+|;|&|\band\b)\s*/i);
     let total = 0;
-    for (const part of parts) {
+    for (const raw of parts) {
+      // "TWO (2) X 40' HC": the words and the digits must agree.
+      const worded = raw.trim().match(/^([a-z]+)\s*\(\s*(\d+)\s*\)\s*(.*)$/i);
+      if (worded && NUMBER_WORDS[worded[1].toLowerCase()] !== Number(worded[2]))
+        return {
+          value: null,
+          issue:
+            "The container count in words and in digits do not agree. Confirm the total.",
+        };
+      const part = worded ? `${worded[2]} ${worded[3]}` : raw;
       // Sizes/types describe containers; they are not additional shipment fields.
       const match = part
         .trim()
