@@ -5,13 +5,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowDownToLine,
-  BarChart3,
   Check,
   CheckCircle2,
-  Eye,
-  FileCheck2,
-  History,
-  Inbox,
+  ChevronDown,
   Info,
   ListChecks,
   Loader2,
@@ -33,7 +29,7 @@ import { PolicyDesk } from "./policy-desk";
 import { BatchReview } from "./batch-review";
 import { GlobalAssistant } from "./global-assistant";
 import type { AssistantMemory } from "./case-assistant";
-import { WorkloadInsights } from "./workload-insights";
+import { ReportsOverview } from "./reports-overview";
 import { AiAvailability } from "./ai-availability";
 import { DEFAULT_FILTERS, InboxView, type InboxFilters } from "./inbox-view";
 import { AuditDetail, CaseView, tabFor, type CaseTab } from "./case-view";
@@ -237,6 +233,25 @@ export default function Workbench({
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
   const [view, setView] = useState<WorkspaceView>(initialView);
+  const [downloadOpen, setDownloadOpen] = useState(false);
+  const downloadRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!downloadOpen) return;
+    const close = (event: MouseEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent) {
+        if (event.key === "Escape") setDownloadOpen(false);
+        return;
+      }
+      if (!downloadRef.current?.contains(event.target as Node))
+        setDownloadOpen(false);
+    };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", close);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", close);
+    };
+  }, [downloadOpen]);
   const [filters, setFiltersState] = useState<InboxFilters>(DEFAULT_FILTERS);
   const setFilters = useCallback(
     (update: Partial<InboxFilters>) =>
@@ -954,11 +969,11 @@ export default function Workbench({
       : view === "policies"
         ? {
             title: "Settings",
-            text: "Comparison rules, AI and your preferences.",
+            text: "Your name, comparison rules and tools.",
           }
         : {
             title: "Reports",
-            text: "Results, accuracy tests and the full activity log.",
+            text: "Which emails were checked and what needs attention.",
           };
   const unprocessed = outdated;
 
@@ -978,6 +993,76 @@ export default function Workbench({
                 : heading.text}
             </p>
           </div>
+          {(view === "performance" ||
+            view === "accuracy" ||
+            view === "activity") && (
+            <div className="cg-page-actions">
+              <button
+                className="cg-btn primary"
+                disabled={!inboxReady}
+                onClick={() => setPlanOpen(true)}
+              >
+                <ListChecks size={18} /> Today&apos;s plan
+              </button>
+              <div className="cg-menu" ref={downloadRef}>
+                <button
+                  className="cg-btn"
+                  aria-haspopup="menu"
+                  aria-expanded={downloadOpen}
+                  onClick={() => setDownloadOpen(!downloadOpen)}
+                >
+                  <ArrowDownToLine size={18} /> Download
+                  <ChevronDown size={16} />
+                </button>
+                {downloadOpen && (
+                  <div className="cg-menu-list" role="menu">
+                    <a
+                      role="menuitem"
+                      href="/api/follow-ups?export=1"
+                      download
+                      onClick={() => setDownloadOpen(false)}
+                    >
+                      Follow-up handover
+                    </a>
+                    <button
+                      role="menuitem"
+                      disabled={!inboxReady}
+                      onClick={() => {
+                        setDownloadOpen(false);
+                        download(
+                          "cargoguard-shift-brief.txt",
+                          shiftBrief(cases, new Date().toISOString()),
+                          "text/plain;charset=utf-8",
+                        );
+                      }}
+                    >
+                      Shift brief
+                    </button>
+                    <button
+                      role="menuitem"
+                      onClick={() => {
+                        setDownloadOpen(false);
+                        void exportAll("reviewed");
+                      }}
+                    >
+                      All results (with reviewer corrections)
+                    </button>
+                    {workspaceConfig?.sample_data && (
+                      <button
+                        role="menuitem"
+                        onClick={() => {
+                          setDownloadOpen(false);
+                          void exportAll();
+                        }}
+                      >
+                        Automatic results only
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           {view === "inbox" && (
             <div className="cg-page-actions">
               <button
@@ -1055,45 +1140,34 @@ export default function Workbench({
         )}
         {view === "inbox" && (
           <>
-            {mail?.configured !== false && (
+            {mail?.connected && (
               <div className="cg-mailbar">
                 <Mail size={16} />
-                {mail?.connected ? (
-                  <>
-                    <span>
-                      <strong>
-                        {mail.provider === "gmail" ? "Gmail" : "Mailbox"}
-                      </strong>{" "}
-                      {mail.account} ·{" "}
-                      {mail.settings?.auto_sync
-                        ? `checks automatically every ${mail.settings.interval_minutes} min`
-                        : "automatic import is off"}
-                      {mail.last_sync_at
-                        ? ` · last check ${new Date(mail.last_sync_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                        : ""}
-                      {mail.last_sync_note ? ` (${mail.last_sync_note})` : ""}
-                    </span>
-                    <button
-                      className="cg-btn small"
-                      disabled={mailBusy || !inboxReady}
-                      onClick={() => void syncMail(true)}
-                    >
-                      {mailBusy ? (
-                        <Loader2 size={15} className="cg-spin" />
-                      ) : (
-                        <RefreshCw size={15} />
-                      )}
-                      Check for new email
-                    </button>
-                  </>
-                ) : (
-                  <span>
-                    Get new emails automatically:{" "}
-                    <Link className="cg-link" href="/mail">
-                      connect Gmail
-                    </Link>
-                  </span>
-                )}
+                <span>
+                  <strong>
+                    {mail.provider === "gmail" ? "Gmail" : "Mailbox"}
+                  </strong>{" "}
+                  {mail.account} ·{" "}
+                  {mail.settings?.auto_sync
+                    ? `checks every ${mail.settings.interval_minutes} min`
+                    : "automatic import is off"}
+                  {mail.last_sync_at
+                    ? ` · last check ${new Date(mail.last_sync_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                    : ""}
+                  {mail.last_sync_note ? ` (${mail.last_sync_note})` : ""}
+                </span>
+                <button
+                  className="cg-btn small"
+                  disabled={mailBusy || !inboxReady}
+                  onClick={() => void syncMail(true)}
+                >
+                  {mailBusy ? (
+                    <Loader2 size={15} className="cg-spin" />
+                  ) : (
+                    <RefreshCw size={15} />
+                  )}
+                  Check for new email
+                </button>
               </div>
             )}
             <InboxView
@@ -1124,13 +1198,9 @@ export default function Workbench({
         {view === "policies" && (
           <div className="cg-panel">
             <section className="cg-card cg-card-pad">
-              <h2>Your preferences</h2>
-              <p className="cg-muted" style={{ marginTop: 0 }}>
-                Saved in this browser. Used when you correct a value or sign a
-                reply.
-              </p>
+              <h2>Your name</h2>
               <label className="cg-field" style={{ maxWidth: 420 }}>
-                Your name (shown in the history of changes)
+                Shown on corrections and used to sign replies
                 <input
                   value={reviewerName}
                   placeholder={employeeName || "e.g. Najiha"}
@@ -1140,13 +1210,38 @@ export default function Workbench({
               </label>
             </section>
             <PolicyDesk />
+            <section className="cg-card cg-card-pad">
+              <h2>Tools</h2>
+              <ul className="cg-tool-list">
+                <li>
+                  <Link href="/rules">
+                    <strong>Label rules</strong>
+                    <span>Teach CargoGuard a new document heading</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/templates">
+                    <strong>SI templates</strong>
+                    <span>Saved customer party details</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/insights">
+                    <strong>Search saved results</strong>
+                    <span>Find checked emails by status, port or customer</span>
+                  </Link>
+                </li>
+              </ul>
+            </section>
             <details className="cg-details">
               <summary>AI services (optional)</summary>
               <div>{inboxReady && !loading && <AiAvailability />}</div>
             </details>
           </div>
         )}
-        {(view === "performance" || view === "activity") && (
+        {(view === "performance" ||
+          view === "accuracy" ||
+          view === "activity") && (
           <div className="cg-tabs" role="tablist" style={{ marginBottom: 20 }}>
             <button
               role="tab"
@@ -1154,7 +1249,7 @@ export default function Workbench({
               aria-selected={view === "performance"}
               onClick={() => navigate("performance")}
             >
-              <BarChart3 size={18} /> Results
+              Overview
             </button>
             <button
               role="tab"
@@ -1165,79 +1260,27 @@ export default function Workbench({
                 refreshWorkspace();
               }}
             >
-              <History size={18} /> Activity log
+              Activity log
+            </button>
+            <button
+              role="tab"
+              className="cg-tab"
+              aria-selected={view === "accuracy"}
+              onClick={() => navigate("accuracy")}
+            >
+              Accuracy
             </button>
           </div>
         )}
         {view === "performance" && (
+          <ReportsOverview
+            cases={cases}
+            loading={loading}
+            onOpen={(id, order) => void openCase(id, "compare", order)}
+          />
+        )}
+        {view === "accuracy" && (
           <div className="cg-panel">
-            <div className="cg-facts">
-              {(
-                [
-                  [
-                    "Emails checked",
-                    `${counts.processed} / ${cases.length}`,
-                    Inbox,
-                  ],
-                  [
-                    "Documents that do not match",
-                    counts.discrepancy,
-                    TriangleAlert,
-                  ],
-                  ["Documents that match", counts.verified, FileCheck2],
-                  ["Need a person to check", counts.review, Eye],
-                  ["Missing documents", counts.awaiting_documents, Search],
-                  ["SI requests, invoices & general", counts.routed, Mail],
-                ] as const
-              ).map(([label, value, Icon]) => (
-                <div className="cg-fact" key={label}>
-                  <span>
-                    <Icon size={14} /> {label}
-                  </span>
-                  <strong style={{ fontSize: 22 }}>{value}</strong>
-                </div>
-              ))}
-            </div>
-            <section className="cg-card cg-card-pad">
-              <h2>Downloads</h2>
-              <div className="cg-page-actions">
-                <button
-                  className="cg-btn primary"
-                  disabled={!inboxReady}
-                  onClick={() => setPlanOpen(true)}
-                >
-                  <ListChecks size={18} /> Today&apos;s plan
-                </button>
-                <a className="cg-btn" href="/api/follow-ups?export=1" download>
-                  <ArrowDownToLine size={18} /> Follow-up handover
-                </a>
-                <button
-                  className="cg-btn"
-                  disabled={!inboxReady}
-                  onClick={() =>
-                    download(
-                      "cargoguard-shift-brief.txt",
-                      shiftBrief(cases, new Date().toISOString()),
-                      "text/plain;charset=utf-8",
-                    )
-                  }
-                >
-                  <ArrowDownToLine size={18} /> Shift brief
-                </button>
-                <button
-                  className="cg-btn"
-                  onClick={() => void exportAll("reviewed")}
-                >
-                  <ArrowDownToLine size={18} /> Reviewed results
-                </button>
-                {workspaceConfig?.sample_data && (
-                  <button className="cg-btn" onClick={() => void exportAll()}>
-                    <ArrowDownToLine size={18} /> Automatic results only
-                  </button>
-                )}
-              </div>
-            </section>
-            <WorkloadInsights cases={cases} />
             <section className="cg-card cg-card-pad">
               <h2>
                 <Sparkles size={18} /> How CargoGuard decides

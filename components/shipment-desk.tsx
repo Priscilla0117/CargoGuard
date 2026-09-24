@@ -257,9 +257,8 @@ export function ShipmentDesk() {
     >
       <header className="shipment-top">
         <div>
-          <p className="eyebrow">CARGOGUARD / OPERATIONS</p>
-          <h1 id="shipment-page-title">Shipment workspace</h1>
-          <p>Keep the evidence, next action and responsible person together.</p>
+          <h1 id="shipment-page-title">Shipments</h1>
+          <p>Every email, document and follow-up for one shipment, together.</p>
         </div>
         <div className="shipment-top-actions">
           <button
@@ -273,7 +272,7 @@ export function ShipmentDesk() {
             }}
             disabled={busy}
           >
-            Refresh workspace
+            Refresh
           </button>
         </div>
       </header>
@@ -296,16 +295,12 @@ export function ShipmentDesk() {
       )}
       {loaded && !identity && (
         <label className="shipment-recorder">
-          Recorded by{" "}
+          Your name{" "}
           <input
             value={actor}
             maxLength={80}
             onChange={(e) => setActor(e.target.value)}
           />
-          <small>
-            Self-declared in isolated demo mode. Team mode uses your signed-in
-            identity.
-          </small>
         </label>
       )}
       <NotificationCenter />
@@ -348,7 +343,7 @@ export function ShipmentDesk() {
           </div>
           <p className="shipment-queue-count" role="status">
             {loaded
-              ? `${rows.length} of ${board.length} shipments · confirmed deadlines first`
+              ? `${rows.length} of ${board.length} shipments`
               : "Loading shipments…"}
           </p>
           <div className="shipment-list">
@@ -391,12 +386,12 @@ export function ShipmentDesk() {
               <strong>
                 {board.length
                   ? "No shipments match this view"
-                  : "Start your first shipment"}
+                  : "No shipments yet"}
               </strong>
               <p>
                 {board.length
                   ? "Try another reference or show the full queue."
-                  : "Create a shipment below, then link its processed email cases and documents."}
+                  : "Create one below and link its emails."}
               </p>
               {board.length > 0 && (
                 <button
@@ -463,40 +458,11 @@ export function ShipmentDesk() {
               className="shipment-card shipment-welcome"
               role={selected ? "status" : undefined}
             >
-              <h2>
-                {selected
-                  ? "Loading shipment…"
-                  : "One place for the correction cycle"}
-              </h2>
+              <h2>{selected ? "Loading shipment…" : "Select a shipment"}</h2>
               <p>
-                Select a shipment or create one. Link the request, source
-                documents and later replies with their evidence. Conflicting
-                references require your review.
+                Choose a shipment on the left to see its emails, documents and
+                next step, or create a new one.
               </p>
-              {!selected && (
-                <ol className="shipment-welcome-steps">
-                  <li>
-                    <strong>Link the evidence</strong>
-                    <span>
-                      Keep email, SI and draft BL revisions in one shipment.
-                    </span>
-                  </li>
-                  <li>
-                    <strong>Resolve the exception</strong>
-                    <span>
-                      Record amendments, assign follow-ups and confirm
-                      deadlines.
-                    </span>
-                  </li>
-                  <li>
-                    <strong>Close with confidence</strong>
-                    <span>
-                      Review the latest comparison and retain its decision
-                      history.
-                    </span>
-                  </li>
-                </ol>
-              )}
             </div>
           )}
           {shipment && detail && (

@@ -8,15 +8,12 @@ import {
 } from "react";
 import {
   BarChart3,
-  FileStack,
   Inbox,
-  Lightbulb,
   Mail,
   Menu,
   Package,
   Settings2,
   ShieldCheck,
-  Tags,
   X,
 } from "lucide-react";
 import { useTeamAccess } from "./team-access";
@@ -35,15 +32,19 @@ export type AppRoute =
 const MAIN: { href: AppRoute; label: string; icon: typeof Inbox }[] = [
   { href: "/", label: "Inbox", icon: Inbox },
   { href: "/shipments", label: "Shipments", icon: Package },
-  { href: "/insights", label: "Insights", icon: Lightbulb },
   { href: "/reports", label: "Reports", icon: BarChart3 },
 ];
 const SETUP: { href: AppRoute; label: string; icon: typeof Inbox }[] = [
   { href: "/mail", label: "Email accounts", icon: Mail },
-  { href: "/rules", label: "Label rules", icon: Tags },
-  { href: "/templates", label: "SI templates", icon: FileStack },
   { href: "/settings", label: "Settings", icon: Settings2 },
 ];
+/** Occasional tools live under Settings; their pages highlight it. */
+const UNDER: Partial<Record<AppRoute, AppRoute>> = {
+  "/outlook": "/mail",
+  "/rules": "/settings",
+  "/templates": "/settings",
+  "/insights": "/settings",
+};
 
 /** Averis wordmark (text-based, matches the Averis brand mark). */
 export function AverisLogo({ dark = false }: { dark?: boolean }) {
@@ -104,7 +105,7 @@ export function AppShell({
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
   }, [open]);
-  const current = active === "/outlook" ? "/mail" : active;
+  const current = UNDER[active] ?? active;
   const link = ({ href, label, icon: Icon }: (typeof MAIN)[number]) => (
     <Link
       key={href}

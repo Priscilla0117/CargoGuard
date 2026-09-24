@@ -10,7 +10,7 @@ The existing URL, https://cargoguard-averis.onrender.com/, is an **older release
 
 Point-by-point: [MENTOR_FEEDBACK_RESPONSE.md](docs/MENTOR_FEEDBACK_RESPONSE.md).
 
-- **Simpler screens**: one sidebar on every page; the inbox has a *Next up* bar, *To do · Waiting for reply · Done · FYI & spam · All emails* tabs and filter chips with counts; a case opens with one plain-language status line and one recommended button, followed by the SI vs BL check; one type scale with no text below 14 px.
+- **Simpler screens**: one sidebar on every page; five menu items; the inbox has a *Next up* bar, three colour tiles (*Mismatch · Needs review · Reply needed*) and *To do · Waiting for reply · Done · FYI & spam · All emails* tabs; Reports shows which email was checked, the result and what to check; a case opens with one plain-language status line and one recommended button, followed by the SI vs BL check; one type scale with no text below 14 px.
 - **Side-by-side check with in-place editing** and highlighted differing words.
 - **Reply like Gmail**: a draft written from the checked values (six reply types, three tones), then send, save to Gmail drafts, open in Gmail or copy. Optional AI wording with a fact guard.
 - **Date/time filter and urgency planning**: received dates, deadlines found in the email text, urgency words, *Download today's plan*.
@@ -25,7 +25,7 @@ Point-by-point: [MENTOR_FEEDBACK_RESPONSE.md](docs/MENTOR_FEEDBACK_RESPONSE.md).
 | --- | --- |
 | Inbox | Email, `.eml` and document import; Gmail auto-import; five-category routing; urgency planning, date filters and conversations; seven-field side-by-side comparison with in-place correction; reply drafts; source inspection; OCR review; replacement BL; revision differences; batch completion of eligible matches |
 | Shipments | Explicit document association; current comparison; ownership; confirmed cutoffs; approved email instructions; revised-SI reconciliation; missing-document and billing drafts; tasks; handovers; history |
-| Insights | Source-linked questions and filters; discrepancy distributions; historical party deviations; quoted general-email digest; visible denominators |
+| Search saved results (Settings) | Source-linked questions and filters; discrepancy distributions; historical party deviations; quoted general-email digest; visible denominators |
 | Label rules | Propose unfamiliar headings, preview impact, approve scoped reuse, inspect history and disable rules |
 | SI templates | Approved stable party fields, source-bound reuse and rollback; shipment-specific values remain blank |
 | Team access | Named accounts, operator/reviewer/admin permissions, shared workspace, revocable sessions and audited administration |
@@ -129,7 +129,7 @@ Chasers, acknowledgements, IT reports and handovers remain saved drafts unless e
 
 | Area | Location |
 | --- | --- |
-| Employee UI | `components/app-shell.tsx`, `components/inbox-view.tsx`, `components/case-view.tsx`, `components/compare-table.tsx`, `components/reply-composer.tsx`, `components/import-dialog.tsx`, `components/mail-desk.tsx`, `components/workbench.tsx`, `app/shipments`, `app/insights`, `app/rules`, `app/templates`, `app/outlook` |
+| Employee UI | `components/app-shell.tsx`, `components/inbox-view.tsx`, `components/case-view.tsx`, `components/compare-table.tsx`, `components/reports-overview.tsx`, `components/reply-composer.tsx`, `components/import-dialog.tsx`, `components/mail-desk.tsx`, `components/workbench.tsx`, `app/shipments`, `app/insights`, `app/rules`, `app/templates`, `app/outlook` |
 | Email intelligence and planning | `lib/mail-intel.ts`, `lib/priority.ts`, `lib/case-status.ts`, `lib/reply.ts`, `lib/eml.ts` |
 | Mailbox connection | `lib/mail-connector.ts`, `lib/gmail.ts`, `lib/imap-adapter.ts`, `lib/mail-storage.ts`, `app/api/mail` |
 | Routing and comparison | `lib/classifier.ts`, `lib/routing*`, `lib/parsers.ts`, `lib/normalization.ts`, `lib/compare.ts` |
