@@ -1,6 +1,6 @@
-# CargoGuard 3.3.1 deployment and recovery
+# CargoGuard 3.4.1 deployment and recovery
 
-This release runs as a standard Next.js Node server with a persistent SQLite/libSQL database. The source branch is `codex/final-round-employee-workflow`. A branch push does not deploy it: Render automatic deployment is disabled. Historical hosted evidence in [CLOUD_RELEASE.md](CLOUD_RELEASE.md) applies to the earlier release described there, not to this branch. Verify the intended engine version and actual HTTPS workflow before calling a new deployment accepted.
+This release runs as a standard Next.js Node server with a persistent SQLite/libSQL database. The source branch is `codex/final-round-employee-workflow`. A branch push does not deploy it: Render automatic deployment is disabled. The [24 September hosted record](CLOUD_RELEASE_341.md) covers the accepted 3.4.1 deployment in demo mode; the [older cloud report](CLOUD_RELEASE.md) remains historical. Verify the intended engine version and actual HTTPS workflow before calling any later deployment accepted.
 
 ## Reproduce the release
 
@@ -56,7 +56,7 @@ Use `/api/live` for the host's process health check. It reports `alive` without 
 Before accepting a new HTTPS deployment:
 
 1. Back up the existing database using the provider's supported procedure and verify a restore to an isolated database. Retain the previous release identifier. Review migrations before applying them; they are transactional per file, and startup never resets stored data.
-2. Confirm `/api/live` and `/api/health` return the intended engine, **3.3.1**. Sign-out must block inbox, document, shipment and export APIs. Inspect the real HTTPS session cookie for `Secure`, `HttpOnly` and `SameSite=Strict`.
+2. Confirm `/api/live` and `/api/health` return the intended engine, **3.4.1**. For a team deployment, sign-out must block inbox, document, shipment and export APIs. Inspect the real HTTPS session cookie for `Secure`, `HttpOnly` and `SameSite=Strict`.
 3. With synthetic data and named test accounts, import a document pair, resolve an exception as reviewer, save a shipment/follow-up, download original bytes, inspect revisions and export reviewed evidence. An operator must not approve reviews or edit membership; cross-origin writes must fail.
 4. Restart/redeploy the service, then verify the same accounts see the exact saved versions, source bytes, audit history and notes. Verify after the host's idle wake too, if applicable. Revoke a test account and confirm its existing session is rejected.
 5. Verify PDF/DOCX/XLSX/TXT parsing, browser OCR assets, bounded uploads, quota errors and user-visible failures on the actual host. Measure cloud latency and memory with expected users; local test timings are not cloud capacity evidence.

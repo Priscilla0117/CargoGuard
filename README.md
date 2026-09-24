@@ -4,7 +4,7 @@ Shipping-document verification and follow-up for operations teams. CargoGuard cl
 
 **Final-round branch:** `codex/final-round-employee-workflow`. Engine **3.4.1** ([current judge-feedback audit](docs/JUDGE_FEEDBACK_AUDIT.md)). This repository contains the executable Next.js application, SQL migrations, local OCR assets, regression tests and deployment configuration. No paid AI API is needed for classification, comparison or OCR.
 
-The existing URL, https://cargoguard-averis.onrender.com/, is an **older release**, not proof that this branch has been deployed. Its dated record is in [CLOUD_RELEASE.md](docs/CLOUD_RELEASE.md). Deploy the exact feature-branch commit and run acceptance checks against that host before sharing it as the final release.
+The [live CargoGuard application](https://cargoguard-averis.onrender.com/) was deployed from this final-round branch at commit `22d1ccf` on **24 September 2026**. Hosted checks confirmed engine **3.4.1**, with **101 workflow and retained-data assertions passing**. The public service retains isolated **demo workspaces with organiser samples**; it is not configured as an employee team or corporate SSO deployment. Main remains unchanged and automatic deployment is off. See the [dated deployment, acceptance and rollback record](docs/CLOUD_RELEASE_341.md).
 
 ## Employee workflows
 

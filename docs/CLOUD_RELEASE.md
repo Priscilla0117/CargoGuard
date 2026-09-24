@@ -1,6 +1,8 @@
 # Cloud and provider verification
 
-This report records **dated observations**, not continuous availability or a guarantee of unseen accuracy. The application runtime is CargoGuard **3.2.1**, deployed on **21 September 2026**. The separate [22 September verification report](SUBMISSION_CHECK.md) records the later local rerun, clean installation and read-only public checks.
+**Historical record:** the current deployment is documented in the [3.4.1 hosted acceptance and rollback record](CLOUD_RELEASE_341.md), dated 24 September 2026. The observations below were not rerun or relabelled as current evidence.
+
+This report records **dated observations**, not continuous availability or a guarantee of unseen accuracy. The application runtime covered here was CargoGuard **3.2.1**, deployed on **21 September 2026**. The separate [22 September verification report](SUBMISSION_CHECK.md) records the later local rerun, clean installation and read-only public checks.
 
 [Public prototype](https://cargoguard-averis.onrender.com/) · [Deployment instructions](DEPLOYMENT.md) · [Model card](MODEL_CARD.md)
 
