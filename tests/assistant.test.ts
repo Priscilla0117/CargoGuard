@@ -444,6 +444,7 @@ test("assistant cache is immutable, private, expiring and shares the recovery qu
   }
 });
 test("assistant API enforces consent, preview binding, isolation, caching, history and in-flight revision checks", async (t) => {
+  await fs.mkdir(path.resolve("work"), { recursive: true });
   const dir = await fs.mkdtemp(path.resolve("work/assistant-api-test-"));
   const oldEnv = { ...process.env },
     oldFetch = globalThis.fetch;
