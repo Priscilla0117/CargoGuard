@@ -77,10 +77,37 @@ for (let index = 0; index < fresh.seeds.length; index++) {
   );
 }
 const freshRecords = fresh.runs.reduce((count, row) => count + row.records, 0);
+const operations = await read(
+  "work/validation/operations-challenge/first-run.json",
+);
+assert.equal(operations.pipeline_version, version);
+assert.equal(operations.summary.passed, true);
+assert.equal(operations.dataset_unchanged_during_run, true);
+assert.equal(
+  await hashFile("tests/fixtures/operations-challenge.json"),
+  operations.dataset_sha256,
+  "The authored dataset changed since its recorded first run.",
+);
+// Keep this diagnostic denominator separate from the organiser benchmark.
+const authoredOperations = {
+  cases: operations.summary.cases,
+  strict_passed: operations.summary.strict_passed,
+  integrity_passed: operations.summary.integrity_passed,
+  combined_passed: operations.summary.combined_passed,
+  expected_mismatches: operations.summary.expected_mismatches,
+  expected_reviews: operations.summary.expected_reviews,
+  expected_independent_attention:
+    operations.summary.expected_independent_attention,
+  dataset_sha256: operations.dataset_sha256,
+  measured_at: operations.completed_at,
+  limitations:
+    "Synthetic, self-authored source-text cases, independent of the organiser generator. The author knew the implementation. Not a blinded holdout, external customer validation, OCR evaluation or proof of superiority over another team.",
+};
 const report = {
   version,
   generated_at: new Date().toISOString(),
   engine: `CargoGuard ${version}`,
+  authored_operations_challenge: authoredOperations,
   metrics: {
     classification_macro_f1: original.official_scorer.classification_macro_f1,
     defect_f1: original.official_scorer.defect_f1,

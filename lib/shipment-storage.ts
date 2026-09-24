@@ -2,10 +2,14 @@ import { storage, getCases } from "./storage";
 import { HttpError } from "./http";
 import { completionBlocker } from "./follow-up";
 import { normalize } from "./normalization";
+import { extract } from "./compare";
 import { checkDocumentIntegrity } from "./integrity-checks";
 import {
   shipmentCommand,
   approvedComparison,
+  amendmentReconciliationBlocker,
+  amendmentOriginalSupported,
+  revisedSiRequestBlocker,
   shipmentPair,
   taskDraft,
   type Shipment,
@@ -278,17 +282,50 @@ export async function saveShipment(
     }
     if (input.approve)
       for (const prior of next.amendments)
-        if (
-          prior.status === "approved" &&
-          prior.field === a.field &&
-          prior.si_sha256 === a.si_sha256
-        )
+        if (prior.status === "approved" && prior.field === a.field)
           prior.status = "superseded";
     a.status = input.approve ? "approved" : "rejected";
     a.decided_by = input.actor;
     a.decided_at = now;
     a.reason = input.reason;
     next.state = "open";
+  } else if (input.action === "reconcile_amendment") {
+    const amendment = next.amendments.find(
+      (item) => item.id === input.amendment_id,
+    );
+    if (!amendment) fail("Instruction not found.");
+    const comparison = bind(sourceFor(input, cases));
+    const blocker = amendmentReconciliationBlocker(
+      next,
+      amendment,
+      comparison,
+      cases,
+    );
+    if (blocker) fail(blocker);
+    // The helper validates every active instruction used in dependent-field
+    // resolution. Bind all of them so concurrent source changes cannot race CAS.
+    for (const instruction of next.amendments.filter(
+      (item) => item.status === "approved",
+    )) {
+      const source = cases.find(
+        (item) => item.email.email_id === instruction.source_case,
+      )!;
+      bind(source);
+    }
+    const si = shipmentPair(comparison).si!;
+    const value = extract(si)[amendment.field];
+    amendment.incorporation = {
+      case_id: comparison.email.email_id,
+      case_version: comparison.version,
+      si_sha256: si.sha256!,
+      si_value: value.raw,
+      si_evidence: value.evidence,
+      actor: input.actor,
+      at: now,
+      reason: input.reason,
+    };
+    next.state = "open";
+    next.completed_cases = {};
   } else if (input.action === "withdraw_amendment") {
     const amendment = next.amendments.find((a) => a.id === input.amendment_id);
     if (!amendment || !["approved", "proposed"].includes(amendment.status))
@@ -303,7 +340,21 @@ export async function saveShipment(
     if (!next.case_ids.includes(input.case_id))
       fail("Link this case before creating its task.");
     if (next.tasks.length >= 100) fail("Shipment task limit reached.");
-    const draft = taskDraft(input.kind, source, next);
+    if (input.kind === "revised_si") {
+      const blocker = revisedSiRequestBlocker(next, source, cases);
+      if (blocker) fail(blocker);
+      const approved = next.amendments.filter(
+        (item) => item.status === "approved",
+      );
+      for (const instruction of approved) {
+        bind(
+          cases.find(
+            (item) => item.email.email_id === instruction.source_case,
+          )!,
+        );
+      }
+    }
+    const draft = taskDraft(input.kind, source, next, cases);
     if (input.template_id || input.template_version) {
       if (
         input.kind !== "si_draft" ||
@@ -324,6 +375,10 @@ export async function saveShipment(
       bound.set(template.source_case, template.source_version);
       draft.body = siTemplateDraft(template, next.references.join(", "));
     }
+    if (draft.body.length > 8000)
+      fail(
+        "The evidence exceeds the 8,000-character task limit. Create individual reviewed requests with the relevant source references.",
+      );
     next.tasks.push({
       id: crypto.randomUUID(),
       kind: input.kind,
@@ -367,6 +422,16 @@ export async function saveShipment(
         if (instructions.rows.some((r) => r.result !== "match"))
           fail(
             "Resolve discrepancies against approved later instructions before completing this shipment check.",
+          );
+        if (
+          instructions.applied.some(
+            (amendment) =>
+              !amendment.incorporation &&
+              !amendmentOriginalSupported(next, amendment, source, cases),
+          )
+        )
+          fail(
+            "An approved instruction is not established by the original SI source. Request a revised SI and record its incorporation; a comparison field edit cannot replace that evidence.",
           );
         const extra = checkDocumentIntegrity(source);
         if (extra.findings.some((f) => f.status === "blocking"))

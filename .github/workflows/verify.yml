@@ -35,6 +35,8 @@ jobs:
         run: npm run lint
       - name: Regression tests
         run: npm test
+      - name: Authored operations challenge
+        run: node --import tsx scripts/evaluate-operations-challenge.ts --report work/validation/operations-challenge/ci.json
       - name: Production build and local OCR assets
         run: npm run build
       - name: Authenticated team workflow and restart persistence

@@ -1,0 +1,1747 @@
+{
+  "schema_version": 1,
+  "title": "CargoGuard authored operations challenge",
+  "provenance": {
+    "classification": "SYNTHETIC_SELF_AUTHORED",
+    "author": "Codex, authored for the CargoGuard hackathon workspace",
+    "authored_at": "2026-09-24T01:12:40.127Z",
+    "organiser_generator_used": false,
+    "external_customer_records_used": false,
+    "expectations_predeclared_before_first_run": true,
+    "limitations": [
+      "Not an external or blinded dataset.",
+      "The author had inspected the engine and existing tests; this is targeted challenge evidence, not unseen statistical proof.",
+      "Plain-text SI/BL sources only; does not measure OCR, PDF layout diversity, employee productivity, authentication or persisted amendment workflows.",
+      "Synthetic company names, example.test email and illustrative container identifiers; no live shipment claim."
+    ]
+  },
+  "references": [
+    {
+      "title": "BIC Container Identification Number",
+      "url": "https://www.bic-code.org/identification-number/",
+      "purpose": "Check digit validates recording/transmission accuracy; does not validate shipment ownership or physical existence."
+    }
+  ],
+  "cases": [
+    {
+      "id": "ops-01",
+      "title": "Seven complete fields agree",
+      "operation_scenario": "complete_document_comparison",
+      "rationale": "Seven complete fields agree",
+      "input": {
+        "email": {
+          "email_id": "ops-01",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "OK",
+          "review_reason": null,
+          "has_defect": false,
+          "defect_fields": [],
+          "field_results": {
+            "shipper": "match",
+            "consignee": "match",
+            "notify_party": "match",
+            "port_of_loading": "match",
+            "port_of_discharge": "match",
+            "container_count": "match",
+            "gross_weight_kg": "match"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "passed"
+          }
+        ],
+        "requires_attention": false
+      }
+    },
+    {
+      "id": "ops-02",
+      "title": "Different declared container totals",
+      "operation_scenario": "strict_container_total_mismatch",
+      "rationale": "Different declared container totals",
+      "input": {
+        "email": {
+          "email_id": "ops-02",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 3\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "MISMATCH",
+          "review_reason": null,
+          "has_defect": true,
+          "defect_fields": ["container_count"],
+          "field_results": {
+            "shipper": "match",
+            "consignee": "match",
+            "notify_party": "match",
+            "port_of_loading": "match",
+            "port_of_discharge": "match",
+            "container_count": "mismatch",
+            "gross_weight_kg": "match"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "passed"
+          }
+        ],
+        "requires_attention": false
+      }
+    },
+    {
+      "id": "ops-03",
+      "title": "Tonnes and kilograms express the same shipment mass",
+      "operation_scenario": "weight_unit_equivalence",
+      "rationale": "Tonnes and kilograms express the same shipment mass",
+      "input": {
+        "email": {
+          "email_id": "ops-03",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42 MT\nVessel: MERIDIAN VOYAGER\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42,000 KG\nVessel: MERIDIAN VOYAGER\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "OK",
+          "review_reason": null,
+          "has_defect": false,
+          "defect_fields": [],
+          "field_results": {
+            "shipper": "match",
+            "consignee": "match",
+            "notify_party": "match",
+            "port_of_loading": "match",
+            "port_of_discharge": "match",
+            "container_count": "match",
+            "gross_weight_kg": "match"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "passed"
+          }
+        ],
+        "requires_attention": false
+      }
+    },
+    {
+      "id": "ops-04",
+      "title": "A supported port name and its matching optional code",
+      "operation_scenario": "port_code_equivalence",
+      "rationale": "A supported port name and its matching optional code",
+      "input": {
+        "email": {
+          "email_id": "ops-04",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang (MYPKG)\nPort of discharge: Singapore (SGSIN)\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "OK",
+          "review_reason": null,
+          "has_defect": false,
+          "defect_fields": [],
+          "field_results": {
+            "shipper": "match",
+            "consignee": "match",
+            "notify_party": "match",
+            "port_of_loading": "match",
+            "port_of_discharge": "match",
+            "container_count": "match",
+            "gross_weight_kg": "match"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "passed"
+          }
+        ],
+        "requires_attention": false
+      }
+    },
+    {
+      "id": "ops-05",
+      "title": "Matching consignee placeholders remain uncertain",
+      "operation_scenario": "human_review_missing_authority",
+      "rationale": "Matching consignee placeholders remain uncertain",
+      "input": {
+        "email": {
+          "email_id": "ops-05",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: Meridian Forest Products Ltd\nConsignee: PENDING\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: Meridian Forest Products Ltd\nConsignee: PENDING\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "NEEDS_REVIEW",
+          "review_reason": "missing_value",
+          "has_defect": false,
+          "defect_fields": [],
+          "field_results": {
+            "shipper": "match",
+            "consignee": "uncertain",
+            "notify_party": "uncertain",
+            "port_of_loading": "match",
+            "port_of_discharge": "match",
+            "container_count": "match",
+            "gross_weight_kg": "match"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "passed"
+          }
+        ],
+        "requires_attention": false
+      }
+    },
+    {
+      "id": "ops-06",
+      "title": "Identical ambiguous party names do not establish a shipper",
+      "operation_scenario": "human_review_ambiguous_party",
+      "rationale": "Identical ambiguous party names do not establish a shipper",
+      "input": {
+        "email": {
+          "email_id": "ops-06",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: North Quay Export Ltd; South Quay Export Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: North Quay Export Ltd; South Quay Export Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "NEEDS_REVIEW",
+          "review_reason": "missing_value",
+          "has_defect": false,
+          "defect_fields": [],
+          "field_results": {
+            "shipper": "uncertain",
+            "consignee": "match",
+            "notify_party": "match",
+            "port_of_loading": "match",
+            "port_of_discharge": "match",
+            "container_count": "match",
+            "gross_weight_kg": "match"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "passed"
+          }
+        ],
+        "requires_attention": false
+      }
+    },
+    {
+      "id": "ops-07",
+      "title": "Ambiguous decimal versus thousands notation needs review",
+      "operation_scenario": "human_review_weight_notation",
+      "rationale": "Ambiguous decimal versus thousands notation needs review",
+      "input": {
+        "email": {
+          "email_id": "ops-07",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42.000 KG\nVessel: MERIDIAN VOYAGER\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "NEEDS_REVIEW",
+          "review_reason": "missing_value",
+          "has_defect": false,
+          "defect_fields": [],
+          "field_results": {
+            "shipper": "match",
+            "consignee": "match",
+            "notify_party": "match",
+            "port_of_loading": "match",
+            "port_of_discharge": "match",
+            "container_count": "match",
+            "gross_weight_kg": "uncertain"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "passed"
+          }
+        ],
+        "requires_attention": false
+      }
+    },
+    {
+      "id": "ops-08",
+      "title": "Unsupported pounds are not silently treated as kilograms",
+      "operation_scenario": "human_review_unsupported_unit",
+      "rationale": "Unsupported pounds are not silently treated as kilograms",
+      "input": {
+        "email": {
+          "email_id": "ops-08",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 LB\nVessel: MERIDIAN VOYAGER\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "NEEDS_REVIEW",
+          "review_reason": "missing_value",
+          "has_defect": false,
+          "defect_fields": [],
+          "field_results": {
+            "shipper": "match",
+            "consignee": "match",
+            "notify_party": "match",
+            "port_of_loading": "match",
+            "port_of_discharge": "match",
+            "container_count": "match",
+            "gross_weight_kg": "uncertain"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "passed"
+          }
+        ],
+        "requires_attention": false
+      }
+    },
+    {
+      "id": "ops-09",
+      "title": "A changed consignee also changes dependent notify party",
+      "operation_scenario": "dependent_notify_mismatch",
+      "rationale": "A changed consignee also changes dependent notify party",
+      "input": {
+        "email": {
+          "email_id": "ops-09",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: Meridian Forest Products Ltd\nConsignee: Crescent Paper Buyers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "MISMATCH",
+          "review_reason": null,
+          "has_defect": true,
+          "defect_fields": ["consignee", "notify_party"],
+          "field_results": {
+            "shipper": "match",
+            "consignee": "mismatch",
+            "notify_party": "mismatch",
+            "port_of_loading": "match",
+            "port_of_discharge": "match",
+            "container_count": "match",
+            "gross_weight_kg": "match"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "passed"
+          }
+        ],
+        "requires_attention": false
+      }
+    },
+    {
+      "id": "ops-10",
+      "title": "An explicit notify party differs from same-as-consignee",
+      "operation_scenario": "strict_notify_party_mismatch",
+      "rationale": "An explicit notify party differs from same-as-consignee",
+      "input": {
+        "email": {
+          "email_id": "ops-10",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: Crescent Paper Buyers Ltd\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "MISMATCH",
+          "review_reason": null,
+          "has_defect": true,
+          "defect_fields": ["notify_party"],
+          "field_results": {
+            "shipper": "match",
+            "consignee": "match",
+            "notify_party": "mismatch",
+            "port_of_loading": "match",
+            "port_of_discharge": "match",
+            "container_count": "match",
+            "gross_weight_kg": "match"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "passed"
+          }
+        ],
+        "requires_attention": false
+      }
+    },
+    {
+      "id": "ops-11",
+      "title": "Initial draft has a weight discrepancy",
+      "operation_scenario": "revision_story_initial_snapshot",
+      "rationale": "First independent snapshot of an authored correction story; this dataset does not create or test persisted revision history.",
+      "input": {
+        "email": {
+          "email_id": "ops-11",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 43000 KG\nVessel: MERIDIAN VOYAGER\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "MISMATCH",
+          "review_reason": null,
+          "has_defect": true,
+          "defect_fields": ["gross_weight_kg"],
+          "field_results": {
+            "shipper": "match",
+            "consignee": "match",
+            "notify_party": "match",
+            "port_of_loading": "match",
+            "port_of_discharge": "match",
+            "container_count": "match",
+            "gross_weight_kg": "mismatch"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "passed"
+          }
+        ],
+        "requires_attention": false
+      }
+    },
+    {
+      "id": "ops-12",
+      "title": "A revision fixes weight but introduces a discharge-port error",
+      "operation_scenario": "revision_story_regression_snapshot",
+      "rationale": "Second independent snapshot of the authored story. Fixing one field must not hide a new error; persisted upload/history behaviour belongs to separate workflow tests.",
+      "input": {
+        "email": {
+          "email_id": "ops-12",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Jakarta\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "MISMATCH",
+          "review_reason": null,
+          "has_defect": true,
+          "defect_fields": ["port_of_discharge"],
+          "field_results": {
+            "shipper": "match",
+            "consignee": "match",
+            "notify_party": "match",
+            "port_of_loading": "match",
+            "port_of_discharge": "mismatch",
+            "container_count": "match",
+            "gross_weight_kg": "match"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "passed"
+          }
+        ],
+        "requires_attention": false
+      }
+    },
+    {
+      "id": "ops-13",
+      "title": "Both documents contain the same wrong container check digit",
+      "operation_scenario": "agreement_is_not_identifier_validity",
+      "rationale": "Both documents contain the same wrong container check digit",
+      "input": {
+        "email": {
+          "email_id": "ops-13",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\nContainer number: MSCU1234560\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\nContainer number: MSCU1234560\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "OK",
+          "review_reason": null,
+          "has_defect": false,
+          "defect_fields": [],
+          "field_results": {
+            "shipper": "match",
+            "consignee": "match",
+            "notify_party": "match",
+            "port_of_loading": "match",
+            "port_of_discharge": "match",
+            "container_count": "match",
+            "gross_weight_kg": "match"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "blocking"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "blocking"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "passed"
+          }
+        ],
+        "requires_attention": true
+      }
+    },
+    {
+      "id": "ops-14",
+      "title": "A valid check digit establishes syntax only",
+      "operation_scenario": "identifier_check_with_bounded_claim",
+      "rationale": "Checksum agreement is not equipment registration, physical existence, ownership or loading approval.",
+      "input": {
+        "email": {
+          "email_id": "ops-14",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\nContainer number: MSCU1234566\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\nContainer number: MSCU1234566\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "OK",
+          "review_reason": null,
+          "has_defect": false,
+          "defect_fields": [],
+          "field_results": {
+            "shipper": "match",
+            "consignee": "match",
+            "notify_party": "match",
+            "port_of_loading": "match",
+            "port_of_discharge": "match",
+            "container_count": "match",
+            "gross_weight_kg": "match"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "passed"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "passed"
+          }
+        ],
+        "requires_attention": false
+      }
+    },
+    {
+      "id": "ops-15",
+      "title": "A letter resembling a digit is not automatically repaired",
+      "operation_scenario": "identifier_ambiguity_review",
+      "rationale": "A letter resembling a digit is not automatically repaired",
+      "input": {
+        "email": {
+          "email_id": "ops-15",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\nContainer number: MSCU12345O6\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\nContainer number: MSCU12345O6\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "OK",
+          "review_reason": null,
+          "has_defect": false,
+          "defect_fields": [],
+          "field_results": {
+            "shipper": "match",
+            "consignee": "match",
+            "notify_party": "match",
+            "port_of_loading": "match",
+            "port_of_discharge": "match",
+            "container_count": "match",
+            "gross_weight_kg": "match"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "review"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "review"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "passed"
+          }
+        ],
+        "requires_attention": true
+      }
+    },
+    {
+      "id": "ops-16",
+      "title": "A declared complete list has fewer containers than declared",
+      "operation_scenario": "independent_complete_list_count",
+      "rationale": "A declared complete list has fewer containers than declared",
+      "input": {
+        "email": {
+          "email_id": "ops-16",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\nComplete container list:\nMSCU1234566\nEnd container list\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\nComplete container list:\nMSCU1234566\nEnd container list\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "OK",
+          "review_reason": null,
+          "has_defect": false,
+          "defect_fields": [],
+          "field_results": {
+            "shipper": "match",
+            "consignee": "match",
+            "notify_party": "match",
+            "port_of_loading": "match",
+            "port_of_discharge": "match",
+            "container_count": "match",
+            "gross_weight_kg": "match"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "passed"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "blocking"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "blocking"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "passed"
+          }
+        ],
+        "requires_attention": true
+      }
+    },
+    {
+      "id": "ops-17",
+      "title": "A partial list cannot prove a count mismatch or count pass",
+      "operation_scenario": "incomplete_list_is_not_checked",
+      "rationale": "A partial list cannot prove a count mismatch or count pass",
+      "input": {
+        "email": {
+          "email_id": "ops-17",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\nComplete container list:\nMSCU1234566\nEnd container list\nPartial list: more containers omitted\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\nComplete container list:\nMSCU1234566\nEnd container list\nPartial list: more containers omitted\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "OK",
+          "review_reason": null,
+          "has_defect": false,
+          "defect_fields": [],
+          "field_results": {
+            "shipper": "match",
+            "consignee": "match",
+            "notify_party": "match",
+            "port_of_loading": "match",
+            "port_of_discharge": "match",
+            "container_count": "match",
+            "gross_weight_kg": "match"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "passed"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "passed"
+          }
+        ],
+        "requires_attention": false
+      }
+    },
+    {
+      "id": "ops-18",
+      "title": "Identical loading and discharge ports require route review",
+      "operation_scenario": "route_advisory_not_automatic_rejection",
+      "rationale": "Identical loading and discharge ports require route review",
+      "input": {
+        "email": {
+          "email_id": "ops-18",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Port Klang\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Port Klang\nContainer count: 2\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "OK",
+          "review_reason": null,
+          "has_defect": false,
+          "defect_fields": [],
+          "field_results": {
+            "shipper": "match",
+            "consignee": "match",
+            "notify_party": "match",
+            "port_of_loading": "match",
+            "port_of_discharge": "match",
+            "container_count": "match",
+            "gross_weight_kg": "match"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "review"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "review"
+          }
+        ],
+        "requires_attention": true
+      }
+    },
+    {
+      "id": "ops-19",
+      "title": "An explicit per-container load exceeds the stated maximum",
+      "operation_scenario": "independent_capacity_violation",
+      "rationale": "Uses the maximum stated on that same equipment row. No generic container-size limit or shipment average is assumed.",
+      "input": {
+        "email": {
+          "email_id": "ops-19",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 1\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\nContainer number: MSCU1234566 | Loaded gross weight: 31000 KG | Maximum gross weight: 30000 KG\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 1\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\nContainer number: MSCU1234566 | Loaded gross weight: 31000 KG | Maximum gross weight: 30000 KG\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "OK",
+          "review_reason": null,
+          "has_defect": false,
+          "defect_fields": [],
+          "field_results": {
+            "shipper": "match",
+            "consignee": "match",
+            "notify_party": "match",
+            "port_of_loading": "match",
+            "port_of_discharge": "match",
+            "container_count": "match",
+            "gross_weight_kg": "match"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "passed"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "blocking"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "blocking"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "passed"
+          }
+        ],
+        "requires_attention": true
+      }
+    },
+    {
+      "id": "ops-20",
+      "title": "A cargo mass without an applicable maximum is not a capacity pass",
+      "operation_scenario": "missing_capacity_evidence",
+      "rationale": "A cargo mass without an applicable maximum is not a capacity pass",
+      "input": {
+        "email": {
+          "email_id": "ops-20",
+          "from": "synthetic-operations@example.test",
+          "subject": "Please compare Shipping Instruction and draft BL",
+          "body": "Please compare the attached draft Bill of Lading against the Shipping Instruction and identify any discrepancies.",
+          "attachments": ["si.txt", "bl.txt"]
+        },
+        "documents": [
+          {
+            "name": "si.txt",
+            "text": "SHIPPING INSTRUCTION\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 1\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\nContainer number: MSCU1234566 | Cargo weight: 25000 KG\n"
+          },
+          {
+            "name": "bl.txt",
+            "text": "DRAFT BILL OF LADING\nShipper: Meridian Forest Products Ltd\nConsignee: Harbour Paper Importers Ltd\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 1\nGross weight: 42000 KG\nVessel: MERIDIAN VOYAGER\nContainer number: MSCU1234566 | Cargo weight: 25000 KG\n"
+          }
+        ]
+      },
+      "expected": {
+        "strict": {
+          "category": "BL_COMPARISON",
+          "status": "OK",
+          "review_reason": null,
+          "has_defect": false,
+          "defect_fields": [],
+          "field_results": {
+            "shipper": "match",
+            "consignee": "match",
+            "notify_party": "match",
+            "port_of_loading": "match",
+            "port_of_discharge": "match",
+            "container_count": "match",
+            "gross_weight_kg": "match"
+          }
+        },
+        "integrity": [
+          {
+            "document": "si.txt",
+            "rule": "container_identifier",
+            "status": "passed"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "si.txt",
+            "rule": "port_route",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_identifier",
+            "status": "passed"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_count",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "container_capacity",
+            "status": "not_checked"
+          },
+          {
+            "document": "bl.txt",
+            "rule": "port_route",
+            "status": "passed"
+          }
+        ],
+        "requires_attention": false
+      }
+    }
+  ]
+}

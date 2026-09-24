@@ -380,6 +380,24 @@ try {
     shipment.status === 200,
     "Operator creates a durable shipment workspace",
   );
+  const incorporationProbe = {
+    action: "reconcile_amendment",
+    id: shipment.data.shipment.id,
+    version: shipment.data.shipment.version,
+    amendment_id: "nonexistent-instruction",
+    case_id: id,
+    case_version: result.version,
+    reason: "Synthetic capability boundary probe",
+    actor: "Forged Caller Name",
+  };
+  check(
+    (await post("/api/shipments", incorporationProbe, operator)).status === 403,
+    "Operator cannot certify instruction incorporation",
+  );
+  check(
+    (await post("/api/shipments", incorporationProbe, reviewer)).status === 409,
+    "Reviewer reaches incorporation validation while nonexistent evidence is rejected",
+  );
   const exported = await request("/api/cases?export=1&mode=reviewed", {
     cookie: reviewer,
   });
