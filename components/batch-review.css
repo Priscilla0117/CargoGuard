@@ -10,14 +10,14 @@
 }
 .batch-review p,
 .batch-review li {
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.8;
 }
 .batch-review form > label {
   display: grid;
   gap: 8px;
   margin: 15px 0;
-  font-size: 13px;
+  font-size: 15px;
 }
 .batch-review textarea {
   min-height: 70px;
@@ -36,7 +36,7 @@
   gap: 12px;
   padding: 14px;
   border-bottom: 1px solid #d9e3ec;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.7;
 }
 .batch-review .batch-attestation {
@@ -55,7 +55,7 @@
 }
 .batch-candidates details {
   margin: 0 16px 14px;
-  font-size: 12px;
+  font-size: 14px;
 }
 .batch-candidates summary {
   cursor: pointer;

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { WorkspaceNav } from "./workspace-nav";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type {
   GeneralDigest,
@@ -101,7 +100,6 @@ export function InsightsDesk() {
       tabIndex={-1}
       aria-labelledby="insights-page-title"
     >
-      <WorkspaceNav active="/insights" />
       <header>
         <div>
           <p className="insights-eyebrow">Evidence for the next action</p>

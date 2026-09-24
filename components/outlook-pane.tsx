@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Script from "next/script";
-import { WorkspaceNav } from "./workspace-nav";
 import { requestJson } from "@/lib/client-api";
 import type { ShipmentTask } from "@/lib/shipments";
 import type { MicrosoftDispatch } from "@/lib/microsoft-storage";
@@ -513,7 +512,6 @@ export function OutlookPane() {
   }
   return (
     <main className="outlook-workspace" id="main-content" tabIndex={-1}>
-      <WorkspaceNav active="/outlook" />
       <Script
         src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"
         strategy="afterInteractive"

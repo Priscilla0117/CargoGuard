@@ -1,5 +1,5 @@
 /**
- * Complete structural mirror of authoritative SQL migrations 0000-0011.
+ * Complete structural mirror of authoritative SQL migrations 0000-0012.
  *
  * IMPORTANT: drizzle/meta currently records only 0000. Do not apply db:generate
  * output to an existing database until metadata is reconciled with ALL
@@ -490,6 +490,63 @@ export const microsoftNotificationOutbox = sqliteTable(
       sql.raw(
         "status IN ('creating','draft','sending','submitted','unknown','failed','cancelled')",
       ),
+    ),
+  ],
+);
+
+export const mailConnections = sqliteTable(
+  "mail_connections",
+  {
+    workspace: text("workspace").notNull(),
+    userId: text("user_id").notNull(),
+    provider: text("provider").notNull(),
+    account: text("account").notNull(),
+    encryptedSecret: text("encrypted_secret").notNull(),
+    settings: text("settings").notNull(),
+    version: integer("version").notNull(),
+    lastSyncAt: text("last_sync_at"),
+    lastSyncNote: text("last_sync_note"),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workspace, t.userId] }),
+    check("mail_connections_check_1", sql.raw("provider IN ('gmail','imap')")),
+  ],
+);
+
+export const mailOauthStates = sqliteTable(
+  "mail_oauth_states",
+  {
+    stateHash: text("state_hash"),
+    workspace: text("workspace").notNull(),
+    userId: text("user_id").notNull(),
+    sessionHash: text("session_hash").notNull(),
+    encryptedVerifier: text("encrypted_verifier").notNull(),
+    expiresAt: text("expires_at").notNull(),
+    usedAt: text("used_at"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.stateHash] }),
+    index("idx_mail_oauth_states_expiry").on(t.expiresAt),
+  ],
+);
+
+export const mailImports = sqliteTable(
+  "mail_imports",
+  {
+    workspace: text("workspace").notNull(),
+    userId: text("user_id").notNull(),
+    messageKey: text("message_key").notNull(),
+    status: text("status").notNull(),
+    caseId: text("case_id"),
+    note: text("note"),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workspace, t.userId, t.messageKey] }),
+    check(
+      "mail_imports_check_1",
+      sql.raw("status IN ('importing','imported','skipped','failed')"),
     ),
   ],
 );

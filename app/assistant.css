@@ -17,7 +17,7 @@
   color: #fff8e9;
   padding: 15px 20px;
   box-shadow: 0 7px 25px #163f3833;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -67,12 +67,12 @@
   padding: 20px 24px 8px;
 }
 .assistant-panel-header h2 {
-  font-size: 23px;
+  font-size: 22px;
   margin-top: 5px;
   letter-spacing: -0.5px;
 }
 .assistant-panel-description {
-  font-size: 12px;
+  font-size: 14px;
   color: #617269;
   margin: 0;
   padding: 0 24px 17px;
@@ -105,11 +105,11 @@
   margin-bottom: 24px;
 }
 .assistant-workspace-card h3 {
-  font-size: 17px;
+  font-size: 18px;
   margin: 0;
 }
 .assistant-workspace-card p {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.7;
   margin: 3px 0 0;
   color: #4b6656;
@@ -122,18 +122,18 @@
 }
 .assistant-workspace-counts > span {
   flex: 1;
-  font-size: 10px;
+  font-size: 14px;
   background: #fffefa;
   border-radius: 9px;
   padding: 10px;
 }
 .assistant-workspace-counts strong {
   display: block;
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 600;
 }
 .assistant-picker > label {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
 }
 .assistant-case-search {
@@ -152,10 +152,10 @@
   border: 0;
   background: transparent;
   padding: 5px 0;
-  font-size: 13px;
+  font-size: 15px;
 }
 .assistant-picker-note {
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.8;
   color: #637368;
   margin: 12px 0;
@@ -186,14 +186,14 @@
   gap: 8px;
 }
 .assistant-case-list strong {
-  font-size: 12px;
+  font-size: 14px;
 }
 .assistant-case-list small {
   color: #566f5d;
-  font-size: 10px;
+  font-size: 14px;
 }
 .assistant-case-list p {
-  font-size: 12px;
+  font-size: 14px;
   margin: 6px 0 0;
   line-height: 1.6;
   overflow-wrap: anywhere;
@@ -215,7 +215,7 @@
   background: #eaf1e9;
 }
 .assistant-context-bar strong {
-  font-size: 14px;
+  font-size: 15px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -223,7 +223,7 @@
 }
 .assistant-context-bar span {
   display: block;
-  font-size: 11px;
+  font-size: 14px;
   margin-top: 3px;
 }
 .assistant-context-bar button {
@@ -232,7 +232,7 @@
 .assistant-case-subject {
   padding: 12px 22px 0;
   margin: 0;
-  font-size: 12px;
+  font-size: 14px;
   color: #536b5d;
   overflow-wrap: anywhere;
 }
@@ -247,11 +247,11 @@
   background: #f4f7f0;
 }
 .assistant-source-view h3 {
-  font-size: 15px;
+  font-size: 16px;
 }
 .assistant-source-view > p,
 .assistant-source-view > a {
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
@@ -272,7 +272,7 @@
   gap: 8px;
   padding: 7px;
   margin: 0;
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.7;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -337,7 +337,7 @@
   border-radius: 15px;
 }
 .assistant-hero h3 {
-  font-size: 25px;
+  font-size: 26px;
   line-height: 1.2;
   margin: 4px 0;
   letter-spacing: -0.7px;
@@ -346,7 +346,7 @@
 .assistant-intro p {
   margin: 5px 0 0;
   color: #5d6e69;
-  font-size: 13px;
+  font-size: 15px;
 }
 .assistant-badge {
   margin-left: auto;
@@ -355,7 +355,7 @@
   border: 1px solid #cdded3;
   padding: 6px 9px;
   border-radius: 20px;
-  font-size: 11px;
+  font-size: 14px;
   white-space: nowrap;
 }
 .assistant-boundary {
@@ -372,10 +372,10 @@
   margin-top: 2px;
 }
 .assistant-boundary strong {
-  font-size: 12px;
+  font-size: 14px;
 }
 .assistant-boundary p {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.6;
   margin: 4px 0 0;
   color: #4b6258;
@@ -403,7 +403,7 @@
   border-radius: 10px;
   background: #fffefa;
   text-align: left;
-  font-size: 12px;
+  font-size: 14px;
   cursor: pointer;
 }
 .assistant-starters button svg:last-child {
@@ -429,12 +429,12 @@
   margin-bottom: 24px;
 }
 .assistant-conversation > h4 {
-  font-size: 15px;
+  font-size: 16px;
   display: flex;
   justify-content: space-between;
 }
 .assistant-conversation > h4 span {
-  font-size: 11px;
+  font-size: 14px;
   color: #61766c;
   font-weight: 400;
 }
@@ -448,14 +448,14 @@
   border-radius: 13px 13px 3px 13px;
 }
 .assistant-question > span {
-  font-size: 10px;
+  font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 1px;
   color: #486e5a;
   font-weight: 700;
 }
 .assistant-question p {
-  font-size: 13px;
+  font-size: 15px;
   margin: 5px 0 0;
   line-height: 1.7;
   white-space: pre-wrap;
@@ -469,7 +469,7 @@
   background: #fffefa;
 }
 .assistant-answer-label {
-  font-size: 10px;
+  font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 0.6px;
   color: #597564;
@@ -477,7 +477,7 @@
 }
 .assistant-block > p {
   white-space: pre-wrap;
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.8;
   overflow-wrap: anywhere;
   margin: 10px 0;
@@ -493,13 +493,13 @@
 }
 .assistant-draft-label,
 .assistant-step-label {
-  font-size: 11px;
+  font-size: 14px;
   color: #80602d;
 }
 .assistant-citations summary,
 .assistant-consent summary {
   cursor: pointer;
-  font-size: 12px;
+  font-size: 14px;
   color: #28604c;
   padding: 8px 0;
 }
@@ -508,26 +508,26 @@
   border-radius: 8px;
   padding: 11px;
   margin: 5px 0;
-  font-size: 12px;
+  font-size: 14px;
 }
 .assistant-fact pre {
   font-family: inherit;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.7;
-  font-size: 12px;
+  font-size: 14px;
   margin: 6px 0;
 }
 .assistant-fact .assistant-value {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.7;
   margin: 8px 0;
 }
 .assistant-fact small {
   display: block;
-  font-size: 10px;
+  font-size: 14px;
   color: #5a6e60;
   line-height: 1.7;
   margin: 6px 0;
@@ -543,7 +543,7 @@
 .assistant-excerpt-label {
   display: block;
   margin-top: 10px;
-  font-size: 10px;
+  font-size: 14px;
   text-transform: uppercase;
   color: #597564;
 }
@@ -553,7 +553,7 @@
   border-left: 2px solid #d6e1d7;
 }
 .assistant-related > span {
-  font-size: 10px;
+  font-size: 14px;
   color: #637366;
 }
 .assistant-composer {
@@ -563,7 +563,7 @@
   background: white;
 }
 .assistant-composer > label {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   display: block;
   margin-bottom: 9px;
@@ -577,7 +577,7 @@
   max-height: 280px;
   padding: 10px;
   font: inherit;
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.7;
   border: 1px solid #d8e0d8;
   border-radius: 8px;
@@ -591,7 +591,7 @@
   margin-top: 12px;
 }
 .assistant-compose-footer small {
-  font-size: 10px;
+  font-size: 14px;
   color: #637568;
   line-height: 1.6;
 }
@@ -606,7 +606,7 @@
   border-radius: 12px;
 }
 .assistant-consent > p {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.7;
   color: #665e48;
 }
@@ -615,7 +615,7 @@
   overflow: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: 11px;
+  font-size: 14px;
   background: white;
   padding: 12px;
   border-radius: 8px;
@@ -624,7 +624,7 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.7;
   margin: 12px 0 16px;
   cursor: pointer;
@@ -642,15 +642,15 @@
   background: #fff3ed;
   border: 1px solid #e5c4ae;
   border-radius: 10px;
-  font-size: 13px;
+  font-size: 15px;
 }
 .assistant-error p,
 .assistant-progress {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.7;
 }
 .assistant-meta {
-  font-size: 11px;
+  font-size: 14px;
   color: #617269;
   line-height: 1.7;
 }
@@ -660,13 +660,13 @@
   padding-top: 12px;
 }
 .assistant-footer > summary {
-  font-size: 12px;
+  font-size: 14px;
   cursor: pointer;
   color: #52695f;
   padding: 8px 0;
 }
 .assistant-footer p {
-  font-size: 10px;
+  font-size: 14px;
   line-height: 1.8;
   color: #607165;
 }
@@ -684,10 +684,10 @@
     gap: 10px;
   }
   .assistant-hero h3 {
-    font-size: 23px;
+    font-size: 22px;
   }
   .assistant-hero p {
-    font-size: 11px;
+    font-size: 14px;
   }
   .assistant-badge {
     margin-left: 60px;
@@ -753,7 +753,7 @@
 }
 .assistant-welcome p {
   max-width: 350px;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.7;
   color: #627167;
   margin: 0;
@@ -769,7 +769,7 @@
   gap: 12px;
   text-align: left;
   padding: 13px 15px;
-  font-size: 13px;
+  font-size: 15px;
   border: 1px solid #dce5dc;
   border-radius: 12px;
   background: #fff;
@@ -784,7 +784,7 @@
   color: #6f8d75;
 }
 .assistant-guide-text {
-  font-size: 14px;
+  font-size: 15px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.8;
@@ -806,10 +806,10 @@
   background: #fff;
   border: 0;
   padding: 3px 1px;
-  font-size: 14px;
+  font-size: 15px;
 }
 .assistant-composer > label {
-  font-size: 12px;
+  font-size: 14px;
   color: #54705c;
   margin-bottom: 6px;
 }
@@ -819,7 +819,7 @@
 .assistant-compose-footer .button {
   padding: 10px 13px;
   min-height: 40px;
-  font-size: 12px;
+  font-size: 14px;
 }
 .assistant-dock-note {
   display: flex;
@@ -827,7 +827,7 @@
   justify-content: center;
   gap: 5px;
   margin: 9px 2px 0;
-  font-size: 10px;
+  font-size: 14px;
   line-height: 1.6;
   color: #66766c;
 }
@@ -839,11 +839,11 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: 14px;
 }
 .assistant-panel .assistant-case-subject {
   padding: 0;
-  font-size: 12px;
+  font-size: 14px;
   margin: 0 0 15px;
 }
 .assistant-context-bar {
@@ -864,13 +864,13 @@
 .assistant-context-actions .button {
   min-height: 32px;
   padding: 6px 9px;
-  font-size: 11px;
+  font-size: 14px;
 }
 .assistant-intro {
   margin: 12px 0;
 }
 .assistant-intro h4 {
-  font-size: 17px;
+  font-size: 18px;
   line-height: 1.4;
 }
 .assistant-intro p {
@@ -890,7 +890,7 @@
 .assistant-prepare {
   padding: 25px;
   overflow-y: auto;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.8;
 }
 .assistant-prepare > svg {
@@ -898,7 +898,7 @@
   margin-bottom: 15px;
 }
 .assistant-prepare h3 {
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1.4;
   margin: 0 0 12px;
 }
@@ -928,16 +928,16 @@
     padding: 18px 16px;
   }
   .assistant-panel-header h2 {
-    font-size: 21px;
+    font-size: 22px;
   }
   .assistant-panel-header .eyebrow {
-    font-size: 9px;
+    font-size: 14px;
   }
   .assistant-welcome {
     padding-top: 9px;
   }
   .assistant-welcome h3 {
-    font-size: 27px;
+    font-size: 26px;
   }
   .assistant-composer-dock {
     padding: 10px 12px 12px;
@@ -951,7 +951,7 @@
     grid-template-columns: 1fr 1fr;
   }
   .assistant-panel .assistant-starters button {
-    font-size: 11px;
+    font-size: 14px;
     padding: 10px;
     gap: 5px;
   }
@@ -962,7 +962,7 @@
     padding: 10px 13px;
   }
   .assistant-context-bar strong {
-    font-size: 12px;
+    font-size: 14px;
   }
 }
 @media (max-height: 550px) {
