@@ -20,7 +20,7 @@ export const LANE_DETAILS: Record<
 > = {
   refresh: {
     title: "Process / recheck",
-    action: "Run inbox",
+    action: "Open to check",
     detail:
       "Unprocessed or older-engine cases. Do not rely on an outdated result.",
   },
@@ -32,7 +32,7 @@ export const LANE_DETAILS: Record<
   },
   recover: {
     title: "Recover evidence",
-    action: "Inspect blockers",
+    action: "Review missing or unclear details",
     detail:
       "Uncertain reading, document roles or routing. Confirm the source before deciding.",
   },

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { requestJson, requestInbox, latencySummary } from "@/lib/client-api";
 import { previewCorrection } from "@/lib/corrections";
 import { CorrectionPreview } from "./correction-preview";
+import { WorkspaceStart } from "./workspace-start";
 import { CorrespondencePanel } from "./correspondence-panel";
 import {
   WorkspaceSchedule,
@@ -89,6 +90,8 @@ import {
   Settings2,
   MessageSquareText,
   Mail,
+  PencilLine,
+  ArrowLeft,
 } from "lucide-react";
 import {
   CATEGORIES,
@@ -265,6 +268,9 @@ export default function Workbench() {
     return result;
   }, []);
   const activeRequest = useRef(createRequestGate());
+  const editTrigger = useRef<HTMLButtonElement | null>(null);
+  const editInput = useRef<HTMLTextAreaElement | null>(null);
+  const comparisonHeading = useRef<HTMLHeadingElement | null>(null);
   const inboxRequests = useRef(createRequestGate());
   const inboxController = useRef<AbortController | null>(null);
   function closeCase() {
@@ -458,6 +464,13 @@ export default function Workbench() {
       sequence: (previous?.sequence ?? 0) + 1,
     }));
   }
+  function startImport() {
+    setReplacement(null);
+    setReplacementDocument(null);
+    setAttachmentMode("replace_all");
+    setIntakeFiles([]);
+    setUpload(true);
+  }
   async function openCase(
     id: string,
     tab = "comparison",
@@ -465,7 +478,7 @@ export default function Workbench() {
   ) {
     if (!continueQueue)
       setQueueSession(visible.map((row) => row.email.email_id));
-    closeCase();
+    if (!continueQueue) closeCase();
     const request = activeRequest.current.next();
     setBusyId(id);
     setError("");
@@ -504,7 +517,11 @@ export default function Workbench() {
       }
     } catch (e) {
       if (activeRequest.current.isCurrent(request))
-        setError((e as Error).message);
+        setError(
+          continueQueue
+            ? `Your current case is still open. Could not load the next case: ${(e as Error).message}`
+            : (e as Error).message,
+        );
     } finally {
       if (activeRequest.current.isCurrent(request)) setBusyId("");
     }
@@ -526,8 +543,7 @@ export default function Workbench() {
       );
       return;
     }
-    // This function is invoked only by the Run inbox click handler, never render.
-    // eslint-disable-next-line react-hooks/purity -- Measure elapsed time in the event handler.
+    // Measure elapsed time inside the check-all click handler.
     const t = performance.now();
     let next = 0,
       done = 0,
@@ -575,7 +591,6 @@ export default function Workbench() {
       }
     };
     await Promise.all([worker(), worker()]);
-    // eslint-disable-next-line react-hooks/purity -- Completion of the same click-triggered async operation.
     setBatchMs(Math.round(performance.now() - t));
     await load();
     setRunning(false);
@@ -991,7 +1006,7 @@ export default function Workbench() {
               </h1>
               <p>
                 {view === "inbox"
-                  ? "Inspect the evidence. Resolve the next case."
+                  ? "Open a case to see what needs checking, or upload your documents."
                   : view === "policies"
                     ? "Versioned policies and cloud AI availability."
                     : "Workspace results, validation and recorded decisions."}
@@ -1008,19 +1023,13 @@ export default function Workbench() {
                 <button
                   className="button secondary"
                   disabled={loading || !inboxReady}
-                  onClick={() => {
-                    setReplacement(null);
-                    setReplacementDocument(null);
-                    setAttachmentMode("replace_all");
-                    setIntakeFiles([]);
-                    setUpload(true);
-                  }}
+                  onClick={startImport}
                 >
                   <Plus size={17} />
-                  Import email
+                  Upload documents
                 </button>
                 <button
-                  className="button primary"
+                  className="button secondary"
                   onClick={processAll}
                   disabled={
                     loading ||
@@ -1035,7 +1044,7 @@ export default function Workbench() {
                         !outdated &&
                         inboxReady
                       ? "Inbox up to date"
-                      : "Run inbox"}
+                      : "Check all emails"}
                 </button>
               </div>
             )}
@@ -1056,9 +1065,9 @@ export default function Workbench() {
             <div className="alert warning">
               <Info size={18} />
               <p>
-                {outdated} saved cases use an older engine. Run inbox to upgrade
-                them safely. Human field corrections are retained when source
-                fingerprints match.
+                {outdated} saved cases need the latest checks. Choose Check all
+                emails to update them. Confirmed corrections stay with unchanged
+                source documents.
               </p>
             </div>
           )}
@@ -1167,17 +1176,36 @@ export default function Workbench() {
           )}
           {view === "inbox" && (
             <>
-              <WorkspaceSchedule
-                cases={cases}
-                filter={scheduleFilter}
-                onFilter={setScheduleFilter}
-                selectedDay={calendarDay}
-                onDay={setCalendarDay}
-                kind={calendarKind}
-                onKind={setCalendarKind}
-                priority={priorityFilter}
-                onPriority={setPriorityFilter}
+              <WorkspaceStart
+                ready={inboxReady && !loading}
+                busy={running || !!busyId}
+                hasProcessed={counts.processed > 0}
+                sampleCount={
+                  cases.filter((row) => row.email.email_id.startsWith("email_"))
+                    .length
+                }
+                onExample={() => void openCase("email_313")}
+                onImport={startImport}
               />
+              <details className="queue-planning">
+                <summary>
+                  Calendar &amp; priority filters
+                  {(scheduleFilter !== "all" ||
+                    calendarDay ||
+                    priorityFilter !== "all") && <span> · Filters active</span>}
+                </summary>
+                <WorkspaceSchedule
+                  cases={cases}
+                  filter={scheduleFilter}
+                  onFilter={setScheduleFilter}
+                  selectedDay={calendarDay}
+                  onDay={setCalendarDay}
+                  kind={calendarKind}
+                  onKind={setCalendarKind}
+                  priority={priorityFilter}
+                  onPriority={setPriorityFilter}
+                />
+              </details>
               <section className="inbox-panel">
                 <div className="table-toolbar">
                   <div className="filter-tabs" aria-label="Filter by outcome">
@@ -1373,11 +1401,23 @@ export default function Workbench() {
                             </small>
                           </TableCell>
                           <TableCell>
-                            {busyId === c.email.email_id ? (
-                              <Loader2 size={18} className="spin" />
-                            ) : (
-                              <ChevronRight size={18} />
-                            )}
+                            <button
+                              className="queue-open-button"
+                              aria-label={`Open case: ${c.email.subject}`}
+                              disabled={busyId === c.email.email_id}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void openCase(c.email.email_id);
+                              }}
+                            >
+                              {busyId === c.email.email_id ? (
+                                <Loader2 size={18} className="spin" />
+                              ) : (
+                                <>
+                                  Open <ChevronRight size={18} />
+                                </>
+                              )}
+                            </button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1397,7 +1437,7 @@ export default function Workbench() {
                       <h3>No matching cases</h3>
                       <p>
                         {counts.processed < cases.length
-                          ? "Run the inbox to create results, or clear filters to see unprocessed cases."
+                          ? "Open a case to check it, or clear filters to see all emails."
                           : "Try another search or clear the filters."}
                       </p>
                       <button
@@ -1793,7 +1833,9 @@ export default function Workbench() {
               <div>
                 <span className="eyebrow">VERIFICATION DETAILS</span>
                 <h2>
-                  {selected.email.email_id.replace("email_", "Shipment #")}
+                  {selected.email.email_id.startsWith("email_")
+                    ? selected.email.email_id.replace("email_", "Shipment #")
+                    : "Document check"}
                 </h2>
               </div>
               <div className="drawer-tools">
@@ -1802,12 +1844,6 @@ export default function Workbench() {
                   onClick={() => launchAssistant(selected.email.email_id)}
                 >
                   <MessageSquareText size={16} /> Ask CargoGuard
-                </button>
-                <button
-                  className="button secondary"
-                  onClick={() => navigateDetail("correspondence")}
-                >
-                  <Mail size={16} /> Email reply
                 </button>
                 <button
                   className="button primary"
@@ -1822,19 +1858,19 @@ export default function Workbench() {
                         : "Resolve case"}
                 </button>
                 <button
-                  className="icon-button"
+                  className="button secondary"
                   onClick={() => window.print()}
                   title="Print report"
                   aria-label="Print report"
                 >
-                  <Printer size={18} />
+                  <Printer size={18} /> Print
                 </button>
                 <button
-                  className="icon-button"
+                  className="button secondary back-to-queue"
                   aria-label="Close details"
                   onClick={closeCase}
                 >
-                  <X size={21} />
+                  <ArrowLeft size={18} /> Back to queue
                 </button>
               </div>
             </div>
@@ -1884,6 +1920,9 @@ export default function Workbench() {
                 </div>
                 <details className="case-advanced">
                   <summary>Category & processing details</summary>
+                  <p className="full-case-id">
+                    Case ID: {selected.email.email_id}
+                  </p>
                   <p>
                     {categoryNames[selected.category]} · Engine{" "}
                     {selected.pipeline_version ?? "legacy"}
@@ -1920,7 +1959,7 @@ export default function Workbench() {
                   ["comparison", "Check"],
                   ["documents", "Sources"],
                   ["history", "History"],
-                  ["correspondence", "Email thread"],
+                  ["correspondence", "Reply & email history"],
                 ].map(([t, label]) => (
                   <button
                     key={t}
@@ -1979,22 +2018,19 @@ export default function Workbench() {
                   )}
                   {selected.comparison.length ? (
                     <>
-                      <div className="policy-case-note">
-                        <strong>
-                          Exact seven-field verdict: {selected.status}
-                        </strong>
+                      <div className="comparison-intro">
+                        <h3 ref={comparisonHeading} tabIndex={-1}>
+                          Check the shipment details
+                        </h3>
                         <p>
-                          Policy v{selected.policy?.version ?? 0}:{" "}
-                          {selected.policy_assessment?.note ??
-                            "Exact comparison; no business exception recorded."}
+                          Read each value, then use <strong>View source</strong>{" "}
+                          to check the original. If CargoGuard read it
+                          incorrectly, choose <strong>Correct value</strong>.
                         </p>
-                      </div>
-                      <div className="comparison-head">
-                        <span>SHIPMENT FIELD</span>
-                        <span>
-                          SI <small>Reference</small>
-                        </span>
-                        <span>DRAFT BL</span>
+                        <p className="comparison-note">
+                          Corrections update this check. They do not change the
+                          original files.
+                        </p>
                       </div>
                       <div className="comparison-focus">
                         <label>
@@ -2003,7 +2039,7 @@ export default function Workbench() {
                             checked={attentionOnly}
                             onChange={(e) => setAttentionOnly(e.target.checked)}
                           />{" "}
-                          Focus on differences & uncertain values
+                          Show only differences and missing information
                         </label>
                         <span>
                           {
@@ -2040,12 +2076,14 @@ export default function Workbench() {
                             <div
                               key={row.field}
                               className={`compare-row ${row.result}`}
+                              role="group"
+                              aria-label={FIELD_LABELS[row.field]}
                             >
                               <div className="row-label">
                                 {row.result === "match" ? (
-                                  <CheckCircle2 size={16} />
+                                  <CheckCircle2 size={20} />
                                 ) : (
-                                  <TriangleAlert size={16} />
+                                  <TriangleAlert size={20} />
                                 )}
                                 <strong>{FIELD_LABELS[row.field]}</strong>
                                 <span>
@@ -2053,58 +2091,89 @@ export default function Workbench() {
                                     ? "Match"
                                     : row.result === "uncertain"
                                       ? "Needs confirmation"
-                                      : "Mismatch"}
+                                      : "Different values"}
                                 </span>
                               </div>
                               {(["si", "bl"] as const).map((side) => (
                                 <div className="comparison-value" key={side}>
+                                  <div className="value-document-label">
+                                    {side === "si"
+                                      ? "Shipping instruction"
+                                      : "Draft bill of lading"}
+                                    <span>
+                                      {side === "si"
+                                        ? "Reference · SI"
+                                        : "To check · BL"}
+                                    </span>
+                                  </div>
                                   <p>{row[side].raw || "Missing value"}</p>
                                   {row[side].issue && (
                                     <small className="field-issue">
                                       {row[side].issue}
                                     </small>
                                   )}
-                                  <button
-                                    className="source-link"
-                                    onClick={() => {
-                                      setDocument(
-                                        selected.documents.find(
-                                          (d) => d.name === row[side].source,
-                                        ) ?? null,
-                                      );
-                                      setSourceLocation(row[side].evidence);
-                                      setDetailTab("documents");
-                                    }}
-                                  >
-                                    <FileText size={12} />
-                                    {row[side].evidence}
-                                  </button>
-                                  <details className="value-details">
-                                    <summary>Details / correct value</summary>
-                                    <small className="normalized-value">
-                                      Compared as:{" "}
-                                      {row[side].normalized ??
-                                        "Needs confirmation"}
-                                    </small>
+                                  <div className="value-actions">
                                     <button
-                                      className="edit-value"
+                                      className="value-action source-link"
+                                      aria-label={`View source for ${FIELD_LABELS[row.field]} in ${side === "si" ? "shipping instruction" : "draft bill of lading"}`}
+                                      onClick={() => {
+                                        setDocument(
+                                          selected.documents.find(
+                                            (d) => d.name === row[side].source,
+                                          ) ?? null,
+                                        );
+                                        setSourceLocation(row[side].evidence);
+                                        setDetailTab("documents");
+                                      }}
+                                    >
+                                      <FileText size={17} /> View source
+                                    </button>
+                                    <button
+                                      className="value-action correct-value-button"
+                                      aria-label={`Correct value for ${FIELD_LABELS[row.field]} in ${side === "si" ? "shipping instruction" : "draft bill of lading"}`}
                                       disabled={!!busyId || saving || running}
-                                      onClick={() =>
+                                      onClick={(event) => {
+                                        editTrigger.current =
+                                          event.currentTarget;
                                         setEdit({
                                           field: row.field,
                                           side,
                                           value: row[side].raw,
-                                        })
-                                      }
+                                        });
+                                      }}
                                     >
-                                      Correct value
+                                      <PencilLine size={17} /> Correct value
                                     </button>
+                                  </div>
+                                  <span className="value-source-location">
+                                    {row[side].evidence}
+                                  </span>
+                                  <details className="value-details">
+                                    <summary>
+                                      How this value was compared
+                                    </summary>
+                                    <p className="normalized-value">
+                                      Compared as:{" "}
+                                      {row[side].normalized ??
+                                        "Needs confirmation"}
+                                    </p>
                                   </details>
                                 </div>
                               ))}
                             </div>
                           ))}
                       </div>
+                      <details className="policy-case-note comparison-rules">
+                        <summary>
+                          Comparison rules &amp; business tolerances
+                        </summary>
+                        <p>
+                          Exact seven-field verdict: {selected.status}. Policy v
+                          {selected.policy?.version ?? 0}:{" "}
+                          {selected.policy_assessment?.note ??
+                            "Exact comparison; no business exception recorded."}
+                        </p>
+                      </details>
                       <details className="comparison-explainer">
                         <summary>How these fields are compared</summary>
                         <p>
@@ -2144,6 +2213,13 @@ export default function Workbench() {
               )}
               {detailTab === "documents" && (
                 <div className="document-view">
+                  <button
+                    className="button secondary source-back"
+                    autoFocus
+                    onClick={() => navigateDetail("comparison")}
+                  >
+                    <ArrowLeft size={18} /> Back to field checks
+                  </button>
                   <DocumentPairSelector
                     key={`pair-${selected.email.email_id}-${selected.version}`}
                     result={selected}
@@ -2402,40 +2478,44 @@ export default function Workbench() {
               )}
             </div>
             <div className="drawer-footer">
-              <button
-                className="button secondary"
-                disabled={
-                  running ||
-                  saving ||
-                  uploading ||
-                  !!busyId ||
-                  selected.documents.length >= 10
-                }
-                title="Keep existing sources and add a missing or additional document."
-                onClick={() => startReplacement(selected, null, "append")}
-              >
-                <Plus size={15} /> Add documents
-              </button>
-              <button
-                className="button secondary"
-                disabled={running || saving || uploading || !!busyId}
-                onClick={() => startReplacement(selected)}
-              >
-                Replace documents
-              </button>
-              <button
-                className="button secondary"
-                disabled={!!busyId || running || saving || uploading}
-                onClick={reprocess}
-                title="Re-read current bytes; retain confirmed scan transcripts and category; reset individual field edits."
-              >
-                {busyId ? (
-                  <Loader2 size={15} className="spin" />
-                ) : (
-                  <RefreshCw size={15} />
-                )}
-                Reprocess sources
-              </button>
+              {detailTab === "documents" && (
+                <>
+                  <button
+                    className="button secondary"
+                    disabled={
+                      running ||
+                      saving ||
+                      uploading ||
+                      !!busyId ||
+                      selected.documents.length >= 10
+                    }
+                    title="Keep existing sources and add a missing or additional document."
+                    onClick={() => startReplacement(selected, null, "append")}
+                  >
+                    <Plus size={15} /> Add documents
+                  </button>
+                  <button
+                    className="button secondary"
+                    disabled={running || saving || uploading || !!busyId}
+                    onClick={() => startReplacement(selected)}
+                  >
+                    Replace documents
+                  </button>
+                  <button
+                    className="button secondary"
+                    disabled={!!busyId || running || saving || uploading}
+                    onClick={reprocess}
+                    title="Re-read current bytes; retain confirmed scan transcripts and category; reset individual field edits."
+                  >
+                    {busyId ? (
+                      <Loader2 size={15} className="spin" />
+                    ) : (
+                      <RefreshCw size={15} />
+                    )}
+                    Reprocess sources
+                  </button>
+                </>
+              )}
               <button
                 className="button primary next-case"
                 disabled={!nextId || !!busyId || saving || running || uploading}
@@ -2510,7 +2590,7 @@ export default function Workbench() {
                     : replacementDocument
                       ? "Replace one source document."
                       : "Replace source documents."
-                  : "Bring an email into the queue."}
+                  : "Upload documents with their email."}
               </DialogTitle>
             </div>
             <button
@@ -2797,24 +2877,40 @@ export default function Workbench() {
             showCloseButton={false}
             aria-describedby={undefined}
             className="modal correction-modal"
+            onOpenAutoFocus={(event) => {
+              event.preventDefault();
+              editInput.current?.focus();
+            }}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              if (
+                editTrigger.current?.isConnected &&
+                !editTrigger.current.disabled
+              )
+                editTrigger.current.focus();
+              else comparisonHeading.current?.focus();
+            }}
           >
             <div className="modal-heading">
               <DialogTitle>
-                Confirm {FIELD_LABELS[edit.field].toLowerCase()}
+                Correct {FIELD_LABELS[edit.field].toLowerCase()}
               </DialogTitle>
               <button
-                className="icon-button"
+                className="button secondary"
                 aria-label="Close correction"
                 disabled={saving}
                 onClick={() => setEdit(null)}
               >
-                <X size={20} />
+                <X size={18} /> Cancel
               </button>
             </div>
             <p>
-              Update the extracted {edit.side.toUpperCase()} value after
-              checking the original source. This does not edit the original
-              document.
+              Correct what CargoGuard read from the{" "}
+              {edit.side === "si"
+                ? "shipping instruction"
+                : "draft bill of lading"}{" "}
+              after checking the source. The original file stays unchanged. You
+              can review the effect below before saving.
             </p>
             <form onSubmit={saveEdit}>
               {error && (
@@ -2825,6 +2921,7 @@ export default function Workbench() {
               <label>
                 Confirmed value
                 <textarea
+                  ref={editInput}
                   required
                   rows={3}
                   value={edit.value}
@@ -2868,7 +2965,7 @@ export default function Workbench() {
                 ) : (
                   <CheckCheck size={17} />
                 )}
-                Save correction & recompute
+                {saving ? "Saving correction…" : "Save correction & recheck"}
               </button>
               {nextId && (
                 <button

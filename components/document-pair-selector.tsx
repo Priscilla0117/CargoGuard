@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Files, Loader2, ShieldCheck } from "lucide-react";
 import { requestJson } from "@/lib/client-api";
 import type { AuditEvent, CaseResult } from "@/lib/types";
@@ -15,6 +15,7 @@ export function DocumentPairSelector({
   const [bl, setBl] = useState(result.document_selection?.bl.name ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const selectionHelpId = useId();
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -116,6 +117,7 @@ export function DocumentPairSelector({
                       : setBl(e.target.value)
                   }
                   aria-label={`Select ${side.toUpperCase()} attachment`}
+                  aria-describedby={`${selectionHelpId}-${side}`}
                 >
                   <option value="">
                     Choose a readable {side.toUpperCase()}…
@@ -131,6 +133,13 @@ export function DocumentPairSelector({
                       </option>
                     ))}
                 </select>
+                <small
+                  className="pair-selected-filename"
+                  id={`${selectionHelpId}-${side}`}
+                >
+                  <strong>Selected {side.toUpperCase()} file:</strong>{" "}
+                  {(side === "si" ? si : bl) || "No file selected"}
+                </small>
               </label>
             ))}
           </div>
