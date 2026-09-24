@@ -33,7 +33,13 @@ export type ReviewReason =
   | "missing_value"
   | "uncertain_category";
 export type Outcome = "OK" | "MISMATCH" | "NEEDS_REVIEW";
-export type EmailSource = "sample" | "upload" | "eml" | "gmail" | "imap" | "outlook";
+export type EmailSource =
+  | "sample"
+  | "upload"
+  | "eml"
+  | "gmail"
+  | "imap"
+  | "outlook";
 export interface Email {
   email_id: string;
   from: string;

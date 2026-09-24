@@ -1,4 +1,8 @@
-import { authenticatedActor, errorSession, requireCapability } from "@/lib/auth";
+import {
+  authenticatedActor,
+  errorSession,
+  requireCapability,
+} from "@/lib/auth";
 import { HttpError } from "@/lib/http";
 import { parseEml } from "@/lib/eml";
 import { FIELD_TEST, renderEml } from "@/lib/field-test";
@@ -66,7 +70,9 @@ export async function POST(request: Request) {
         const file = mail.attachments[i];
         const safe = `${i + 1}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-150)}`;
         await storage().BUCKET.put(`${session.id}/${id}/${safe}`, file.bytes, {
-          httpMetadata: { contentType: file.type || "application/octet-stream" },
+          httpMetadata: {
+            contentType: file.type || "application/octet-stream",
+          },
         });
         paths.push(`uploads/${safe}`);
         docs.push(await parseDocument(safe, file.bytes));

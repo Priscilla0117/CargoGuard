@@ -1,6 +1,11 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import {
   BarChart3,
   FileStack,
@@ -40,6 +45,30 @@ const SETUP: { href: AppRoute; label: string; icon: typeof Inbox }[] = [
   { href: "/settings", label: "Settings", icon: Settings2 },
 ];
 
+/** Averis wordmark (text-based, matches the Averis brand mark). */
+export function AverisLogo({ dark = false }: { dark?: boolean }) {
+  return (
+    <span
+      className={`cg-averis-logo ${dark ? "dark" : ""}`}
+      role="img"
+      aria-label="Averis"
+    >
+      <i aria-hidden="true" />
+      averis
+    </span>
+  );
+}
+
+const noSubscribe = () => () => {};
+function readRememberedCount() {
+  try {
+    const saved = Number(sessionStorage.getItem("cg-inbox-count"));
+    return Number.isFinite(saved) && saved > 0 ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
 /** One navigation for every page: same place, same words, same order. */
 export function AppShell({
   active,
@@ -52,6 +81,21 @@ export function AppShell({
 }) {
   const access = useTeamAccess();
   const [open, setOpen] = useState(false);
+  // Pages outside the inbox show the last known to-do count (this tab only).
+  const remembered = useSyncExternalStore(
+    noSubscribe,
+    readRememberedCount,
+    () => null,
+  );
+  useEffect(() => {
+    if (inboxCount === undefined) return;
+    try {
+      sessionStorage.setItem("cg-inbox-count", String(inboxCount));
+    } catch {
+      // Storage can be unavailable (private mode); the badge is optional.
+    }
+  }, [inboxCount]);
+  const count = inboxCount ?? remembered ?? undefined;
   useEffect(() => {
     if (!open) return;
     const close = (event: KeyboardEvent) => {
@@ -71,9 +115,9 @@ export function AppShell({
     >
       <Icon size={20} aria-hidden="true" />
       {label}
-      {href === "/" && !!inboxCount && (
-        <span className="cg-nav-count" aria-label={`${inboxCount} to do`}>
-          {inboxCount > 999 ? "999+" : inboxCount}
+      {href === "/" && !!count && (
+        <span className="cg-nav-count" aria-label={`${count} to do`}>
+          {count > 999 ? "999+" : count}
         </span>
       )}
     </Link>
@@ -89,7 +133,7 @@ export function AppShell({
           <ShieldCheck size={28} aria-hidden="true" />
           <span>
             CargoGuard
-            <small>Shipping document desk</small>
+            <small>Document desk</small>
           </span>
         </Link>
         <nav className="cg-nav-group" aria-label="Daily work">
@@ -101,12 +145,28 @@ export function AppShell({
           {SETUP.map(link)}
         </nav>
         <div className="cg-sidebar-foot">
-          <strong>{access?.user?.display_name ?? "Demo workspace"}</strong>
-          <span>
-            {access?.user
-              ? `${access.user.role[0].toUpperCase()}${access.user.role.slice(1)} · shared team`
-              : "Practice data only · names are self-reported"}
-          </span>
+          <div className="cg-user">
+            <span className="cg-avatar" aria-hidden="true">
+              {(access?.user?.display_name ?? "Demo")
+                .split(/\s+/)
+                .slice(0, 2)
+                .map((part) => part[0])
+                .join("")
+                .toUpperCase()}
+            </span>
+            <span>
+              <strong>{access?.user?.display_name ?? "Demo workspace"}</strong>
+              <small>
+                {access?.user
+                  ? `${access.user.role[0].toUpperCase()}${access.user.role.slice(1)} · shared team`
+                  : "Practice data only"}
+              </small>
+            </span>
+          </div>
+          <div className="cg-averis">
+            <AverisLogo />
+            <small>Built for Averis shipping operations</small>
+          </div>
         </div>
       </aside>
       {open && (
@@ -128,6 +188,8 @@ export function AppShell({
           </button>
           <ShieldCheck size={22} aria-hidden="true" />
           CargoGuard
+          <span className="cg-spacer" />
+          <AverisLogo />
         </header>
         <div className="cg-content">{children}</div>
       </div>

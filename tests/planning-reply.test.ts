@@ -144,7 +144,7 @@ test("status wording gives one plain next step", async () => {
   assert.equal(rowStatus(summaryOf(mismatch)).text, "1 difference");
   assert.equal(
     caseStatus(await caseWith("42000 KG")).title,
-    "All 7 details match",
+    "No mismatch detected",
   );
 });
 

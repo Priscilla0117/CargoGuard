@@ -124,7 +124,7 @@
   background: #eefafa;
 }
 .shipment-list span {
-  font-size: 13px;
+  font-size: 14px;
 }
 .shipment-tabs button[aria-pressed="true"] {
   background: #174e61;
@@ -151,7 +151,7 @@
   min-width: 240px;
 }
 .shipment-case p {
-  font-size: 13px;
+  font-size: 14px;
 }
 .shipment-proposal,
 .shipment-task {
@@ -171,7 +171,7 @@
   overflow-wrap: anywhere;
   background: #f1f5f7;
   padding: 14px;
-  font-size: 13px;
+  font-size: 14px;
   max-height: 400px;
   overflow: auto;
 }
@@ -189,7 +189,7 @@
 .shipment-app table {
   border-collapse: collapse;
   width: 100%;
-  font-size: 13px;
+  font-size: 14px;
   table-layout: fixed;
 }
 .shipment-app td,
@@ -206,7 +206,7 @@
   font-weight: 400;
 }
 .shipment-app .eyebrow {
-  font-size: 13px;
+  font-size: 14px;
   letter-spacing: 0.15em;
   color: #1b7480;
 }
@@ -259,13 +259,13 @@
   flex-shrink: 0;
 }
 .shipment-top-actions button {
-  background: #173e53;
+  background: #0f5c55;
   color: white;
-  border-color: #173e53;
+  border-color: #0f5c55;
   font-weight: 600;
 }
 .shipment-top-actions button:hover {
-  background: #21566b;
+  background: #0b4a44;
 }
 .shipment-sidebar {
   align-self: start;
@@ -291,10 +291,10 @@
   background: #e1edf3;
   text-align: center;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 14px;
 }
 .shipment-app .shipment-queue-count {
-  font-size: 13px;
+  font-size: 14px;
   margin: 14px 0;
 }
 .shipment-queue-filters {
@@ -308,7 +308,7 @@
   align-items: center;
   gap: 6px;
   padding: 8px;
-  font-size: 13px;
+  font-size: 14px;
 }
 .shipment-queue-filters button span {
   font-variant-numeric: tabular-nums;
@@ -316,8 +316,8 @@
 }
 .shipment-queue-filters button[aria-pressed="true"] {
   color: #fff;
-  background: #173e53;
-  border-color: #173e53;
+  background: #0f5c55;
+  border-color: #0f5c55;
 }
 .shipment-list {
   padding: 2px;
@@ -326,7 +326,7 @@
 .shipment-list button {
   padding: 14px;
   border-left: 3px solid transparent;
-  box-shadow: 0 1px 2px #173e5305;
+  box-shadow: 0 1px 2px #0f5c5505;
 }
 .shipment-list .selected {
   border: 1px solid #b4d7dc;
@@ -365,11 +365,11 @@
 }
 .shipment-heading p {
   margin: 8px 0 0;
-  font-size: 13px;
+  font-size: 14px;
 }
 .shipment-heading > strong {
   padding: 9px 0;
-  font-size: 14px;
+  font-size: 15px;
 }
 .shipment-tabs {
   gap: 6px;
@@ -381,7 +381,7 @@
   flex: 1;
   border-color: transparent;
   background: transparent;
-  font-size: 14px;
+  font-size: 15px;
 }
 .shipment-welcome {
   margin-top: 0;
@@ -410,7 +410,7 @@
   display: block;
   margin-top: 4px;
   color: #60778a;
-  font-size: 14px;
+  font-size: 15px;
 }
 .shipment-app .shipment-recorder {
   max-width: none;
@@ -422,11 +422,11 @@
   border: 1px solid #dce6ee;
   border-radius: 10px;
   background: #f1f6fa;
-  font-size: 13px;
+  font-size: 14px;
 }
 .shipment-recorder small {
   color: #60788a;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.6;
 }
 @media (max-width: 1100px) {

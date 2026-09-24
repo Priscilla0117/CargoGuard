@@ -84,9 +84,9 @@ Replies are written from the checked values without AI. An administrator can
 enable "Improve wording" (the user must tick consent each time):
 
 ```dotenv
-CARGO_REPLY_AI_PROVIDER=anthropic     # or openai
+CARGO_REPLY_AI_PROVIDER=openai
 CARGO_REPLY_AI_API_KEY=<key>          # falls back to CARGO_AI_API_KEY
-CARGO_REPLY_AI_MODEL=claude-sonnet-5  # optional
+CARGO_REPLY_AI_MODEL=gpt-5.4-mini     # optional
 ```
 
 Any AI rewrite that changes or drops a value, reference or date is rejected and
