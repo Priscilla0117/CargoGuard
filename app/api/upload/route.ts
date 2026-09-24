@@ -20,7 +20,80 @@ import { z } from "zod";
 import { readForm, HttpError } from "@/lib/http";
 import { bundleBytes } from "@/lib/bundle";
 import { blReplacementSources, replaceDraftBl } from "@/lib/bl-replacement";
-import type { ParsedDocument } from "@/lib/types";
+import type { Email, ParsedDocument } from "@/lib/types";
+import { parseEml, type ParsedEmail } from "@/lib/eml";
+
+const messageId = z
+  .string()
+  .trim()
+  .min(3)
+  .max(300)
+  .regex(/^[^\s<>]+$/);
+const emailList = z
+  .string()
+  .max(5000)
+  .transform((value) =>
+    value
+      .split(/[,;\s]+/)
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean),
+  )
+  .pipe(z.array(z.string().email().max(254)).max(50));
+/** Optional mailbox metadata supplied by the import dialog or a mail connector. */
+const metadataSchema = z
+  .object({
+    received_at: z
+      .string()
+      .datetime({ offset: true })
+      .transform((value) => new Date(value).toISOString())
+      .optional(),
+    message_id: messageId.optional(),
+    in_reply_to: messageId.optional(),
+    references: z
+      .string()
+      .max(20000)
+      .transform((value, ctx) => {
+        try {
+          return JSON.parse(value) as unknown;
+        } catch {
+          ctx.addIssue({ code: "custom", message: "Invalid references" });
+          return z.NEVER;
+        }
+      })
+      .pipe(z.array(messageId).max(50))
+      .optional(),
+    to: emailList.optional(),
+    cc: emailList.optional(),
+    source: z.enum(["upload", "eml", "gmail", "imap", "outlook"]).optional(),
+    thread_hint: z
+      .string()
+      .max(200)
+      .regex(/^[A-Za-z0-9_.:=-]+$/)
+      .optional(),
+  })
+  .strict();
+const METADATA_FIELDS = [
+  "received_at",
+  "message_id",
+  "in_reply_to",
+  "references",
+  "to",
+  "cc",
+  "source",
+  "thread_hint",
+] as const;
+type EmailMetadata = Pick<Email, (typeof METADATA_FIELDS)[number]>;
+function metadataFrom(value: Partial<Email>): EmailMetadata {
+  const meta: EmailMetadata = {};
+  for (const key of METADATA_FIELDS)
+    if (value[key] !== undefined && value[key] !== "")
+      (meta as Record<string, unknown>)[key] = value[key];
+  if (Array.isArray(meta.references) && !meta.references.length)
+    delete meta.references;
+  for (const key of ["to", "cc"] as const)
+    if (Array.isArray(meta[key]) && !meta[key]!.length) delete meta[key];
+  return meta;
+}
 
 export async function POST(request: Request) {
   let s = errorSession(request);
@@ -42,9 +115,31 @@ export async function POST(request: Request) {
       "body",
       "mode",
       "bl",
+      "eml",
+      ...METADATA_FIELDS,
     ])
       if (form.getAll(field).length > 1)
         throw new HttpError(`Only one ${field} field is allowed.`);
+    // A saved .eml message carries its own sender, subject, date and files.
+    let parsedEml: ParsedEmail | null = null;
+    if (form.has("eml")) {
+      const eml = form.get("eml");
+      if (!(eml instanceof File) || !eml.size)
+        throw new HttpError("Choose a nonempty .eml email file.");
+      if (
+        [...form.keys()].some(
+          (key) => !["eml", "source", "thread_hint"].includes(key),
+        )
+      )
+        throw new HttpError(
+          "Import an .eml email on its own. Its attachments are read from the message.",
+        );
+      parsedEml = await parseEml(new Uint8Array(await eml.arrayBuffer()));
+      if (parsedEml.attachments.length > 10)
+        throw new HttpError(
+          "This email has more than 10 supported attachments. Import the needed documents manually.",
+        );
+    }
     const mode = form.get("mode");
     if (mode !== null && mode !== "replace_bl")
       throw new HttpError("Unknown document replacement mode.");
@@ -75,9 +170,16 @@ export async function POST(request: Request) {
       );
     if (form.getAll("files").some((x) => !(x instanceof File)))
       throw new HttpError("The attachment field must contain files.");
-    const files = form
-      .getAll(blOnly ? "bl" : "files")
-      .filter((x): x is File => x instanceof File && !!x.name);
+    const files = parsedEml
+      ? parsedEml.attachments.map(
+          (item) =>
+            new File([item.bytes.slice().buffer], item.name, {
+              type: item.type || "application/octet-stream",
+            }),
+        )
+      : form
+          .getAll(blOnly ? "bl" : "files")
+          .filter((x): x is File => x instanceof File && !!x.name);
     if (files.length > 10)
       throw new HttpError("Attach at most 10 documents per email.");
     if (files.reduce((sum, f) => sum + f.size, 0) > 20 * 1024 * 1024)
@@ -118,11 +220,64 @@ export async function POST(request: Request) {
       .parse({
         from:
           previous?.email.from ??
+          parsedEml?.from ??
           form.get("from") ??
           "uploaded@workspace.local",
-        subject: previous?.email.subject ?? form.get("subject"),
-        body: previous?.email.body ?? form.get("body"),
+        subject:
+          previous?.email.subject ?? parsedEml?.subject ?? form.get("subject"),
+        body: previous?.email.body ?? parsedEml?.body ?? form.get("body"),
       });
+    const metadata: EmailMetadata = previous
+      ? metadataFrom(previous.email)
+      : parsedEml
+        ? metadataFrom({
+            received_at: parsedEml.received_at,
+            message_id: parsedEml.message_id,
+            in_reply_to: parsedEml.in_reply_to,
+            references: parsedEml.references,
+            to: parsedEml.to,
+            cc: parsedEml.cc,
+            ...metadataSchema.pick({ source: true, thread_hint: true }).parse({
+              source:
+                form.get("source") === "gmail" || form.get("source") === "imap"
+                  ? form.get("source")
+                  : "eml",
+              thread_hint: form.get("thread_hint") || undefined,
+            }),
+          })
+        : metadataFrom(
+            metadataSchema.parse(
+              Object.fromEntries(
+                METADATA_FIELDS.flatMap((key) => {
+                  const value = form.get(key);
+                  return typeof value === "string" && value.trim()
+                    ? [[key, value]]
+                    : [];
+                }),
+              ),
+            ),
+          );
+    if (!previous && metadata.message_id) {
+      // The same message imported twice (file, Gmail or Outlook) opens the saved case.
+      const existing = await storage()
+        .DB.prepare(
+          "SELECT email_id FROM cases WHERE workspace=? AND json_extract(payload,'$.email.message_id')=? LIMIT 1",
+        )
+        .bind(s.id, metadata.message_id)
+        .first<{ email_id: string }>();
+      if (existing) {
+        const saved = await getCase(s.id, existing.email_id);
+        if (saved)
+          return respond(
+            {
+              result: saved,
+              duplicate: true,
+              skipped: parsedEml?.skipped ?? [],
+            },
+            s,
+          );
+      }
+    }
     if (files.some((f) => f.size > 5 * 1024 * 1024))
       throw new HttpError("Each file must be 5 MB or smaller.");
     if (files.some((f) => !/\.(txt|pdf|docx|xlsx)$/i.test(f.name)))
@@ -156,13 +311,17 @@ export async function POST(request: Request) {
       });
       keys.push(key);
     }
-    const email = {
+    const email: Email = {
+      ...metadata,
       email_id: id,
       from,
       subject,
       body,
       attachments: paths,
     };
+    if (!previous && !email.received_at)
+      email.received_at = new Date().toISOString();
+    if (!previous && !email.source) email.source = "upload";
     const labelRules = await loadLabelRules(s.id);
     const partial =
       blOnly && previous
@@ -228,7 +387,7 @@ export async function POST(request: Request) {
       authenticatedActor(request, replacement?.actor ?? "Workspace user"),
       detail,
     );
-    return respond({ result }, s);
+    return respond({ result, skipped: parsedEml?.skipped ?? [] }, s);
   } catch (e) {
     if (keys.length) {
       // A lost database response is not proof of rollback. Never delete bytes

@@ -16,19 +16,19 @@
   align-items: center;
   gap: 8px;
   color: #b4d4d9;
-  font-size: 10px;
+  font-size: 14px;
   letter-spacing: 1.6px;
   font-weight: 650;
 }
 .ops-hero h2 {
-  font-size: 36px;
+  font-size: 30px;
   line-height: 1.13;
   letter-spacing: -1.1px;
   margin: 17px 0;
   color: #fff;
 }
 .ops-hero-copy p {
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.85;
   color: #c3d6df;
   max-width: 440px;
@@ -49,18 +49,18 @@
   background: linear-gradient(135deg, #193b4a, #214a50);
 }
 .ops-hero-count > strong {
-  font-size: 70px;
+  font-size: 30px;
   font-weight: 550;
   letter-spacing: -3px;
   line-height: 1.1;
 }
 .ops-hero-count > span {
-  font-size: 17px;
+  font-size: 18px;
   color: #e0ecec;
   margin-top: 9px;
 }
 .ops-hero-count > small {
-  font-size: 12px;
+  font-size: 14px;
   color: #bbd0d2;
   margin-top: 7px;
 }
@@ -68,7 +68,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.8;
   color: #c5dcda;
   border-top: 1px solid #48656d;
@@ -86,12 +86,12 @@
   margin: 0 0 18px;
 }
 .ops-section-head h2 {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 600;
   color: #243f52;
 }
 .ops-section-head p {
-  font-size: 12px;
+  font-size: 14px;
   color: #587184;
   line-height: 1.7;
   margin-top: 5px;
@@ -131,25 +131,25 @@
   justify-content: space-between;
 }
 .ops-lane-top small {
-  font-size: 10px;
+  font-size: 14px;
   font-family: monospace;
   color: #658494;
 }
 .ops-lane-top strong {
-  font-size: 29px;
+  font-size: 26px;
   line-height: 1;
   font-weight: 550;
   color: #244e5c;
 }
 .ops-lane > b {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
 }
 .ops-lane > span:last-child {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 14px;
   color: #506f80;
 }
 .ops-columns {
@@ -176,7 +176,7 @@
 }
 .ops-queue-head > p,
 .ops-insights p {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.8;
   color: #567082;
   margin: 9px 0 16px;
@@ -193,7 +193,7 @@
 }
 .ops-search input {
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   min-width: 0;
   flex: 1;
   outline: none;
@@ -221,14 +221,14 @@
 }
 .ops-case-id {
   font-family: monospace;
-  font-size: 11px;
+  font-size: 14px;
   color: #547180;
   flex: 0 0 88px;
   overflow-wrap: anywhere;
 }
 .ops-case-id small {
   display: block;
-  font-size: 10px;
+  font-size: 14px;
   margin-top: 6px;
   color: #6d838d;
   font-family: inherit;
@@ -240,14 +240,14 @@
 .ops-case-copy strong {
   display: block;
   overflow-wrap: anywhere;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.65;
   font-weight: 600;
   color: #23495f;
 }
 .ops-case-copy small {
   display: block;
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.6;
   margin-top: 6px;
   color: #577385;
@@ -263,7 +263,7 @@
   gap: 10px;
   border-top: 1px solid #e4ebef;
   padding: 15px 22px;
-  font-size: 11px;
+  font-size: 14px;
   color: #5a7385;
 }
 .ops-empty {
@@ -275,12 +275,12 @@
   margin: 0 auto 12px;
 }
 .ops-empty h4 {
-  font-size: 15px;
+  font-size: 16px;
   color: #2c5264;
   margin: 0 0 8px;
 }
 .ops-empty p {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.8;
 }
 .ops-insights {
@@ -294,14 +294,14 @@
   border-radius: 10px;
 }
 .ops-insights .eyebrow {
-  font-size: 9px;
+  font-size: 14px;
   letter-spacing: 1px;
   color: #51786f;
   display: block;
   margin-bottom: 11px;
 }
 .ops-insights small {
-  font-size: 10px;
+  font-size: 14px;
   color: #627982;
   line-height: 1.8;
   display: block;
@@ -315,7 +315,7 @@
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  font-size: 11px;
+  font-size: 14px;
   color: #426576;
   margin-bottom: 7px;
 }
@@ -346,7 +346,7 @@
   grid-template-columns: 24px 1fr;
   column-gap: 8px;
   margin-top: 17px;
-  font-size: 12px;
+  font-size: 14px;
 }
 .ops-playbook li:before {
   content: counter(loop);
@@ -358,7 +358,7 @@
   background: #edf5f2;
   color: #427b6e;
   border-radius: 50%;
-  font-size: 10px;
+  font-size: 14px;
 }
 .ops-playbook b {
   font-weight: 600;
@@ -366,7 +366,7 @@
 }
 .ops-playbook li span {
   grid-column: 2;
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.8;
   color: #597280;
   margin-top: 4px;
@@ -375,7 +375,7 @@
   border-top: 1px solid #dfe9eb;
   padding-top: 16px;
   margin-bottom: 0;
-  font-size: 11px;
+  font-size: 14px;
 }
 .resolution-desk {
   border: 0;
@@ -401,24 +401,24 @@
 }
 .navigator-heading h3,
 .amendment-studio h3 {
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1.5;
   color: #244758;
   margin: 3px 0;
 }
 .navigator-heading .eyebrow {
-  font-size: 9px;
+  font-size: 14px;
   letter-spacing: 1.1px;
   color: #47776e;
 }
 .navigator-revision {
   margin-left: auto;
-  font-size: 10px;
+  font-size: 14px;
   color: #526e7b;
   white-space: nowrap;
 }
 .navigator-disclosure {
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.8;
   color: #52717b;
   margin: 13px 0 17px;
@@ -436,7 +436,7 @@
   background: #fff;
   color: #345c6a;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 14px;
   text-align: left;
   line-height: 1.6;
 }
@@ -449,7 +449,7 @@
   color: #244858;
 }
 .navigator-answer p {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.85;
   color: #3f606f;
   margin: 12px 0;
@@ -474,10 +474,10 @@
   display: flex;
   gap: 12px;
   justify-content: space-between;
-  font-size: 13px;
+  font-size: 15px;
 }
 .navigator-evidence h4 span {
-  font-size: 10px;
+  font-size: 14px;
   color: #936325;
   font-weight: 400;
 }
@@ -487,12 +487,12 @@
   gap: 8px;
   margin-top: 12px;
   color: #3a5b6c;
-  font-size: 12px;
+  font-size: 14px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .navigator-evidence article > div > b {
-  font-size: 10px;
+  font-size: 14px;
 }
 .navigator-evidence button {
   grid-column: 2;
@@ -500,12 +500,12 @@
   width: fit-content;
 }
 .amendment-studio > .eyebrow {
-  font-size: 9px;
+  font-size: 14px;
   color: #996338;
   letter-spacing: 1.2px;
 }
 .amendment-studio > p {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.8;
   color: #547180;
   margin: 10px 0 17px;
@@ -521,11 +521,11 @@
   background: #fcf8f1;
   color: #805e31;
   padding: 6px 8px;
-  font-size: 10px;
+  font-size: 14px;
   border-radius: 5px;
 }
 .amendment-preview-label {
-  font-size: 12px;
+  font-size: 14px;
   color: #3f6577;
   display: grid;
   gap: 8px;
@@ -548,7 +548,7 @@
   display: flex;
   align-items: flex-start;
   gap: 9px;
-  font-size: 12px;
+  font-size: 14px;
   color: #3c5f70;
   line-height: 1.8;
   margin: 18px 0;
@@ -564,7 +564,7 @@
 .amendment-studio .amendment-safety {
   display: flex;
   gap: 8px;
-  font-size: 11px;
+  font-size: 14px;
   margin-bottom: 0;
 }
 .amendment-safety svg {
@@ -580,7 +580,7 @@
 .resolution-playbook > summary {
   cursor: pointer;
   color: #375e72;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   line-height: 1.8;
 }
@@ -599,13 +599,13 @@
   border: 1px solid #d4e2df;
   border-radius: 6px;
   color: #3e6566;
-  font-size: 11px;
+  font-size: 14px;
 }
 .comparison-focus label {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: 14px;
 }
 .comparison-focus input {
   margin-top: 0;
@@ -615,7 +615,7 @@
   border: 1px solid #d7e4dc;
   background: #f5faf7;
   color: #3c6856;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.8;
   margin-bottom: 14px;
 }
@@ -642,10 +642,10 @@ button:disabled {
     grid-template-columns: 1fr 1fr;
   }
   .ops-hero h2 {
-    font-size: 31px;
+    font-size: 26px;
   }
   .ops-hero-count > strong {
-    font-size: 59px;
+    font-size: 30px;
   }
 }
 @media (max-width: 650px) {
@@ -657,7 +657,7 @@ button:disabled {
     padding: 25px;
   }
   .ops-hero h2 {
-    font-size: 32px;
+    font-size: 30px;
   }
   .ops-hero-count {
     padding: 22px 25px;
@@ -668,11 +668,11 @@ button:disabled {
     column-gap: 20px;
   }
   .ops-hero-count > strong {
-    font-size: 51px;
+    font-size: 30px;
     grid-row: 1/3;
   }
   .ops-hero-count > span {
-    font-size: 15px;
+    font-size: 16px;
   }
   .ops-hero-count > small {
     margin-top: 4px;
@@ -696,10 +696,10 @@ button:disabled {
     gap: 10px;
   }
   .ops-lane > b {
-    font-size: 12px;
+    font-size: 14px;
   }
   .ops-lane > span:last-child {
-    font-size: 10px;
+    font-size: 14px;
     line-height: 1.7;
   }
   .ops-insights {
@@ -711,14 +711,14 @@ button:disabled {
   }
   .ops-case-id {
     flex-basis: 65px;
-    font-size: 10px;
+    font-size: 14px;
   }
   .ops-queue-head {
     padding: 19px 15px;
   }
   .ops-queue-footer {
     padding: 14px;
-    font-size: 10px;
+    font-size: 14px;
   }
   .case-navigator,
   .amendment-studio {
@@ -728,10 +728,10 @@ button:disabled {
     font-size: 18px;
   }
   .navigator-revision {
-    font-size: 9px;
+    font-size: 14px;
   }
   .navigator-questions button {
-    font-size: 11px;
+    font-size: 14px;
     flex: 1 1 44%;
     padding: 8px;
     min-height: 44px;
@@ -748,7 +748,7 @@ button:disabled {
     min-width: 0;
     flex: 1 1 0;
     padding: 5px 3px;
-    font-size: 9px;
+    font-size: 14px;
     text-align: center;
     white-space: normal;
   }

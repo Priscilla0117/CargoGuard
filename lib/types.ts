@@ -1,3 +1,4 @@
+import { emailInsight } from "./mail-intel";
 export const CATEGORIES = [
   "BL_COMPARISON",
   "SI_REQUEST",
@@ -32,12 +33,29 @@ export type ReviewReason =
   | "missing_value"
   | "uncertain_category";
 export type Outcome = "OK" | "MISMATCH" | "NEEDS_REVIEW";
+export type EmailSource =
+  | "sample"
+  | "upload"
+  | "eml"
+  | "gmail"
+  | "imap"
+  | "outlook";
 export interface Email {
   email_id: string;
   from: string;
   subject: string;
   body: string;
   attachments: string[];
+  /** When the mailbox received the message (ISO 8601). Absent for samples without a date. */
+  received_at?: string;
+  message_id?: string;
+  in_reply_to?: string;
+  references?: string[];
+  to?: string[];
+  cc?: string[];
+  source?: EmailSource;
+  /** Provider thread id (for example Gmail threadId); used only for grouping. */
+  thread_hint?: string;
 }
 export interface SourceLine {
   text: string;
@@ -120,8 +138,21 @@ export interface CaseResult {
   policy?: import("./policy").PolicySnapshot;
   policy_assessment?: ReturnType<typeof import("./policy").assessPolicy>;
 }
+export type EmailSummary = Pick<
+  Email,
+  | "email_id"
+  | "from"
+  | "subject"
+  | "attachments"
+  | "received_at"
+  | "message_id"
+  | "in_reply_to"
+  | "references"
+  | "source"
+  | "thread_hint"
+> & { insight?: import("./mail-intel").EmailInsight };
 export interface CaseSummary {
-  email: Pick<Email, "email_id" | "from" | "subject" | "attachments">;
+  email: EmailSummary;
   result: Omit<CaseResult, "email" | "documents" | "comparison"> | null;
 }
 export interface AuditEvent {
@@ -135,7 +166,19 @@ export interface AuditEvent {
 export const PIPELINE_VERSION = "3.3.1";
 export function emailSummaryOf(email: Email): CaseSummary["email"] {
   const { email_id, from, subject, attachments } = email;
-  return { email_id, from, subject, attachments };
+  const summary: EmailSummary = { email_id, from, subject, attachments };
+  for (const key of [
+    "received_at",
+    "message_id",
+    "in_reply_to",
+    "references",
+    "source",
+    "thread_hint",
+  ] as const)
+    if (email[key] !== undefined)
+      (summary as Record<string, unknown>)[key] = email[key];
+  summary.insight = emailInsight(email);
+  return summary;
 }
 export function summaryOf(result: CaseResult): CaseSummary {
   const { email, documents, comparison, ...rest } = result;

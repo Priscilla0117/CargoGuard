@@ -5,6 +5,7 @@ import {
   type CaseResult,
   type CaseSummary,
   type AuditEvent,
+  emailSummaryOf,
 } from "./types";
 import { HttpError, sameRequestOrigin } from "./http";
 import { DEFAULT_POLICY, withPolicy, type PolicySnapshot } from "./policy";
@@ -98,6 +99,7 @@ export interface CaseWrite {
   detail: string;
 }
 /** Strip email body, source text and seven-field evidence before remote transfer.
+ * The body is read only to derive a short snippet, references and date signals.
  * Full case payloads remain available through the workspace-scoped detail API.
  */
 export async function listCaseSummaries(
@@ -106,13 +108,16 @@ export async function listCaseSummaries(
 ): Promise<CaseSummary[]> {
   const rows = await db
     .prepare(
-      "SELECT json_remove(payload, '$.documents', '$.comparison', '$.email.body') AS payload, version FROM cases WHERE workspace=? ORDER BY email_id",
+      "SELECT json_remove(payload, '$.documents', '$.comparison') AS payload, version FROM cases WHERE workspace=? ORDER BY email_id",
     )
     .bind(ws)
     .all<{ payload: string; version: number }>();
   return rows.results.map((row) => {
     const { email, ...result } = JSON.parse(row.payload);
-    return { email, result: { ...result, version: row.version } };
+    return {
+      email: emailSummaryOf(email),
+      result: { ...result, version: row.version },
+    };
   });
 }
 export async function saveCases(

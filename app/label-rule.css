@@ -5,16 +5,16 @@
   color: #203c54;
 }
 .label-rule-desk h1 {
-  font-size: 34px;
+  font-size: 30px;
   letter-spacing: -0.025em;
   margin: 5px 0 12px;
 }
 .label-rule-desk h2 {
-  font-size: 20px;
+  font-size: 22px;
   margin-bottom: 16px;
 }
 .label-rule-desk p {
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.7;
   margin: 12px 0;
 }
@@ -33,7 +33,7 @@
   display: grid;
   gap: 8px;
   margin: 16px 0;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
 }
 .label-rule-desk select {
@@ -59,12 +59,12 @@
   flex: 1 1 180px;
   border: 1px solid #d5e2ec;
   color: #587287;
-  font-size: 12px;
+  font-size: 14px;
   margin: 8px 0;
 }
 .rule-metrics strong {
   display: block;
-  font-size: 27px;
+  font-size: 26px;
   color: #203e54;
 }
 .label-rule-card {
@@ -78,7 +78,7 @@
   margin-bottom: 10px;
 }
 .label-rule-desk .workspace-eyebrow {
-  font-size: 11px;
+  font-size: 14px;
   margin-bottom: 5px;
   color: #0b7380;
 }
@@ -91,12 +91,12 @@
 }
 .rule-scope-details summary {
   cursor: pointer;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
 }
 .label-rule-desk .rule-scope-details p,
 .label-rule-desk .rule-help {
-  font-size: 13px;
+  font-size: 15px;
   color: #5c7487;
 }
 .label-rule-desk :where(button, a, input, select, summary):focus-visible {
@@ -108,9 +108,9 @@
   cursor: pointer;
 }
 .label-rule-desk button.primary {
-  background: #173e53;
+  background: #0f5c55;
   color: white;
-  border-color: #173e53;
+  border-color: #0f5c55;
 }
 .label-rule-desk button.secondary {
   background: white;
@@ -135,7 +135,7 @@
 }
 .label-rule-card > p {
   color: #587287;
-  font-size: 12px;
+  font-size: 14px;
 }
 .rule-preview {
   padding: 18px;
@@ -160,7 +160,7 @@
   overflow: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: 12px;
+  font-size: 14px;
   background: #f5f8fa;
   padding: 12px;
 }

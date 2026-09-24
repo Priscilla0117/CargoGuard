@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { WorkspaceNav } from "./workspace-nav";
 import { requestJson } from "@/lib/client-api";
 import {
   FIELDS,
@@ -125,7 +124,6 @@ export function LabelRuleDesk() {
       tabIndex={-1}
       aria-labelledby="rules-page-title"
     >
-      <WorkspaceNav active="/rules" />
       <header>
         <p className="workspace-eyebrow">Reviewer-approved learning</p>
         <h1 id="rules-page-title">Learned document headings</h1>

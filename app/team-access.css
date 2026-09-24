@@ -7,7 +7,7 @@
   background: #eef5f3;
   border-bottom: 1px solid #cadbd4;
   color: #25443a;
-  font-size: 13px;
+  font-size: 15px;
 }
 .team-access-banner > div {
   display: flex;
@@ -34,7 +34,7 @@
   box-shadow: 0 16px 50px #173e310d;
 }
 .team-access-card h1 {
-  font-size: 27px;
+  font-size: 26px;
   margin: 10px 0;
 }
 .team-access-card p,
@@ -42,7 +42,7 @@
   line-height: 1.6;
 }
 .team-eyebrow {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -58,7 +58,7 @@
 .team-access-panel label {
   display: grid;
   gap: 5px;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
 }
 .team-access-card input,
@@ -83,7 +83,7 @@
   cursor: wait;
 }
 .team-help {
-  font-size: 12px;
+  font-size: 14px;
   color: #54675e;
 }
 .team-access-card .team-link {
@@ -134,7 +134,7 @@
   padding-bottom: 8px;
 }
 .team-audit {
-  font-size: 13px;
+  font-size: 15px;
   max-height: 320px;
   overflow: auto;
 }

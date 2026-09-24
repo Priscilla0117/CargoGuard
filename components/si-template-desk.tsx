@@ -1,6 +1,5 @@
 "use client";
 import Link from "next/link";
-import { WorkspaceNav } from "./workspace-nav";
 import { useEffect, useState, type FormEvent } from "react";
 import type { SiTemplate } from "@/lib/si-templates";
 import type { CaseSummary } from "@/lib/types";
@@ -130,7 +129,6 @@ export function SiTemplateDesk() {
       tabIndex={-1}
       aria-labelledby="templates-page-title"
     >
-      <WorkspaceNav active="/templates" />
       <header>
         <div>
           <p className="insights-eyebrow">Approved party details only</p>

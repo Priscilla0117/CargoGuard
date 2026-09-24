@@ -2,7 +2,13 @@ import type { NextConfig } from "next";
 import { outlookFraming } from "./lib/microsoft-manifest";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["@libsql/client", "libsql", "unpdf"],
+  serverExternalPackages: [
+    "@libsql/client",
+    "libsql",
+    "unpdf",
+    "imapflow",
+    "nodemailer",
+  ],
   poweredByHeader: false,
   async headers() {
     return [

@@ -60,6 +60,16 @@ export type FollowUpInput = z.infer<typeof followUpInput>;
 export function completionBlocker(result: CaseResult): string | null {
   if (result.pipeline_version !== PIPELINE_VERSION)
     return "Recheck this case with the current engine before completing the follow-up.";
+  // Requests without documents (SI requests, invoice questions, general mail)
+  // are closed once handled. Nothing is verified by closing them.
+  if (
+    ["SI_REQUEST", "INVOICE_QUERY", "GENERAL"].includes(result.category) &&
+    result.workflow === "routed" &&
+    !result.comparison.length &&
+    !result.review_reason &&
+    (!result.classification.needs_review || !!result.category_override)
+  )
+    return null;
   if (result.category !== "BL_COMPARISON")
     return "Only a completed SI / draft BL comparison can close a document follow-up.";
   if (result.classification.needs_review && !result.category_override)

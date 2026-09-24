@@ -6,16 +6,30 @@ Shipping-document verification and follow-up for operations teams. CargoGuard cl
 
 The existing URL, https://cargoguard-averis.onrender.com/, is an **older release**, not proof that this branch has been deployed. Its dated record is in [CLOUD_RELEASE.md](docs/CLOUD_RELEASE.md). Deploy the exact feature-branch commit and run acceptance checks against that host before sharing it as the final release.
 
+## What's new after the mentor review
+
+Point-by-point: [MENTOR_FEEDBACK_RESPONSE.md](docs/MENTOR_FEEDBACK_RESPONSE.md).
+
+- **Simpler screens**: one sidebar on every page; the inbox has *To do · Waiting for reply · Done · FYI & spam · All* tabs and a *Start here — most urgent* card; a case opens with one plain-language status and one recommended button; one type scale with no text below 13 px.
+- **Side-by-side check with in-place editing** and highlighted differing words.
+- **Reply like Gmail**: a draft written from the checked values (six reply types, three tones), then send, save to Gmail drafts, open in Gmail or copy. Optional AI wording with a fact guard.
+- **Date/time filter and urgency planning**: received dates, deadlines found in the email text, urgency words, *Download today's plan*.
+- **Conversations**: emails about the same order (e.g. `5RFR-36541`), reply chain or subject are grouped, with a conversation deep dive and the quoted-history timeline.
+- **Import**: `.eml` emails, files added one by one or dragged in, better PDF reading.
+- **Gmail**: *Sign in with Google* or email + app password, automatic import ([GMAIL_SETUP.md](docs/GMAIL_SETUP.md)).
+- **Own dataset**: 28 Averis-style emails with honest results ([FIELD_TEST.md](docs/FIELD_TEST.md)); *Import email → Load 28 practice emails*.
+
 ## Employee workflows
 
 | Workspace | Working capabilities |
 | --- | --- |
-| Work queue | Email and document import; five-category routing; seven-field comparison; source inspection; corrections; OCR review; replacement BL; revision differences; batch completion of eligible matches |
+| Inbox | Email, `.eml` and document import; Gmail auto-import; five-category routing; urgency planning, date filters and conversations; seven-field side-by-side comparison with in-place correction; reply drafts; source inspection; OCR review; replacement BL; revision differences; batch completion of eligible matches |
 | Shipments | Explicit document association; current comparison; ownership; confirmed cutoffs; approved email instructions; revised-SI reconciliation; missing-document and billing drafts; tasks; handovers; history |
 | Insights | Source-linked questions and filters; discrepancy distributions; historical party deviations; quoted general-email digest; visible denominators |
 | Label rules | Propose unfamiliar headings, preview impact, approve scoped reuse, inspect history and disable rules |
 | SI templates | Approved stable party fields, source-bound reuse and rollback; shipment-specific values remain blank |
 | Team access | Named accounts, operator/reviewer/admin permissions, shared workspace, revocable sessions and audited administration |
+| Email accounts | Gmail sign-in (OAuth) or email + app password (IMAP/SMTP); encrypted credentials; automatic import; replies saved to drafts or sent after confirmation |
 | Outlook | OAuth/Graph adapter, selected-message import, reviewed drafts and guarded dispatch; requires Microsoft registration and live acceptance |
 
 Email content is untrusted evidence, never an instruction to the application. The original SI comparison remains visible when an employee approves a later instruction. Missing, damaged, ambiguous or scanned documents cannot become automatic matches. OCR suggestions include source crops and recognition scores; all seven fields require human confirmation.
@@ -81,6 +95,7 @@ npm run lint
 npm test
 npm run build
 node scripts/test-team-runtime.mjs
+node --import tsx scripts/evaluate-field-test.ts   # our own 28-email mailbox
 ```
 
 The team acceptance script uses an isolated local database and temporary test identities. It checks real HTTP permissions, workflow persistence and restart recovery without external providers. The [GitHub workflow](.github/workflows/verify.yml) installs locked dependencies, checks types, lints, tests, builds and runs team acceptance on feature-branch pushes and pull requests. See [GitHub's Node.js CI documentation](https://docs.github.com/en/actions/tutorials/build-and-test-code/nodejs).
@@ -97,12 +112,14 @@ Three fresh first-run seeds produced **1,560/1,560 exact outputs**, catching all
 
 The application works without Microsoft. Connecting Outlook requires an approved tenant registration, delegated permissions, redirect URI and encrypted token storage. Follow [MICROSOFT_SETUP.md](docs/MICROSOFT_SETUP.md). Sending and Outlook framing default to disabled. No tenant is available for live acceptance; mocked tests do not establish live mailbox compatibility.
 
+Gmail works in two ways, Google sign-in or an app password; see [GMAIL_SETUP.md](docs/GMAIL_SETUP.md). The Google sign-in, import and draft flow is covered by automated tests against a mocked Google API; the app-password (IMAP/SMTP) path uses the maintained ImapFlow and Nodemailer libraries but has no automated test. Neither has been exercised against a live mailbox in this environment, so connect a test mailbox before a demo. Automatic import runs while CargoGuard is open in a browser.
+
 Chasers, acknowledgements, IT reports and handovers remain saved drafts unless explicitly dispatched through a configured channel. In-app reminders refresh while the workspace is open. Teams delivery, unattended mailbox/background monitoring and sanctions screening are not delivered features.
 
 ## Deployment boundaries
 
 - Team access is application authentication, not corporate SSO/MFA. Company security/data approval, employee acceptance, backups/restores, retention and hosting capacity are deployment prerequisites.
-- Imports accept up to 10 TXT/PDF/DOCX/XLSX files, 5 MiB each and 20 MiB combined. Source history is retained and consumes storage.
+- Imports accept up to 10 TXT/PDF/DOCX/XLSX files per email, 5 MiB each and 20 MiB combined, or `.eml` messages up to 20 MiB whose supported attachments are read. Source history is retained and consumes storage.
 - PDF text extraction is bounded to 30 pages; English browser OCR supports five pages. Recognition confidence is not a calibrated correctness probability. Formulas require inspected, recalculated values-only evidence.
 - The SQL-backed source store is bounded to 256 MiB across the deployment. Plan monitored capacity and object storage/queued processing before a larger rollout.
 - Optional external AI requires configuration and explicit per-request consent. The existing consent path is limited to synthetic/organiser content; company-confidential data must stay out until an approved processing arrangement exists.
@@ -112,7 +129,9 @@ Chasers, acknowledgements, IT reports and handovers remain saved drafts unless e
 
 | Area | Location |
 | --- | --- |
-| Employee UI | `components/workbench.tsx`, `app/shipments`, `app/insights`, `app/rules`, `app/templates`, `app/outlook` |
+| Employee UI | `components/app-shell.tsx`, `components/inbox-view.tsx`, `components/case-view.tsx`, `components/compare-table.tsx`, `components/reply-composer.tsx`, `components/import-dialog.tsx`, `components/mail-desk.tsx`, `components/workbench.tsx`, `app/shipments`, `app/insights`, `app/rules`, `app/templates`, `app/outlook` |
+| Email intelligence and planning | `lib/mail-intel.ts`, `lib/priority.ts`, `lib/case-status.ts`, `lib/reply.ts`, `lib/eml.ts` |
+| Mailbox connection | `lib/mail-connector.ts`, `lib/gmail.ts`, `lib/imap-adapter.ts`, `lib/mail-storage.ts`, `app/api/mail` |
 | Routing and comparison | `lib/classifier.ts`, `lib/routing*`, `lib/parsers.ts`, `lib/normalization.ts`, `lib/compare.ts` |
 | Workflow and identity | `lib/storage.ts`, `lib/shipment-storage.ts`, `lib/auth.ts`, `lib/team-storage.ts` |
 | Migrations and storage | `drizzle/`, `db/schema.ts`, `lib/runtime-node.ts` |

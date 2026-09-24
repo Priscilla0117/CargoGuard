@@ -1,4 +1,5 @@
 import { classify } from "./classifier";
+import { routingReviewGate } from "./routing-features";
 import { selectedDocuments } from "./document-selection";
 import { recoveryExtracted } from "./recovery-schema";
 import { withPolicy, DEFAULT_POLICY, type PolicySnapshot } from "./policy";
@@ -14,6 +15,7 @@ import {
   type Extracted,
   type ComparisonRow,
   type DocumentSelection,
+  type Classification,
 } from "./types";
 import {
   normalize,
@@ -105,6 +107,30 @@ function weightWithLabel(
     : { raw };
 }
 
+/**
+ * PDF writers often merge a table's label cell and value cell into one text
+ * run without a colon ("Gross Weight (KG)  42,500 KG"). Accept this only when
+ * the leading words are exactly a known field label and a value follows.
+ */
+export function inlineLabelSplit(text: string): RegExpMatchArray | null {
+  if (/[:：]/.test(text) || fieldLabel(text)) return null;
+  const words = text.split(/(\s+)/);
+  let prefix = "";
+  let best: [string, string] | null = null;
+  // Longest known label wins: "Gross Weight (KG)" rather than "Gross Weight".
+  for (let i = 0; i < Math.min(words.length, 14); i += 2) {
+    prefix += words[i];
+    const key = fieldLabel(prefix);
+    const rest = words
+      .slice(i + 1)
+      .join("")
+      .trim();
+    if (key && rest) best = key === "stop" ? null : [prefix, rest];
+    prefix += words[i + 1] ?? "";
+  }
+  return best ? ([text, ...best] as unknown as RegExpMatchArray) : null;
+}
+
 export function extract(doc: ParsedDocument): Extracted {
   if (doc.recovery) return recoveryExtracted(doc);
   if (doc.transcription) {
@@ -144,26 +170,42 @@ export function extract(doc: ParsedDocument): Extracted {
     issue?: string;
   };
   const segments: Segment[] = [];
-  const approvedAliases = doc.label_rules && doc.sha256 && doc.label_rules.source_sha256 === doc.sha256
-    ? doc.label_rules.aliases : [];
+  const approvedAliases =
+    doc.label_rules &&
+    doc.sha256 &&
+    doc.label_rules.source_sha256 === doc.sha256
+      ? doc.label_rules.aliases
+      : [];
   let current: Segment | null = null;
   let inNotes = false;
   const weightNotes: string[] = [];
   for (const line of doc.lines) {
     const text = line.text.trim();
     if (!text) continue;
-    const split = text.match(/^(.+?)[:：]\s*([\s\S]*)$/);
-    const sourceLabel = (split ? split[1] : text).normalize("NFKC").trim().replace(/\s+/g, " ").toUpperCase();
-    const aliases = split ? approvedAliases.filter((alias) => alias.label === sourceLabel) : [];
-    const key = fieldLabel(split ? split[1] : text) ?? aliases[0]?.field ?? null;
+    const split =
+      text.match(/^(.+?)[:：]\s*([\s\S]*)$/) ?? inlineLabelSplit(text);
+    const sourceLabel = (split ? split[1] : text)
+      .normalize("NFKC")
+      .trim()
+      .replace(/\s+/g, " ")
+      .toUpperCase();
+    const aliases = split
+      ? approvedAliases.filter((alias) => alias.label === sourceLabel)
+      : [];
+    const key =
+      fieldLabel(split ? split[1] : text) ?? aliases[0]?.field ?? null;
     const wasInNotes = inNotes;
-    if (key) inNotes = /^(?:remarks?|notes?)$/i.test(split ? split[1].trim() : text);
+    if (key)
+      inNotes = /^(?:remarks?|notes?)$/i.test(split ? split[1].trim() : text);
     // A footer is a field boundary, but a weight instruction in that footer is
     // still evidence. Never hide a second weight by treating it as decoration.
     if (
       (inNotes || wasInNotes) &&
-      /(?:\b(?:gross\s*(?:weight|wt)|weight)\b|\d[\d., ]*\s*(?:kgs?|kilograms?|mt|metric\s+tonnes?|tonnes?)\b)/i.test(text)
-    ) weightNotes.push(line.location);
+      /(?:\b(?:gross\s*(?:weight|wt)|weight)\b|\d[\d., ]*\s*(?:kgs?|kilograms?|mt|metric\s+tonnes?|tonnes?)\b)/i.test(
+        text,
+      )
+    )
+      weightNotes.push(line.location);
     if (key) {
       current =
         key === "stop"
@@ -174,7 +216,12 @@ export function extract(doc: ParsedDocument): Extracted {
               location: line.location,
               total: /^total\s+gross/i.test(text),
               label: split ? split[1] : text,
-              ...(new Set(aliases.map((alias) => alias.field)).size > 1 ? { issue: "Conflicting approved label mappings. Review this field and disable the conflicting rule." } : {}),
+              ...(new Set(aliases.map((alias) => alias.field)).size > 1
+                ? {
+                    issue:
+                      "Conflicting approved label mappings. Review this field and disable the conflicting rule.",
+                  }
+                : {}),
             };
       if (current) segments.push(current);
     } else if (current) {
@@ -305,6 +352,41 @@ export function analyze(
     policy,
   );
 }
+/** Attachments are evidence too: one readable SI and one readable draft BL
+ * settle an uncertain route between close candidates. Hard safety abstentions
+ * (negated or mixed requests) are never overridden. */
+function attachmentCorroboration(
+  email: Email,
+  classification: Classification,
+  documents: ParsedDocument[],
+): Classification {
+  if (!classification.needs_review || routingReviewGate(email))
+    return classification;
+  const readable = documents.filter((d) => !d.error);
+  const top = Object.entries(classification.scores)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2)
+    .map(([category]) => category);
+  if (
+    readable.filter((d) => d.type === "SI").length !== 1 ||
+    readable.filter((d) => d.type === "BL").length !== 1 ||
+    !top.includes("BL_COMPARISON") ||
+    top[0] === "SPAM"
+  )
+    return classification;
+  return {
+    ...classification,
+    category: "BL_COMPARISON",
+    needs_review: false,
+    review_note: undefined,
+    method: `${classification.method} + attachment evidence`,
+    signals: [
+      ...classification.signals,
+      "Attachments: one Shipping Instruction and one draft BL identified",
+    ],
+  };
+}
+
 function analyzeCore(
   email: Email,
   documents: ParsedDocument[],
@@ -312,7 +394,11 @@ function analyzeCore(
   categoryOverride?: Category,
   selection?: DocumentSelection,
 ): CaseResult {
-  const classification = classify(email),
+  const classification = attachmentCorroboration(
+      email,
+      classify(email),
+      documents,
+    ),
     base: CaseResult = {
       email,
       classification,
@@ -435,6 +521,43 @@ function analyzeCore(
         .map((d) => `${d.name}: ${d.error}`)
         .join(" "),
     );
+  // One SI, one draft BL and only recognised non-shipping extras (commercial
+  // invoice, packing list, certificate): compare the pair automatically and
+  // say so, unless an extra document states a different weight or count.
+  const extras = documents.filter((d) => d.type !== "SI" && d.type !== "BL");
+  const oneSi = documents.filter((d) => d.type === "SI");
+  const oneBl = documents.filter((d) => d.type === "BL");
+  if (
+    extras.length &&
+    extras.every((d) => d.type === "OTHER") &&
+    oneSi.length === 1 &&
+    oneBl.length === 1
+  ) {
+    const si = extract(oneSi[0]);
+    const conflicting = extras.filter((doc) => {
+      const values = extract(doc);
+      return (["gross_weight_kg", "container_count"] as const).some((field) => {
+        const other = normalize(field, values[field].raw);
+        const reference = normalize(field, si[field].raw);
+        return (
+          other !== null &&
+          reference !== null &&
+          !equivalent(field, other, reference)
+        );
+      });
+    });
+    if (!conflicting.length) {
+      const result = deriveResult(base, compareFields(si, extract(oneBl[0])));
+      return {
+        ...result,
+        summary: `${result.summary} ${extras.length} other attachment${extras.length === 1 ? "" : "s"} (${extras.map((d) => d.name).join(", ")}) kept but not compared.`,
+      };
+    }
+    return review(
+      "wrong_doc_type",
+      `${conflicting.map((d) => d.name).join(", ")} states a different weight or container count than the SI. Confirm which document is correct before comparing.`,
+    );
+  }
   if (documents.some((d) => d.type === "OTHER" || d.type === "UNKNOWN"))
     return review(
       "wrong_doc_type",
