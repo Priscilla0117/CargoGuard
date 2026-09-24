@@ -1,5 +1,7 @@
 # Preliminary-round feedback: what we changed
 
+**Historical 3.4.0 implementation record.** The follow-up audit found and fixed additional unknown-value and attachment-reopening gaps in 3.4.1. Use [JUDGE_FEEDBACK_AUDIT.md](JUDGE_FEEDBACK_AUDIT.md) for the current status, measured evidence and unresolved production workstreams. The 3.4.0 table below does not claim every possible placeholder is recognized.
+
 Engine **3.4.0**, 24 September 2026. Every item has a regression test, and none changed any of the 520 organiser outputs. Reproduce the organiser check with `scripts/regression-snapshot.ts`, as described in the verification section below.
 
 ## Judge A

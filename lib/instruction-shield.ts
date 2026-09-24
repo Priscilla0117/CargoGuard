@@ -20,7 +20,13 @@ const SOFTWARE_DIRECTED: RegExp[] = [
 ];
 
 export function isSoftwareDirected(line: string) {
-  return SOFTWARE_DIRECTED.some((pattern) => pattern.test(line));
+  // Match equivalent typography and invisible formatting without altering the
+  // original evidence shown to the employee. This is a disclosure/routing
+  // guard; deterministic document comparison never executes supplied text.
+  const visible = line
+    .normalize("NFKC")
+    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, "");
+  return SOFTWARE_DIRECTED.some((pattern) => pattern.test(visible));
 }
 
 export function shieldEmail<T extends Pick<Email, "subject" | "body">>(

@@ -5,7 +5,7 @@ import {
   requireCapability,
 } from "@/lib/auth";
 import { parseDocument } from "@/lib/parsers";
-import { shouldOpenAttachments, unopenedAttachment } from "@/lib/intake-gate";
+import { planAttachmentIntake, unopenedAttachment } from "@/lib/intake-gate";
 import { applyLabelRules } from "@/lib/label-rules";
 import { loadLabelRules } from "@/lib/label-rule-storage";
 import { analyze } from "@/lib/compare";
@@ -145,8 +145,8 @@ export async function POST(request: Request) {
       docs: ParsedDocument[] = [],
       paths: string[] = [];
     const started = performance.now();
-    // Classify before parsing: files attached to spam are stored, never opened.
-    const open = shouldOpenAttachments(
+    // Classify before parsing. Deferred files are stored as evidence, not opened.
+    const intake = planAttachmentIntake(
       { from, subject, body, attachments: files.map((f) => f.name) },
       previous?.category_override,
     );
@@ -154,8 +154,11 @@ export async function POST(request: Request) {
       const f = files[i],
         safe = `${crypto.randomUUID().slice(0, 8)}_${i + 1}_${f.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-150)}`,
         bytes = new Uint8Array(await f.arrayBuffer());
+      const deferred = intake.deferred.get(f.name);
       docs.push(
-        open ? await parseDocument(safe, bytes) : unopenedAttachment(safe),
+        deferred
+          ? unopenedAttachment(safe, deferred, intake.category)
+          : await parseDocument(safe, bytes),
       );
       paths.push(`uploads/${safe}`);
       const key = `${s.id}/${id}/${safe}`;

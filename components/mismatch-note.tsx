@@ -15,7 +15,11 @@ export function MismatchNote({
   explanation: MismatchExplanation;
 }) {
   return (
-    <div className={`mismatch-note ${explanation.kind}`}>
+    <div
+      className={`mismatch-note ${explanation.kind}`}
+      role="note"
+      aria-label="Suggested mismatch explanation"
+    >
       <Lightbulb size={14} aria-hidden="true" />
       <div>
         <p>
@@ -39,18 +43,41 @@ export function MismatchTriage({
   const clerical = all.filter((item) => item.kind === "clerical").length;
   const material = all.length - clerical;
   return (
-    <p className="mismatch-triage" role="note">
-      <Lightbulb size={15} aria-hidden="true" />
-      <span>
-        <strong>
-          {clerical} likely clerical slip{clerical === 1 ? "" : "s"}
-        </strong>{" "}
-        (ask the issuer to correct the BL) ·{" "}
-        <strong>
-          {material} different value{material === 1 ? "" : "s"}
-        </strong>{" "}
-        (confirm with the shipper first). The strict verdict is unchanged.
-      </span>
-    </p>
+    <aside
+      className="mismatch-triage"
+      aria-label="Mismatch investigation guide"
+    >
+      <Lightbulb size={18} aria-hidden="true" />
+      <div>
+        <div className="mismatch-triage-heading">
+          <strong>Where to start the review</strong>
+          <span>Comparison verdict unchanged</span>
+        </div>
+        <ul>
+          {clerical > 0 && (
+            <li>
+              <strong>
+                {clerical} possible clerical {clerical === 1 ? "slip" : "slips"}
+              </strong>
+              <span>
+                Check the source before asking the issuer to correct the BL.
+              </span>
+            </li>
+          )}
+          {material > 0 && (
+            <li>
+              <strong>
+                {material} different {material === 1 ? "value" : "values"}
+              </strong>
+              <span>Confirm the intended value with the shipper.</span>
+            </li>
+          )}
+        </ul>
+        <p>
+          These suggestions describe text patterns; they do not confirm the
+          cause or clear a discrepancy.
+        </p>
+      </div>
+    </aside>
   );
 }

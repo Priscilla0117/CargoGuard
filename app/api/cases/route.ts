@@ -34,6 +34,7 @@ import {
   type CaseWrite,
 } from "@/lib/storage";
 import { mapLimited, processEmail } from "@/lib/processing";
+import { isUnopenedAttachment } from "@/lib/intake-gate";
 import { loadLabelRules } from "@/lib/label-rule-storage";
 import { z } from "zod";
 import { readJson, HttpError, revisionNumber } from "@/lib/http";
@@ -401,15 +402,41 @@ export async function POST(request: Request) {
       );
     }
     if (input.action === "route") {
+      // A confirmed non-spam route is an explicit instruction to inspect the
+      // retained source files. Analyzing old placeholders would strand this
+      // case in "wrong document type" until an unrelated reprocess action.
+      const reopened =
+        input.category !== "SPAM" &&
+        previous.documents.some(isUnopenedAttachment)
+          ? await processEmail(
+              previous.email,
+              async (path) =>
+                bundleBytes(path) ??
+                (await storage()
+                  .BUCKET.get(`${s.id}/${input.id}/${path.split("/").pop()}`)
+                  .then((object) =>
+                    object
+                      ? object
+                          .arrayBuffer()
+                          .then((bytes) => new Uint8Array(bytes))
+                      : null,
+                  )),
+              { ...previous, category_override: input.category },
+              true,
+              previous.policy,
+              await loadLabelRules(s.id),
+            )
+          : null;
       let result: CaseResult = {
-        ...analyze(
-          previous.email,
-          previous.documents,
-          previous.duration_ms,
-          input.category,
-          previous.policy,
-          previous.document_selection,
-        ),
+        ...(reopened ??
+          analyze(
+            previous.email,
+            previous.documents,
+            previous.duration_ms,
+            input.category,
+            previous.policy,
+            previous.document_selection,
+          )),
         reviewed: true,
         source_replaced: previous.source_replaced,
       };

@@ -6,7 +6,7 @@ import { DEFAULT_POLICY, type PolicySnapshot } from "./policy";
 import { recoverDocument } from "./recovery";
 import { selectionStillMatches } from "./document-selection";
 import { applyLabelRules, type LabelRule } from "./label-rules";
-import { shouldOpenAttachments, unopenedAttachment } from "./intake-gate";
+import { planAttachmentIntake, unopenedAttachment } from "./intake-gate";
 
 export async function mapLimited<T, R>(
   items: T[],
@@ -38,10 +38,11 @@ export async function processEmail(
   labelRules: LabelRule[] = [],
 ) {
   const started = performance.now();
-  // Classify before reading: spam attachments are never loaded or parsed.
-  const open = shouldOpenAttachments(email, previous?.category_override);
+  // Decide from email intent before loading any bytes or invoking a parser.
+  const intake = planAttachmentIntake(email, previous?.category_override);
   let docs = await mapLimited(email.attachments, 2, async (path) => {
-    if (!open) return unopenedAttachment(path);
+    const deferred = intake.deferred.get(path);
+    if (deferred) return unopenedAttachment(path, deferred, intake.category);
     const bytes = await read(path);
     const doc = bytes
       ? await parseDocument(path.split("/").pop()!, bytes)

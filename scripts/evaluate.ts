@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { analyze, submissionEntry } from "../lib/compare";
-import { parseDocument } from "../lib/parsers";
+import { submissionEntry } from "../lib/compare";
+import { processEmail } from "../lib/processing";
 import type { Email, CaseResult } from "../lib/types";
 const root = path.resolve(process.argv[2] ?? "../sdoc-hackathon-bundle"),
   out = path.resolve(process.argv[3] ?? "work/validation/v3/original");
@@ -15,17 +15,13 @@ for (const file of files) {
   const e: Email = JSON.parse(
     await fs.readFile(path.join(root, "inbox", file), "utf8"),
   );
-  const t = performance.now(),
-    docs = [];
-  for (const a of e.attachments)
-    docs.push(
-      await parseDocument(
-        path.basename(a),
-        new Uint8Array(await fs.readFile(path.join(root, a))),
-      ),
-    );
-  const r = analyze(e, docs);
-  r.duration_ms = Math.round(performance.now() - t);
+  // Exercise the same classify-before-parsing intake and deterministic pipeline
+  // as the application. Ground truth is only consumed by the offline scorer.
+  const r = await processEmail(
+    e,
+    async (attachment) =>
+      new Uint8Array(await fs.readFile(path.join(root, attachment))),
+  );
   results.push(r);
 }
 await fs.writeFile(

@@ -2041,7 +2041,11 @@ export default function Workbench() {
             <div className="drawer-top">
               <div>
                 <span className="eyebrow">VERIFICATION DETAILS</span>
-                <h2>{selected.email.email_id.replace("email_", "Case #")}</h2>
+                <h2 title={selected.email.email_id}>
+                  {selected.email.email_id.startsWith("upload_")
+                    ? "Imported case"
+                    : selected.email.email_id.replace("email_", "Case #")}
+                </h2>
               </div>
               <div className="drawer-tools">
                 <button

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "study_id": "synthetic-runner-smoke",
+  "provenance": "synthetic_development",
+  "labeler_id": "development-team",
+  "labelled_at": "2026-09-24T00:00:00Z",
+  "protocol": "Three synthetic examples to exercise the runner only. Authored with knowledge of the engine. No staff observations, independent pilot or time-saving evidence is claimed.",
+  "cases": [
+    {
+      "id": "pilot-match",
+      "email": {
+        "from": "docs@example.test",
+        "subject": "Please check the draft BL against the SI",
+        "body": "Please compare the attached shipping instruction and draft bill of lading."
+      },
+      "documents": [
+        { "name": "si.txt", "file": "si.txt" },
+        { "name": "bl.txt", "file": "bl.txt" }
+      ],
+      "expected": "match",
+      "independent_attention": false
+    },
+    {
+      "id": "pilot-mismatch",
+      "email": {
+        "from": "docs@example.test",
+        "subject": "Please check the draft BL against the SI",
+        "body": "Please compare the attached shipping instruction and draft bill of lading."
+      },
+      "documents": [
+        { "name": "si.txt", "file": "si.txt" },
+        { "name": "bl.txt", "file": "bl-mismatch.txt" }
+      ],
+      "expected": "mismatch",
+      "independent_attention": false
+    },
+    {
+      "id": "pilot-unknown",
+      "email": {
+        "from": "docs@example.test",
+        "subject": "Please check the draft BL against the SI",
+        "body": "Please compare the attached shipping instruction and draft bill of lading."
+      },
+      "documents": [
+        { "name": "si.txt", "file": "si-unknown.txt" },
+        { "name": "bl.txt", "file": "bl-unknown.txt" }
+      ],
+      "expected": "review",
+      "independent_attention": false
+    }
+  ]
+}

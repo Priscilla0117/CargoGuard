@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { MapPin, RefreshCw, TriangleAlert } from "lucide-react";
 import { checkPortReferences } from "@/lib/port-reference";
 import type { PortReferenceIndex } from "@/lib/port-reference";
 import { loadPortReference } from "@/lib/port-reference-data";
@@ -37,23 +38,42 @@ export function PortReferenceChecks({
         aria-label="Port code reference"
         aria-busy={state.status === "loading"}
       >
-        <h3>Port code reference</h3>
+        <div className="integrity-panel-heading">
+          <span className="integrity-panel-icon">
+            <MapPin size={20} aria-hidden="true" />
+          </span>
+          <div className="integrity-panel-intro">
+            <span className="integrity-eyebrow">PUBLIC REFERENCE CHECK</span>
+            <h3>Port code reference (UN/LOCODE)</h3>
+            <p>Checks stated port codes against the reference snapshot.</p>
+          </div>
+        </div>
         {state.status === "loading" ? (
-          <p className="integrity-limit">Loading the UN/LOCODE reference…</p>
-        ) : (
-          <p className="integrity-limit" role="alert">
-            The UN/LOCODE reference could not be loaded, so port codes were not
-            checked.{" "}
-            <button
-              type="button"
-              onClick={() => {
-                setState({ status: "loading" });
-                setAttempt((value) => value + 1);
-              }}
-            >
-              Retry
-            </button>
+          <p className="integrity-load-state" role="status">
+            Loading the UN/LOCODE reference… Port codes have not been checked
+            yet.
           </p>
+        ) : (
+          <div className="integrity-load-error">
+            <TriangleAlert size={18} aria-hidden="true" />
+            <div>
+              <p role="alert">
+                <strong>Port codes were not checked</strong>
+                The UN/LOCODE reference could not be loaded. Retry to run these
+                checks; the seven-field comparison is unchanged.
+              </p>
+              <button
+                type="button"
+                className="integrity-retry"
+                onClick={() => {
+                  setState({ status: "loading" });
+                  setAttempt((value) => value + 1);
+                }}
+              >
+                <RefreshCw size={15} aria-hidden="true" /> Retry reference check
+              </button>
+            </div>
+          </div>
         )}
       </section>
     );

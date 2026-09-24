@@ -37,7 +37,36 @@ jobs:
         run: npm test
       - name: Authored operations challenge
         run: node --import tsx scripts/evaluate-operations-challenge.ts --report work/validation/operations-challenge/ci.json
+      - name: Frozen pilot runner synthetic smoke
+        run: |
+          node --import tsx scripts/evaluate-pilot.ts freeze examples/pilot/study.json work/pilot/ci-freeze.json
+          node --import tsx scripts/evaluate-pilot.ts run examples/pilot/study.json work/pilot/ci-freeze.json work/pilot/ci-first-run.json
       - name: Production build and local OCR assets
         run: npm run build
       - name: Authenticated team workflow and restart persistence
         run: node scripts/test-team-runtime.mjs
+      - name: Attachment intake and route correction over HTTP
+        env:
+          NODE_ENV: production
+          HOST: 127.0.0.1
+          PORT: "3071"
+          CARGO_AUTH_MODE: demo
+          CARGO_INCLUDE_SAMPLE_DATA: "false"
+          CARGO_LOCAL_DB: work/validation/intake-ci.db
+          CARGO_PUBLIC_ORIGIN: http://127.0.0.1:3071
+          CARGO_MS_ALLOW_SEND: "false"
+        run: |
+          node scripts/start-node.mjs > work/validation/intake-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 120); do
+            if curl --fail --silent --max-time 2 http://127.0.0.1:3071/api/health > /dev/null; then
+              break
+            fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              cat work/validation/intake-server.log
+              exit 1
+            fi
+            sleep 0.25
+          done
+          node scripts/test-intake-api.mjs http://127.0.0.1:3071

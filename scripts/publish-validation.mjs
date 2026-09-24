@@ -18,13 +18,22 @@ const log = await fs.readFile("work/validation/unit-tests.log", "utf8");
 const tests = Number(log.match(/tests (\d+)/)?.[1]);
 assert.ok(tests > 0);
 assert.match(log, /fail 0\b/);
-const freshDirectory = "work/validation/final-enhancements-331";
+const freshDirectory = "work/validation/judge-feedback-341";
 const fresh = await read(`${freshDirectory}/summary.json`);
 assert.equal(fresh.engine, version);
 assert.equal(fresh.completed_runs, 3);
 assert.equal(fresh.all_gates_passed, true);
 assert.equal(fresh.source_unchanged, true);
-assert.deepEqual(fresh.seeds, [196613, 262147, 327673]);
+assert.deepEqual(fresh.seeds, [219971, 329983, 439997]);
+assert.equal(
+  fresh.inference_entrypoint,
+  "scripts/evaluate.ts -> lib/processing.ts processEmail",
+);
+assert.equal(
+  await hashFile(`${freshDirectory}/run-evaluation.py`),
+  fresh.harness_sha256,
+  "The retained first-run harness changed after the assessment.",
+);
 const frozen = await read(`${freshDirectory}/source-after.json`);
 assert.equal(frozen.source_sha256, fresh.source_sha256);
 assert.deepEqual(await read(`${freshDirectory}/source-before.json`), frozen);
@@ -140,6 +149,8 @@ const report = {
     model_sha256: fresh.model_sha256,
     generator_sha256: fresh.generator_sha256,
     scorer_sha256: fresh.scorer_sha256,
+    harness_sha256: fresh.harness_sha256,
+    inference_entrypoint: fresh.inference_entrypoint,
     started_at: fresh.generated_at,
     completed_at: fresh.completed_at,
     runs: fresh.runs.map((row) => ({

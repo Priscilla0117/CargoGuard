@@ -4,13 +4,14 @@ import {
   type Extracted,
   type Field,
 } from "./types";
+import { isSoftwareDirected } from "./instruction-shield";
 
 export interface NormalizedValue {
   value: string | number | null;
   issue?: string;
 }
 const missing =
-  /^(?:[\s?_\-–—.\/]+|t\.?\s*b\.?\s*[acd]\.?|n\.?\s*\/?\s*a\.?|nil|none|null|unknown|pending|unavailable|not\s+(?:available|provided|specified|stated|known|confirmed|applicable)|to\s+be\s+(?:advised|confirmed|determined|provided|decided)|awaiting\s+(?:confirmation|details|instructions)|same\s+as\s+above)$/i;
+  /^(?:[\s?_\-–—.\/]+|t\.?\s*b\.?\s*[acd]\.?|n\.?\s*\/?\s*a\.?|nil|none|null|unknown|unconfirmed|pending(?:\s+(?:confirmation|details|instructions))?|unavailable|not\s+(?:yet\s+)?(?:available|provided|specified|stated|known|confirmed|applicable)|to\s+be\s+(?:advised|confirmed|determined|provided|decided)|awaiting\s+(?:confirmation|details|instructions)|same\s+as\s+above)$/i;
 const unitPlaceholder =
   /^(?:[?_\-–—.\s]+)\s*(?:kgs?|kilograms?|mt|metric tonnes?|tonnes?)$/i;
 // A document that points elsewhere does not state the value itself.
@@ -18,16 +19,33 @@ const referral =
   /^(?:see\s+(?:attached|attachment|annex|appendix|below|above|remarks?|si|shipping\s+instructions?)|as\s+per\s+(?:attached|attachment|si|shipping\s+instructions?|booking|previous|last)|refer\s+to\s+(?:attached|attachment|si|shipping\s+instructions?|booking)|x{2,}|\*+|to\s+follow|will\s+(?:advise|confirm|follow))$/i;
 // Markers that say a stated value is still unconfirmed.
 const unconfirmed =
-  /^(?:t\.?\s*b\.?\s*[acd]\.?|pending|not\s+(?:yet\s+)?confirmed|to\s+be\s+(?:advised|confirmed|determined|provided|decided)|awaiting\s+(?:confirmation|details|instructions)|subject\s+to\s+confirmation)$/i;
-const segmentsOf = (value: string) =>
+  /^(?:t\.?\s*b\.?\s*[acd]\.?|unconfirmed|pending(?:\s+(?:confirmation|details|instructions))?|not\s+(?:yet\s+)?confirmed|to\s+be\s+(?:advised|confirmed|determined|provided|decided)|awaiting\s+(?:confirmation|details|instructions)|subject\s+to\s+confirmation)$/i;
+// Canonicalize only the text used to RECOGNIZE markers. Never erase punctuation
+// or invisible characters from a real company/port value to manufacture a match.
+const markerText = (value: string) =>
   value
-    .replace(/\bn\s*\/\s*a\b/gi, "NA")
-    .split(/[/|;,()[\]{}]+|\s+(?:or|and|&)\s+|\s[-–—]\s/i)
-    .map((part) => part.trim())
+    .normalize("NFKC")
+    .replace(/\p{Cf}/gu, "")
+    .replace(/\bt\s*[./\\-]\s*b\s*[./\\-]\s*([acd])\b\.?/gi, "TB$1")
+    .replace(/\bn\s*\/\s*a\b/gi, "NA");
+const trimMarker = (value: string) =>
+  value
+    .replace(/^[\p{P}\p{S}\s]+|[\p{P}\p{S}\s]+$/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+const segmentsOf = (value: string) =>
+  markerText(value)
+    .split(/[\r\n/\\|;,:()[\]{}]+|\s+(?:or|and|&)\s+|[–—]|\s\p{Pd}\s/iu)
+    .map(trimMarker)
     .filter((part) => /[\p{L}\p{N}]/u.test(part));
 /** "TBA / TBC", "TO BE ADVISED (TBA)" or "SEE ATTACHED" state no value at all. */
 export function placeholderOnly(value: string) {
-  const parts = segmentsOf(value);
+  // Compact combinations such as "TBA-TBC" are placeholders only when EVERY
+  // piece is a marker. A real name such as "TBA-LOGISTICS LTD" stays intact.
+  const parts = segmentsOf(value)
+    .flatMap((part) => part.split(/[\p{Pd}−+&_]+|\.\s+/u))
+    .map(trimMarker)
+    .filter((part) => /[\p{L}\p{N}]/u.test(part));
   return (
     parts.length > 0 &&
     parts.every((part) => missing.test(part) || referral.test(part))
@@ -35,7 +53,14 @@ export function placeholderOnly(value: string) {
 }
 /** A real value with a "(TBC)" style marker is not yet confirmed by its issuer. */
 export function hasUnconfirmedMarker(value: string) {
-  return segmentsOf(value).some((part) => unconfirmed.test(part));
+  if (segmentsOf(value).some((part) => unconfirmed.test(part))) return true;
+  // A terminal provisional annotation is also meaningful without brackets.
+  // Do not keyword-search inside names such as "TBC LOGISTICS LTD".
+  const text = trimMarker(markerText(value));
+  const suffix = text.match(
+    /(?:^|\s)(t\.?\s*b\.?\s*[acd]\.?|unconfirmed|not\s+(?:yet\s+)?confirmed|to\s+be\s+(?:advised|confirmed|determined|provided|decided)|subject\s+to\s+confirmation)$/i,
+  );
+  return Boolean(suffix);
 }
 export const sameAsConsignee = (raw: string) =>
   /^(?:same as|as per)\s+(?:the\s+)?consignee\.?$/i.test(
@@ -84,10 +109,19 @@ export function normalizeValue(field: Field, raw: string): NormalizedValue {
     .normalize("NFKC")
     .replace(/\u00a0/g, " ")
     .trim();
+  if (isSoftwareDirected(value))
+    return {
+      value: null,
+      issue:
+        "This field contains an instruction aimed at software. Confirm the shipment value from the original source; matching instructions cannot verify a shipment.",
+    };
   if (
     !value ||
     !/[\p{L}\p{N}]/u.test(value) ||
     placeholderOnly(value) ||
+    segmentsOf(value).some(
+      (part) => missing.test(part) || referral.test(part),
+    ) ||
     value
       .split(/\r?\n/)
       .some(

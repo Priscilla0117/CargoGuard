@@ -1,7 +1,7 @@
 {
-  "version": "3.3.1",
-  "generated_at": "2026-09-24T01:26:43.910Z",
-  "engine": "CargoGuard 3.3.1",
+  "version": "3.4.1",
+  "generated_at": "2026-09-24T10:03:21.123Z",
+  "engine": "CargoGuard 3.4.1",
   "authored_operations_challenge": {
     "cases": 20,
     "strict_passed": 20,
@@ -11,7 +11,7 @@
     "expected_reviews": 4,
     "expected_independent_attention": 5,
     "dataset_sha256": "5e47afd4e501d2a9c9ceff34799f4a4490c6f38877d82c80cc1f215e731a6a52",
-    "measured_at": "2026-09-24T01:17:05.648Z",
+    "measured_at": "2026-09-24T09:58:54.485Z",
     "limitations": "Synthetic, self-authored source-text cases, independent of the organiser generator. The author knew the implementation. Not a blinded holdout, external customer validation, OCR evaluation or proof of superiority over another team."
   },
   "metrics": {
@@ -33,66 +33,68 @@
       "ground_truth_sha256": "d2d84f55cd68e9e0e7a62f07616d49968f44be2132c7b6b69a77213adfc0babe"
     },
     {
-      "name": "Fresh first-run generator seed 196613",
+      "name": "Fresh first-run generator seed 219971",
       "emails": 520,
       "output_differences": 0,
       "false_clearances": 0,
-      "exact_defect_cases": 60,
+      "exact_defect_cases": 53,
       "exact_review_cases": 20,
-      "predictions_sha256": "cde248f7e624a61fede7bb07e0435798ad9561e72849a67b9af2fb914754c18a",
-      "ground_truth_sha256": "cdd0fd09ba854166a4b83302f5e425106b1e989b6c448e14950b1424f15b0eb2"
+      "predictions_sha256": "932c1e375c2dae7a5574c4c9b38fda347058eae74add983c7254684bb7d1420a",
+      "ground_truth_sha256": "d3167bce1d466881465588ce973e578f9d1f2302b5e6c4227e3585220d679b74"
     },
     {
-      "name": "Fresh first-run generator seed 262147",
-      "emails": 520,
-      "output_differences": 0,
-      "false_clearances": 0,
-      "exact_defect_cases": 55,
-      "exact_review_cases": 20,
-      "predictions_sha256": "3d28b26cd1b8ab9085414e2c35d09bcedf3018e8bbc41412b700ad7fd395a285",
-      "ground_truth_sha256": "1a42c69a20ed660759209fa9ec3fd2cb3cc47e7a7ad67f005e65059cc5ffe382"
-    },
-    {
-      "name": "Fresh first-run generator seed 327673",
+      "name": "Fresh first-run generator seed 329983",
       "emails": 520,
       "output_differences": 0,
       "false_clearances": 0,
       "exact_defect_cases": 52,
       "exact_review_cases": 20,
-      "predictions_sha256": "9ec4692b9f73d6626e5cd526e4eadc27ad3e32210d8a221fb1cb6fc6fc80f512",
-      "ground_truth_sha256": "3f35b17f4e7cf1be0a89a0a29a8fb80769046258a0b21e934b7ad66e1827a174"
+      "predictions_sha256": "33ac390ee1df5a4f374150f2c7a7d97d61ec01cac0f6156779121669b7a7da59",
+      "ground_truth_sha256": "7abe3c5f6979a9ae252afd8e91210371a66ffd06ec2590a5f80adb0736737dc1"
+    },
+    {
+      "name": "Fresh first-run generator seed 439997",
+      "emails": 520,
+      "output_differences": 0,
+      "false_clearances": 0,
+      "exact_defect_cases": 49,
+      "exact_review_cases": 20,
+      "predictions_sha256": "24fb4b517e9ba4e5d178af33e6e227dcf86289eef60387cf7ab56f40c31762b6",
+      "ground_truth_sha256": "928d28c8641e2a7454e5f86f374ffbf0d47f05be01d45c7c8e55fe0bd7eb5890"
     }
   ],
   "challenge_limitations": "The original development corpus and three fresh seeds share the organiser generator and templates. Fresh seeds were fixed before generation and run once without tuning. Stable scores show within-generator robustness, not independent layout diversity, live shipping accuracy or immunity to overfitting. Image-only scans correctly remain in review in this automatic evaluation. Historical 3.1 routing ablations are not presented as current-engine measurements.",
   "fresh_seed_stability": {
-    "engine": "3.3.1",
+    "engine": "3.4.1",
     "first_run": true,
     "seeds": [
-      196613,
-      262147,
-      327673
+      219971,
+      329983,
+      439997
     ],
     "records": 1560,
     "exact_matches": 1560,
     "false_verified_cases": 0,
     "source_unchanged": true,
-    "source_file_count": 27,
-    "engine_closure_sha256": "3b5e4222810db6267f0ce6dbf0dcfadb8da4690a4e0379c126d3e64d436c6e68",
+    "source_file_count": 29,
+    "engine_closure_sha256": "e763255898c69c5c13bdc850dbbb3bb31b475113bf4fdff9c18586c2caa9e4e8",
     "model_sha256": "25b36b744cc49e09b383d01bbc2c6560fe984e4cf1670dc02b674ce5b526be2a",
     "generator_sha256": "3d3c798e56bc044bb58f0950d9235ac756ab18e1d3d142306dddbbdd6a5d2878",
     "scorer_sha256": "230b9a2f865b42f5996d462b49a658058a9c2859703b74326716d8308abe13a7",
-    "started_at": "2026-09-23T16:23:36.176959+00:00",
-    "completed_at": "2026-09-23T16:23:56.312960+00:00",
+    "harness_sha256": "5fa7c88542932f4a1c14967775a326e09983e7841ba9980efeb3a308106411c7",
+    "inference_entrypoint": "scripts/evaluate.ts -> lib/processing.ts processEmail",
+    "started_at": "2026-09-24T09:54:36.912091+00:00",
+    "completed_at": "2026-09-24T09:54:54.444813+00:00",
     "runs": [
       {
-        "seed": 196613,
+        "seed": 219971,
         "records": 520,
         "exact_matches": 520,
         "category_macro_f1": 1,
         "defect_f1": 1,
         "exact_defect_catch": {
-          "success": 60,
-          "total": 60,
+          "success": 53,
+          "total": 53,
           "rate": 1
         },
         "review_recall": 1,
@@ -100,22 +102,7 @@
         "false_verified_cases": 0
       },
       {
-        "seed": 262147,
-        "records": 520,
-        "exact_matches": 520,
-        "category_macro_f1": 1,
-        "defect_f1": 1,
-        "exact_defect_catch": {
-          "success": 55,
-          "total": 55,
-          "rate": 1
-        },
-        "review_recall": 1,
-        "expected_review_cases": 20,
-        "false_verified_cases": 0
-      },
-      {
-        "seed": 327673,
+        "seed": 329983,
         "records": 520,
         "exact_matches": 520,
         "category_macro_f1": 1,
@@ -128,52 +115,67 @@
         "review_recall": 1,
         "expected_review_cases": 20,
         "false_verified_cases": 0
+      },
+      {
+        "seed": 439997,
+        "records": 520,
+        "exact_matches": 520,
+        "category_macro_f1": 1,
+        "defect_f1": 1,
+        "exact_defect_catch": {
+          "success": 49,
+          "total": 49,
+          "rate": 1
+        },
+        "review_recall": 1,
+        "expected_review_cases": 20,
+        "false_verified_cases": 0
       }
     ]
   },
   "engineering": {
-    "unit_tests": 531,
-    "test_files": 41,
+    "unit_tests": 624,
+    "test_files": 47,
     "quality_steps": [
       {
         "step": "typecheck",
         "passed": true,
-        "duration_ms": 12021
+        "duration_ms": 12777
       },
       {
         "step": "lint",
         "passed": true,
-        "duration_ms": 97060
+        "duration_ms": 16053
       },
       {
         "step": "unit-tests",
         "passed": true,
-        "duration_ms": 16511
+        "duration_ms": 15578
       },
       {
         "step": "input-integrity",
         "passed": true,
-        "duration_ms": 1616
+        "duration_ms": 1042
       },
       {
         "step": "evaluate-organiser",
         "passed": true,
-        "duration_ms": 1900
+        "duration_ms": 2080
       },
       {
         "step": "independent-accuracy",
         "passed": true,
-        "duration_ms": 510
+        "duration_ms": 308
       },
       {
         "step": "ocr-assets",
         "passed": true,
-        "duration_ms": 183
+        "duration_ms": 140
       },
       {
         "step": "build",
         "passed": true,
-        "duration_ms": 70573
+        "duration_ms": 35910
       }
     ]
   },

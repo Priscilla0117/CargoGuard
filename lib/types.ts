@@ -52,6 +52,12 @@ export interface ParsedDocument {
   method: string;
   sha256?: string;
   page_count?: number;
+  /** Retained source bytes intentionally not parsed by the routing gate. */
+  intake?: {
+    state: "deferred";
+    reason: "spam" | "unrelated";
+    category: Category;
+  };
   transcription?: import("./transcription").Transcript;
   recovery?: import("./recovery-schema").ConfirmedRecovery;
   label_rules?: {
@@ -134,7 +140,7 @@ export interface AuditEvent {
   detail: string;
   created_at: string;
 }
-export const PIPELINE_VERSION = "3.4.0";
+export const PIPELINE_VERSION = "3.4.1";
 export function emailSummaryOf(email: Email): CaseSummary["email"] {
   const { email_id, from, subject, attachments } = email;
   return { email_id, from, subject, attachments };
