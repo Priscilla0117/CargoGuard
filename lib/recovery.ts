@@ -1,5 +1,6 @@
 import { FIELDS, type CaseResult, type ParsedDocument } from "./types";
 import { HttpError } from "./http";
+import { requireCurrentEngine } from "./review-guard";
 import { analyze, deriveResult, recomputeRows } from "./compare";
 import {
   requireRecoverable,
@@ -66,6 +67,7 @@ export async function applyRecovery(
   confirmation: { role: "SI" | "BL"; actor: string; reason: string },
   now = new Date(),
 ): Promise<CaseResult> {
+  requireCurrentEngine(previous);
   if (
     proposal.case_id !== previous.email.email_id ||
     proposal.version !== previous.version ||

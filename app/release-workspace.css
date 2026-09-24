@@ -1,0 +1,82 @@
+.skip-content {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 10000;
+  padding: 12px 18px;
+  border-radius: 8px;
+  background: #173e49;
+  color: white;
+  transform: translateY(-160%);
+}
+.skip-content:focus {
+  transform: translateY(0);
+  outline: 3px solid #80cfbd;
+  outline-offset: 3px;
+}
+:where(button, a, input, textarea, select, summary):focus-visible {
+  outline: 3px solid #278b84;
+  outline-offset: 3px;
+}
+#main-content:focus {
+  outline: none;
+}
+.main-shell > .workspace-nav.workspace-nav {
+  margin: 18px 32px 0;
+}
+.main-shell > main {
+  min-width: 0;
+}
+.topbar-right {
+  flex-shrink: 0;
+}
+.topbar .breadcrumb {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.team-access-banner {
+  flex-wrap: wrap;
+}
+.team-access-card {
+  width: calc(100% - 32px);
+  color: #203849;
+}
+.team-access-card button[type="submit"] {
+  min-height: 44px;
+  background: #246a65;
+  border-color: #246a65;
+}
+.team-access-card input {
+  min-height: 44px;
+}
+.team-access-banner > div {
+  flex-wrap: wrap;
+}
+.team-access-panel {
+  width: calc(100% - 32px);
+}
+@media (max-width: 760px) {
+  .main-shell > .workspace-nav.workspace-nav {
+    margin: 14px 16px 0;
+  }
+  .team-access-banner {
+    padding: 10px 16px;
+    gap: 8px;
+  }
+  .team-access-card {
+    margin: 24px auto;
+    padding: 24px;
+  }
+  .team-access-panel {
+    padding: 18px;
+  }
+  .team-access-banner button {
+    min-height: 40px;
+  }
+}
+/* The queue's fixed desktop sidebar must not cover the signed-in identity. */
+@media (min-width: 951px) {
+  body:has(.app-shell) .team-access-banner {
+    padding-left: 248px;
+  }
+}

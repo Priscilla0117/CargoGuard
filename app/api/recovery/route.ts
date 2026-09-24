@@ -1,8 +1,12 @@
+import {
+  authenticatedActor,
+  errorSession,
+  requireCapability,
+} from "@/lib/auth";
 import { z } from "zod";
 import { FIELDS } from "@/lib/types";
 import { HttpError, readJson } from "@/lib/http";
 import {
-  workspace,
   requireMutation,
   respond,
   getCase,
@@ -31,6 +35,7 @@ import {
   persistRecoveryProposal,
 } from "@/lib/recovery-storage";
 import { applyRecovery } from "@/lib/recovery";
+import { requireCurrentEngine } from "@/lib/review-guard";
 
 const common = {
   id: z.string().min(1).max(80),
@@ -65,20 +70,38 @@ const inputSchema = z.discriminatedUnion("action", [
     .strict(),
 ]);
 export async function GET(request: Request) {
-  return respond(
-    {
-      ...recoveryConfig(),
-      notice:
-        "Optional external AI proposes exact source quotations only. Nothing changes until all seven fields and the document role are confirmed by a human. Never send confidential shipping data.",
-    },
-    workspace(request),
-  );
+  let session = errorSession(request);
+  try {
+    session = await requireCapability(request, "read");
+    return respond(
+      {
+        ...recoveryConfig(),
+        notice:
+          "Optional external AI proposes exact source quotations only. Nothing changes until all seven fields and the document role are confirmed by a human. Never send confidential shipping data.",
+      },
+      session,
+    );
+  } catch (error) {
+    return respond(
+      {
+        error:
+          error instanceof HttpError
+            ? error.message
+            : "Recovery settings are unavailable.",
+      },
+      session,
+      error instanceof HttpError ? error.status : 503,
+    );
+  }
 }
 export async function POST(request: Request) {
-  let session = workspace(request);
+  let session = errorSession(request);
   try {
-    session = requireMutation(request);
+    session = await requireCapability(request, "review");
+    requireMutation(request);
     const input = inputSchema.parse(await readJson(request));
+    if (input.action === "confirm")
+      input.actor = authenticatedActor(request, input.actor);
     const config = recoveryConfig();
     if (input.action === "suggest" && !config.enabled)
       throw new HttpError(
@@ -93,6 +116,7 @@ export async function POST(request: Request) {
         "Case changed. Reload it before recovering evidence.",
         409,
       );
+    requireCurrentEngine(previous);
     const doc = previous.documents.find(
       (d) => d.name === input.name && d.sha256 === input.sha256,
     );

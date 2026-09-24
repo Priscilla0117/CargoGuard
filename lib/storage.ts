@@ -8,6 +8,8 @@ import {
 } from "./types";
 import { HttpError, sameRequestOrigin } from "./http";
 import { DEFAULT_POLICY, withPolicy, type PolicySnapshot } from "./policy";
+import { requestWorkspace, requireAuthOrigin } from "./auth";
+import { workspaceUploadLimit } from "./workspace-mode";
 type Bindings = { DB: D1Database; BUCKET: R2Bucket };
 export function storage() {
   const e = runtimeBindings() as Bindings;
@@ -16,10 +18,7 @@ export function storage() {
   return e;
 }
 export function workspace(request: Request) {
-  const value = request.headers
-    .get("cookie")
-    ?.match(/(?:^|;\s*)cargo_workspace=([a-f0-9-]{36})(?:;|$)/)?.[1];
-  return { id: value ?? crypto.randomUUID(), fresh: !value };
+  return requestWorkspace(request);
 }
 export function respond(
   data: unknown,
@@ -40,6 +39,7 @@ export function respond(
   return r;
 }
 export function requireMutation(request: Request) {
+  requireAuthOrigin(request);
   // Next's internal URL can use localhost while the actual Host is 127.0.0.1.
   // Render terminates HTTPS at its proxy; use its trusted configured public URL.
   if (
@@ -131,7 +131,9 @@ export async function saveCases(
       !w.result.source_replaced &&
       !w.result.category_override &&
       !w.result.document_selection &&
-      !w.result.documents.some((d) => d.transcription || d.recovery) &&
+      !w.result.documents.some(
+        (d) => d.transcription || d.recovery || d.label_rules,
+      ) &&
       ["PROCESSED", "REPROCESSED", "UPLOADED"].includes(w.action)
         ? "automatic"
         : "reviewed";
@@ -139,7 +141,7 @@ export async function saveCases(
       w.expected === 0
         ? db
             .prepare(
-              "INSERT INTO cases(workspace,email_id,payload,version,updated_at) SELECT ?,?,?,?,? WHERE (? NOT GLOB 'upload_*' OR (SELECT COUNT(*) FROM cases WHERE workspace=? AND email_id GLOB 'upload_*') < 30) ON CONFLICT(workspace,email_id) DO NOTHING",
+              "INSERT INTO cases(workspace,email_id,payload,version,updated_at) SELECT ?,?,?,?,? WHERE (? NOT GLOB 'upload_*' OR (SELECT COUNT(*) FROM cases WHERE workspace=? AND email_id GLOB 'upload_*') < ?) ON CONFLICT(workspace,email_id) DO NOTHING",
             )
             .bind(
               ws,
@@ -149,6 +151,7 @@ export async function saveCases(
               now,
               w.result.email.email_id,
               ws,
+              workspaceUploadLimit(),
             )
         : db
             .prepare(
@@ -276,7 +279,7 @@ export async function saveCase(
   if (!saved.results.length) {
     if (expected === 0 && r.email.email_id.startsWith("upload_"))
       throw new HttpError(
-        "This demo allows 30 uploaded cases per workspace.",
+        `This workspace has reached its limit of ${workspaceUploadLimit()} imported cases. Ask your administrator to review capacity.`,
         429,
       );
     throw new HttpError(

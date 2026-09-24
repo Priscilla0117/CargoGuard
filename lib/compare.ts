@@ -46,11 +46,11 @@ const labels: [RegExp, Field | "stop"][] = [
     "gross_weight_kg",
   ],
   [
-    /^(?:vessel.*|ocean vessel|export carrier.*|voy\..*|voyage.*|commodity.*|description.*|kinds of packages.*|hs code.*|booking.*|b\/l.*|bl no.*|bill of lading no.*|oc no.*|order no.*|freight.*|container no\.?|total packages.*)$/i,
+    /^(?:vessel.*|ocean vessel|export carrier.*|voy\..*|voyage.*|commodity.*|description.*|kinds of packages.*|hs code.*|booking.*|b\/l.*|bl no.*|bill of lading no.*|oc no.*|order no.*|freight.*|container no\.?|total packages.*|remarks?|notes?)$/i,
     "stop",
   ],
 ];
-function fieldLabel(text: string): Field | "stop" | null {
+export function fieldLabel(text: string): Field | "stop" | null {
   return (
     labels.find(([rx]) =>
       rx.test(
@@ -144,12 +144,26 @@ export function extract(doc: ParsedDocument): Extracted {
     issue?: string;
   };
   const segments: Segment[] = [];
+  const approvedAliases = doc.label_rules && doc.sha256 && doc.label_rules.source_sha256 === doc.sha256
+    ? doc.label_rules.aliases : [];
   let current: Segment | null = null;
+  let inNotes = false;
+  const weightNotes: string[] = [];
   for (const line of doc.lines) {
     const text = line.text.trim();
     if (!text) continue;
     const split = text.match(/^(.+?)[:：]\s*([\s\S]*)$/);
-    const key = fieldLabel(split ? split[1] : text);
+    const sourceLabel = (split ? split[1] : text).normalize("NFKC").trim().replace(/\s+/g, " ").toUpperCase();
+    const aliases = split ? approvedAliases.filter((alias) => alias.label === sourceLabel) : [];
+    const key = fieldLabel(split ? split[1] : text) ?? aliases[0]?.field ?? null;
+    const wasInNotes = inNotes;
+    if (key) inNotes = /^(?:remarks?|notes?)$/i.test(split ? split[1].trim() : text);
+    // A footer is a field boundary, but a weight instruction in that footer is
+    // still evidence. Never hide a second weight by treating it as decoration.
+    if (
+      (inNotes || wasInNotes) &&
+      /(?:\b(?:gross\s*(?:weight|wt)|weight)\b|\d[\d., ]*\s*(?:kgs?|kilograms?|mt|metric\s+tonnes?|tonnes?)\b)/i.test(text)
+    ) weightNotes.push(line.location);
     if (key) {
       current =
         key === "stop"
@@ -160,6 +174,7 @@ export function extract(doc: ParsedDocument): Extracted {
               location: line.location,
               total: /^total\s+gross/i.test(text),
               label: split ? split[1] : text,
+              ...(new Set(aliases.map((alias) => alias.field)).size > 1 ? { issue: "Conflicting approved label mappings. Review this field and disable the conflicting rule." } : {}),
             };
       if (current) segments.push(current);
     } else if (current) {
@@ -192,7 +207,7 @@ export function extract(doc: ParsedDocument): Extracted {
       normalized: null,
       evidence: candidates.map((c) => c.location).join("; "),
       source: doc.name,
-      method: doc.method,
+      method: `${doc.method}${approvedAliases.some((alias) => alias.field === field) ? "; approved label rule" : ""}`,
       ...(conflicting || issue
         ? {
             extraction_issue:
@@ -201,6 +216,11 @@ export function extract(doc: ParsedDocument): Extracted {
           }
         : {}),
     };
+  }
+  if (weightNotes.length) {
+    result.gross_weight_kg.extraction_issue =
+      "A remarks or notes section mentions weight. Confirm the authoritative weight and any amendment from the source.";
+    result.gross_weight_kg.evidence += `; weight note ${weightNotes.join("; ")}`;
   }
   // PDF fonts can split a bilingual total label into several fragments. Recover
   // only the numeric total on that exact page/baseline; never use a nearby item weight.

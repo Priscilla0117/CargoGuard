@@ -1,136 +1,121 @@
-![CargoGuard — spot the difference, show the evidence](docs/assets/cargoguard-hero.svg)
+# CargoGuard
 
-<p align="center">
-  <a href="https://cargoguard-averis.onrender.com/"><strong>Live&nbsp;demo&nbsp;↗</strong></a>
-  &nbsp; · &nbsp;
-  <a href="docs/REVIEW_WORKSPACE_V32.md">User&nbsp;guide</a>
-  &nbsp; · &nbsp;
-  <a href="docs/ARCHITECTURE.md">Architecture</a>
-</p>
+Shipping-document verification and follow-up for operations teams. CargoGuard classifies incoming email, compares Shipping Instructions (SI) with draft Bills of Lading (BL), and gives employees a source-backed route from a discrepancy to a corrected document. Decisions, originals, revisions, assignments and handovers are stored in a database.
 
-## Five containers. Or four?
+**Final-round branch:** `codex/final-round-employee-workflow`. Engine **3.3.1**. This repository contains the executable Next.js application, SQL migrations, local OCR assets, regression tests and deployment configuration. No paid AI API is needed for classification, comparison or OCR.
 
-The Shipping Instruction (SI) says **five**. The draft Bill of Lading (BL) says **four**.
+The existing URL, https://cargoguard-averis.onrender.com/, is an **older release**, not proof that this branch has been deployed. Its dated record is in [CLOUD_RELEASE.md](docs/CLOUD_RELEASE.md). Deploy the exact feature-branch commit and run acceptance checks against that host before sharing it as the final release.
 
-CargoGuard helps Averis shipping staff see **what differs, where the evidence is, and what to do next**—without treating missing information as a successful check.
+## Employee workflows
 
-**Classify the email → Extract seven fields → Compare against the SI → Review with evidence**
+| Workspace | Working capabilities |
+| --- | --- |
+| Work queue | Email and document import; five-category routing; seven-field comparison; source inspection; corrections; OCR review; replacement BL; revision differences; batch completion of eligible matches |
+| Shipments | Explicit document association; current comparison; ownership; confirmed cutoffs; approved email instructions; missing-document and billing drafts; tasks; handovers; history |
+| Insights | Source-linked questions and filters; discrepancy distributions; historical party deviations; quoted general-email digest; visible denominators |
+| Label rules | Propose unfamiliar headings, preview impact, approve scoped reuse, inspect history and disable rules |
+| SI templates | Approved stable party fields, source-bound reuse and rollback; shipment-specific values remain blank |
+| Team access | Named accounts, operator/reviewer/admin permissions, shared workspace, revocable sessions and audited administration |
+| Outlook | OAuth/Graph adapter, selected-message import, reviewed drafts and guarded dispatch; requires Microsoft registration and live acceptance |
 
-Five email categories. TXT, PDF, Word (.docx) and Excel (.xlsx) inputs. Missing or unreadable documents stay incomplete for human review.
+Email content is untrusted evidence, never an instruction to the application. The original SI comparison remains visible when an employee approves a later instruction. Missing, damaged, ambiguous or scanned documents cannot become automatic matches. OCR suggestions include source crops and recognition scores; all seven fields require human confirmation.
 
-## Three features worth trying
+Independent ISO 6346 and source-backed consistency checks can expose errors even when both documents agree. Missing evidence stays **Not checked**. Document-check completion never authorizes cargo release or establishes compliance clearance.
 
-| Choose the right draft | Preview before saving | Ask with evidence |
-| --- | --- | --- |
-| Select the SI and draft to check. Other attachments stay clearly marked **not verified**. | See how one edit affects linked fields, such as “same as consignee.” Save only after checking the source. | Ask about the selected case, inspect cited sources and prepare a follow-up. The assistant **cannot change the saved decision**. |
+## Run from a clean checkout
 
-Earlier results and original files remain available in **History**. Correction drafts are never sent automatically.
-
-## Try the prototype
-
-1. **Open the demo → Run inbox.** No account or personal API key needed.
-2. **Find `email_313`.** See five versus four containers and a **500 kg** weight difference. Open a source reference to check the evidence.
-3. **Open Ask CargoGuard** and attach that case. Ask: *“What needs fixing, and what should I do next?”* Review the outgoing data and consent before sending.
-4. **Inspect `email_512` and `email_507`.** A scan needing review and a missing draft stay incomplete, with a next step.
-
-For multi-file selection, correction previews and history, see the [user guide](docs/REVIEW_WORKSPACE_V32.md). The [synthetic intake fixtures](tests/fixtures/intake) provide a reproducible example.
-
-> Free hosting may take around a minute to wake. Use only organiser/synthetic data. AI has shared limits; core comparison and manual review still work without it.
-
-## Evidence, not just a demo
-
-| **520 / 520** | **350 passed** | **228 passed** |
-| :---: | :---: | :---: |
-| Supplied-data outputs matched | Unit tests · zero skipped | Local HTTP checks |
-
-
-## How it is built
-
-**React / Next.js · Node.js on Render · Turso / libSQL · OpenAI · Tesseract.js**
-
-A trained **TF-IDF logistic model** routes emails; deterministic checks compare shipment fields. Render runs the pipeline, and Turso stores cases, small originals and review history. Optional OpenAI assistance uses server-side credentials and explicit consent. Browser-local OCR proposes text for human confirmation.
-
-[Architecture & implementation](docs/ARCHITECTURE.md) · [Model & AI evidence](docs/MODEL_CARD.md) · [Requirements coverage](docs/REQUIREMENTS.md)
-
-## Required written responses
-
-<details>
-<summary><strong>Open the six submission answers</strong> — problem, AI, testing, challenges, metrics and roadmap</summary>
-
-### 1. Problem-solution alignment
-
-Shipping staff need precise SI-to-draft comparisons. CargoGuard routes five email types and checks seven fields: shipper, consignee, notify party, loading port, discharge port, container count and gross weight. Uncertain evidence goes to a person.
-
-### 2. AI and cloud infrastructure integration
-
-Learned routing is part of the core workflow. Render performs processing; Turso persists reviews. Optional consented OpenAI supports source-quoted recovery and case chat. Exact comparison does not depend on an LLM.
-
-### 3. User feedback/testing
-
-Automated tests, organiser inputs, synthetic challenges and laptop walkthroughs informed improvements. **No Averis employee usability study or measured time-saving claim** is presented. Those need a supervised pilot.
-
-### 4. Coding challenges
-
-Ambiguous attachments led to explicit pair selection. Linked fields led to shared preview/save logic. Database outages led to separate process and storage checks. LLM proposals require source validation and human confirmation.
-
-### 5. Success metrics
-
-The dated checks above establish supplied-data agreement and tested software behaviour. Proposed business measures are review time, missed differences, correction rounds and staff task completion—not invented ROI.
-
-### 6. Scalability plans / future roadmap
-
-**Next:** an approved non-confidential pilot. **Before confidential use:** corporate identity, access controls and retention safeguards. **At larger scale:** queued workers, managed file storage and load testing. Mailbox/ERP integrations remain future work.
-
-[Read the detailed written responses and supporting evidence →](docs/WRITTEN_RESPONSES.md)
-
-</details>
-
-## Run it yourself
-
-Requires **Node.js ≥22.13**, npm and Git. The core app needs no OpenAI key.
-
-<details>
-<summary><strong>Windows PowerShell</strong></summary>
-
-```powershell
-git clone https://github.com/Priscilla0117/CargoGuard.git
-cd CargoGuard
-npm ci
-$env:CARGO_LOCAL_DB='work/local.db'
-New-Item -ItemType Directory -Force work
-npm run db:migrate
-node scripts/stage-ocr.mjs
-npm run dev
-```
-
-Open **http://localhost:3000**, then choose **Run inbox**. Keep the environment variable in the server's terminal.
-
-</details>
-
-<details>
-<summary><strong>macOS / Linux</strong></summary>
+Requires **Node.js 22.13 or newer** and npm. Python is only needed for separate organiser scoring. Run from the repository root:
 
 ```sh
-git clone https://github.com/Priscilla0117/CargoGuard.git
-cd CargoGuard
 npm ci
-export CARGO_LOCAL_DB=work/local.db
-mkdir -p work
+```
+
+Copy `.env.example` to `.env.local` and configure local development:
+
+```dotenv
+CARGO_LOCAL_DB=work/local.db
+CARGO_AUTH_MODE=demo
+CARGO_INCLUDE_SAMPLE_DATA=true
+```
+
+```sh
 npm run db:migrate
-node scripts/stage-ocr.mjs
 npm run dev
 ```
 
-Open **http://localhost:3000**, then choose **Run inbox**. SQLite is for local development; the hosted app uses Turso.
+Open http://localhost:3000. Demo mode has isolated browser workspaces and organiser samples, with reviewer names clearly labelled as self-reported. Run the inbox to process samples or import permitted test files. On Windows, use `npm.cmd` if a PowerShell shim prevents npm from running.
 
-</details>
+For a production server using the configured environment:
 
-[Testing & operating limits](docs/DEVELOPMENT.md) · [Cloud deployment](docs/DEPLOYMENT.md) · [Environment template](.env.example)
+```sh
+npm run build
+npm start
+```
 
----
+Build stages the local OCR worker, English model and licence notices. Startup checks configuration and applies versioned migrations before serving requests. `/api/live` checks the process; `/api/health` checks database readiness.
 
-**Demo boundaries:** browser workspaces are not corporate authentication. A match is not shipment approval. OCR/AI can be wrong; inspect sources before confirming.
+## Configure an employee team
 
-**Technical documentation:** [written responses](docs/WRITTEN_RESPONSES.md) · [verification report](docs/SUBMISSION_CHECK.md) · [cloud and AI validation](docs/CLOUD_RELEASE.md).
+Deploy behind HTTPS with an approved persistent Turso/libSQL database. Put configuration and credentials in the host's environment settings, never Git:
 
-**Acknowledgements:** built with open-source dependencies and OpenAI Codex assistance. Organiser inputs are included for the authorised demo; answer keys are not runtime inputs or published here. Preserve vendor/OCR licences. The team must confirm eligibility, originality, permitted dates and any reused material.
+```dotenv
+CARGO_AUTH_MODE=team
+CARGO_PUBLIC_ORIGIN=https://your-approved-host.example
+CARGO_INCLUDE_SAMPLE_DATA=false
+CARGO_MAX_WORKSPACE_UPLOADS=1000
+```
+
+Also set `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` and a cryptographically random `CARGO_BOOTSTRAP_SECRET` of at least 32 characters in the secret store. Register the first administrator on the sign-in page using that secret, then remove the bootstrap secret. Administrators create employees and assign roles.
+
+**A new employee workspace starts empty.** Import records through the normal workflow. Organiser sample processing, unsaved sample downloads and benchmark export are disabled unless explicitly enabled. Turning samples off does not delete existing records or history. Imported-case capacity is enforced transactionally: 30 by default in demo mode and 1,000 in team mode, configurable from 1 to 10,000. This does not increase the separate 256 MiB source-storage ceiling.
+
+Follow [deployment instructions](docs/DEPLOYMENT.md), [team setup](docs/TEAM_ACCESS.md) and the [employee release record](docs/EMPLOYEE_RELEASE.md). The Render blueprint supplies team-mode settings; applying it does not itself create an administrator or validate company access.
+
+## Verify changes
+
+```sh
+npm run typecheck
+npm run lint
+npm test
+npm run build
+node scripts/test-team-runtime.mjs
+```
+
+The team acceptance script uses an isolated local database and temporary test identities. It checks real HTTP permissions, workflow persistence and restart recovery without external providers. The [GitHub workflow](.github/workflows/verify.yml) installs locked dependencies, checks types, lints, tests, builds and runs team acceptance on feature-branch pushes and pull requests. See [GitHub's Node.js CI documentation](https://docs.github.com/en/actions/tutorials/build-and-test-code/nodejs).
+
+For organiser scoring, keep the supplied `sdoc-hackathon-bundle` and `sdoc-hackathon-docker` folders **beside** this repository. They are not required to run the application. Set `CARGO_ORGANISER_BUNDLE`, `CARGO_ORGANISER_DOCKER_DATA` and `CARGO_PYTHON` if their locations differ, then run:
+
+```sh
+npm run quality -- --build
+```
+
+Three fresh first-run seeds produced **1,560/1,560 exact outputs**, catching all **167 defects** and **60 required reviews**, with zero observed false verified cases. The engine closure was unchanged between runs. These datasets share the organiser generator: results establish within-generator consistency, not real-world accuracy, absence of bugs or a judging score. Human-assisted results are excluded from the untouched automatic benchmark. See [validation details](docs/FINAL_ENHANCEMENTS_VALIDATION.md) and [model card](docs/MODEL_CARD.md).
+
+## Microsoft connection
+
+The application works without Microsoft. Connecting Outlook requires an approved tenant registration, delegated permissions, redirect URI and encrypted token storage. Follow [MICROSOFT_SETUP.md](docs/MICROSOFT_SETUP.md). Sending and Outlook framing default to disabled. No tenant is available for live acceptance; mocked tests do not establish live mailbox compatibility.
+
+Chasers, acknowledgements, IT reports and handovers remain saved drafts unless explicitly dispatched through a configured channel. In-app reminders refresh while the workspace is open. Teams delivery, unattended mailbox/background monitoring and sanctions screening are not delivered features.
+
+## Deployment boundaries
+
+- Team access is application authentication, not corporate SSO/MFA. Company security/data approval, employee acceptance, backups/restores, retention and hosting capacity are deployment prerequisites.
+- Imports accept up to 10 TXT/PDF/DOCX/XLSX files, 5 MiB each and 20 MiB combined. Source history is retained and consumes storage.
+- PDF text extraction is bounded to 30 pages; English browser OCR supports five pages. Recognition confidence is not a calibrated correctness probability. Formulas require inspected, recalculated values-only evidence.
+- The SQL-backed source store is bounded to 256 MiB across the deployment. Plan monitored capacity and object storage/queued processing before a larger rollout.
+- Optional external AI requires configuration and explicit per-request consent. The existing consent path is limited to synthetic/organiser content; company-confidential data must stay out until an approved processing arrangement exists.
+- Free-host cold starts and quotas are not a company uptime guarantee. A successful GitHub push does not establish deployment or company acceptance.
+
+## Source map and handover
+
+| Area | Location |
+| --- | --- |
+| Employee UI | `components/workbench.tsx`, `app/shipments`, `app/insights`, `app/rules`, `app/templates`, `app/outlook` |
+| Routing and comparison | `lib/classifier.ts`, `lib/routing*`, `lib/parsers.ts`, `lib/normalization.ts`, `lib/compare.ts` |
+| Workflow and identity | `lib/storage.ts`, `lib/shipment-storage.ts`, `lib/auth.ts`, `lib/team-storage.ts` |
+| Migrations and storage | `drizzle/`, `db/schema.ts`, `lib/runtime-node.ts` |
+| Regression/HTTP acceptance | `tests/`, `scripts/test-*.mjs`, `scripts/test-*.ts` |
+
+See [architecture](docs/ARCHITECTURE.md), [rubric mapping](docs/FINAL_ROUND_READINESS.md), [requirements](docs/REQUIREMENTS.md) and [synthetic correction-cycle files](examples/final-round/README.md). Historical documents remain dated records, not evidence for a newer deployed build.
+
+Organiser files remain unchanged; answer keys are used only for offline scoring, never inference. This project uses open-source libraries and AI-assisted implementation. Tesseract.js/core use Apache-2.0; the English model package declares MIT; staged assets retain notices. The team must accurately disclose authorship and follow the permitted development window and submission rules. No championship or zero-defect guarantee is made.

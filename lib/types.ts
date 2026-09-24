@@ -54,6 +54,11 @@ export interface ParsedDocument {
   page_count?: number;
   transcription?: import("./transcription").Transcript;
   recovery?: import("./recovery-schema").ConfirmedRecovery;
+  label_rules?: {
+    source_sha256: string;
+    template_signature: string;
+    aliases: { id: string; version: number; label: string; field: Field }[];
+  };
 }
 export interface FieldValue {
   raw: string;
@@ -127,7 +132,7 @@ export interface AuditEvent {
   detail: string;
   created_at: string;
 }
-export const PIPELINE_VERSION = "3.2.1";
+export const PIPELINE_VERSION = "3.3.1";
 export function emailSummaryOf(email: Email): CaseSummary["email"] {
   const { email_id, from, subject, attachments } = email;
   return { email_id, from, subject, attachments };

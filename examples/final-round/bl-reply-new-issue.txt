@@ -1,0 +1,8 @@
+BILL OF LADING (DRAFT)
+Shipper: Bright Paper Exports Ltd
+Consignee: Peninsula Stationery Sdn Bhd
+Notify Party: SAME AS CONSIGNEE
+Port of Loading: SINGAPORE
+Port of Discharge: PENANG, MALAYSIA
+Container Count: 2 x 40HC
+Gross Weight (KG): 42,500 KG

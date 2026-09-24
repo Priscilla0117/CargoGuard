@@ -1,9 +1,14 @@
 "use client";
+import "@/app/follow-up.css";
+import { FollowUpDesk, FOLLOW_UP_LABELS } from "./follow-up-desk";
+import { effectiveFollowUp, type FollowUp } from "@/lib/follow-up";
 import { PolicyDesk } from "./policy-desk";
 import { DecisionHistory } from "./decision-history";
 import type { PolicySnapshot } from "@/lib/policy";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { WorkspaceNav } from "./workspace-nav";
+import { useTeamAccess } from "./team-access";
 import { requestJson, requestInbox, latencySummary } from "@/lib/client-api";
 import { previewCorrection } from "@/lib/corrections";
 import { CorrectionPreview } from "./correction-preview";
@@ -17,8 +22,15 @@ import type { AssistantMemory } from "@/components/case-assistant";
 import { EvidenceRecovery } from "@/components/evidence-recovery";
 import { WorkloadInsights } from "@/components/workload-insights";
 import { AiAvailability } from "@/components/ai-availability";
+import { IntegrityChecks } from "./integrity-checks";
+import { checkDocumentIntegrity } from "@/lib/integrity-checks";
+import { BatchReview } from "./batch-review";
+import "@/app/integrity-checks.css";
 import {
   QUEUE_FILTERS,
+  FOLLOW_UP_FILTERS,
+  isFollowUpOverdue,
+  type FollowUpMap,
   caseDestination,
   matchesQueue,
   nextQueueCase,
@@ -103,6 +115,7 @@ const statuses: Record<string, string> = {
 };
 type View = WorkspaceView;
 interface ApiPayload {
+  workspace?: { mode: string; sample_data: boolean; upload_limit: number };
   loaded_at?: string;
   cases: CaseSummary[];
   audit: AuditEvent[];
@@ -164,6 +177,58 @@ function download(name: string, data: string, type = "application/json") {
 }
 
 export default function Workbench() {
+  const access = useTeamAccess();
+  const [workspaceConfig, setWorkspaceConfig] =
+    useState<ApiPayload["workspace"]>();
+  const employeeName = access?.user?.display_name ?? "Operations";
+  const initials = employeeName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+  const [followups, setFollowups] = useState<FollowUpMap>({});
+  const [followupsReady, setFollowupsReady] = useState(false);
+  const [followupsLoading, setFollowupsLoading] = useState(false);
+  const [followupsError, setFollowupsError] = useState("");
+  const [followupFormKey, setFollowupFormKey] = useState(0);
+  const [queueNow, setQueueNow] = useState(() => Date.now());
+  const followupRequests = useRef(createRequestGate());
+  const followupController = useRef<AbortController | null>(null);
+  const loadFollowups = useCallback(async () => {
+    const ticket = followupRequests.current.next();
+    followupController.current?.abort();
+    const controller = new AbortController();
+    followupController.current = controller;
+    setFollowupsLoading(true);
+    try {
+      const data = await requestJson<{
+        followups: FollowUp[];
+        loaded_at: string;
+      }>("/api/follow-ups", { signal: controller.signal, cache: "no-store" });
+      if (followupRequests.current.isCurrent(ticket)) {
+        setFollowups(
+          Object.fromEntries(
+            data.followups.map((value) => [value.email_id, value]),
+          ),
+        );
+        setFollowupsReady(true);
+        setFollowupsError("");
+        setQueueNow(Date.now());
+        return true;
+      }
+    } catch (e) {
+      if (followupRequests.current.isCurrent(ticket)) {
+        setFollowupsError(
+          `Follow-up refresh failed. ${e instanceof Error ? e.message : "Please retry."}`,
+        );
+      }
+    } finally {
+      if (followupRequests.current.isCurrent(ticket))
+        setFollowupsLoading(false);
+    }
+    return false;
+  }, []);
   const [assistantMemories, setAssistantMemories] = useState<
     Record<string, AssistantMemory>
   >({});
@@ -185,6 +250,7 @@ export default function Workbench() {
     [caseEvents, setCaseEvents] = useState<AuditEvent[]>([]),
     [detailTab, setDetailTab] = useState("comparison"),
     [document, setDocument] = useState<ParsedDocument | null>(null);
+  const selectedCaseId = useRef<string | null>(null);
   const [resolutionOpen, setResolutionOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [auditSearch, setAuditSearch] = useState("");
@@ -198,6 +264,7 @@ export default function Workbench() {
     [busyId, setBusyId] = useState(""),
     cancel = useRef(false);
   const [replacement, setReplacement] = useState<CaseResult | null>(null);
+  const [replacementMode, setReplacementMode] = useState<"all" | "bl">("all");
   const [upload, setUpload] = useState(false),
     [uploading, setUploading] = useState(false),
     [edit, setEdit] = useState<{
@@ -230,10 +297,12 @@ export default function Workbench() {
     return result;
   }, []);
   const activeRequest = useRef(createRequestGate());
+  const deepLinkHandled = useRef(false);
   const inboxRequests = useRef(createRequestGate());
   const inboxController = useRef<AbortController | null>(null);
   function closeCase() {
     activeRequest.current.cancel();
+    selectedCaseId.current = null;
     setSelected(null);
     setDocument(null);
     setCaseEvents([]);
@@ -251,10 +320,12 @@ export default function Workbench() {
       const d = await requestInbox<ApiPayload>(controller.signal);
       if (inboxRequests.current.isCurrent(request)) {
         setCases(d.cases);
+        setWorkspaceConfig(d.workspace);
         setEvents(d.audit);
         setInboxReady(true);
         setLastSync(d.loaded_at ?? new Date().toISOString());
         setRefreshFailed(false);
+        void loadFollowups();
         setLatencies((prev) => [
           ...prev.slice(-199),
           performance.now() - started,
@@ -268,7 +339,7 @@ export default function Workbench() {
     } finally {
       if (inboxRequests.current.isCurrent(request)) setLoading(false);
     }
-  }, []);
+  }, [loadFollowups]);
   function refreshWorkspace() {
     setLoading(true);
     setError("");
@@ -277,6 +348,7 @@ export default function Workbench() {
   useEffect(() => {
     let active = true;
     const gate = inboxRequests.current;
+    const followupGate = followupRequests.current;
     const request = gate.next();
     const controller = new AbortController();
     inboxController.current?.abort();
@@ -286,10 +358,41 @@ export default function Workbench() {
       .then((d) => {
         if (active && gate.isCurrent(request)) {
           setCases(d.cases);
+          setWorkspaceConfig(d.workspace);
           setEvents(d.audit);
           setInboxReady(true);
           setLastSync(d.loaded_at ?? new Date().toISOString());
           setRefreshFailed(false);
+          // Source citations open saved evidence; visiting a link never processes mail.
+          if (!deepLinkHandled.current) {
+            deepLinkHandled.current = true;
+            const id = new URLSearchParams(window.location.search).get("case");
+            if (
+              id &&
+              d.cases.some((c) => c.email.email_id === id && c.result)
+            ) {
+              const ticket = activeRequest.current.next();
+              requestJson<ApiPayload>(
+                `/api/cases?id=${encodeURIComponent(id)}`,
+                { signal: controller.signal },
+              )
+                .then((data) => {
+                  if (active && activeRequest.current.isCurrent(ticket)) {
+                    selectedCaseId.current = id;
+                    setSelected(data.result);
+                    setCaseEvents(data.audit);
+                  }
+                })
+                .catch((e) => {
+                  if (active && activeRequest.current.isCurrent(ticket))
+                    setError(e.message);
+                });
+            } else if (id)
+              setError(
+                "The cited case is not processed or is unavailable in this workspace.",
+              );
+          }
+          void loadFollowups();
           setLatencies((prev) => [
             ...prev.slice(-199),
             performance.now() - started,
@@ -315,8 +418,14 @@ export default function Workbench() {
       active = false;
       gate.cancel();
       inboxController.current?.abort();
+      followupGate.cancel();
+      followupController.current?.abort();
       cancel.current = true;
     };
+  }, [loadFollowups]);
+  useEffect(() => {
+    const timer = setInterval(() => setQueueNow(Date.now()), 30000);
+    return () => clearInterval(timer);
   }, []);
   useEffect(() => {
     if (!notice) return;
@@ -354,17 +463,24 @@ export default function Workbench() {
       (c) => c.result && c.result.pipeline_version !== PIPELINE_VERSION,
     ).length;
   const visible = useMemo(
-    () => workQueue(cases, filter, category, search),
-    [cases, search, filter, category],
+    () => workQueue(cases, filter, category, search, followups, queueNow),
+    [cases, search, filter, category, followups, queueNow],
   );
   const queueCounts = useMemo(
     () =>
       Object.fromEntries(
-        [...QUEUE_FILTERS.map(([key]) => key), "pending", "routed"].map(
-          (key) => [key, cases.filter((row) => matchesQueue(row, key)).length],
-        ),
+        [
+          ...QUEUE_FILTERS.map(([key]) => key),
+          ...FOLLOW_UP_FILTERS.map(([key]) => key),
+          "pending",
+          "routed",
+        ].map((key) => [
+          key,
+          cases.filter((row) => matchesQueue(row, key, followups, queueNow))
+            .length,
+        ]),
       ),
-    [cases],
+    [cases, followups, queueNow],
   );
   const nextId = selected
     ? nextQueueCase(
@@ -386,6 +502,71 @@ export default function Workbench() {
     setLoading(false);
     setCases((prev) => mergeCaseSummaries(prev, results.map(summaryOf)));
   };
+  async function followupSaved(value: FollowUp) {
+    followupRequests.current.cancel();
+    followupController.current?.abort();
+    setFollowupsLoading(false);
+    setFollowups((current) => ({ ...current, [value.email_id]: value }));
+    setNotice("Follow-up saved. The document verdict is unchanged.");
+    void load();
+    if (selectedCaseId.current !== value.email_id) return;
+    const ticket = activeRequest.current.next();
+    try {
+      const data = await api(
+        `/api/cases?id=${encodeURIComponent(value.email_id)}`,
+      );
+      if (
+        activeRequest.current.isCurrent(ticket) &&
+        selectedCaseId.current === value.email_id
+      ) {
+        setSelected((current) =>
+          current?.email.email_id === value.email_id ? data.result : current,
+        );
+        setCaseEvents(data.audit);
+      }
+    } catch (e) {
+      if (activeRequest.current.isCurrent(ticket))
+        setError(
+          `Follow-up saved; case refresh failed. ${(e as Error).message}`,
+        );
+    }
+  }
+  async function reloadFollowupCase(id: string) {
+    if (selectedCaseId.current !== id) return;
+    const ticket = activeRequest.current.next();
+    setBusyId(id);
+    setError("");
+    try {
+      const [data, followupsLoaded] = await Promise.all([
+        api(`/api/cases?id=${encodeURIComponent(id)}`),
+        loadFollowups(),
+      ]);
+      if (
+        !followupsLoaded ||
+        !activeRequest.current.isCurrent(ticket) ||
+        selectedCaseId.current !== id
+      )
+        return;
+      // Explicit recovery resets the draft only after both fresh reads succeed.
+      update([data.result]);
+      setSelected(data.result);
+      setCaseEvents(data.audit);
+      setFollowupFormKey((value) => value + 1);
+      setNotice(
+        `Latest case revision ${data.result.version} and saved follow-up loaded.`,
+      );
+    } catch (e) {
+      if (
+        activeRequest.current.isCurrent(ticket) &&
+        selectedCaseId.current === id
+      )
+        setError(
+          `Latest case could not be loaded; your follow-up edits are retained. ${(e as Error).message}`,
+        );
+    } finally {
+      if (activeRequest.current.isCurrent(ticket)) setBusyId("");
+    }
+  }
   function launchAssistant(id: string | null = null) {
     closeCase();
     setAssistant((previous) => ({
@@ -426,6 +607,7 @@ export default function Workbench() {
         history = d.audit;
       }
       if (activeRequest.current.isCurrent(request)) {
+        selectedCaseId.current = result.email.email_id;
         setSelected(result);
         setDocument(null);
         setSourceLocation("");
@@ -584,12 +766,18 @@ export default function Workbench() {
           if (replacement) {
             fd.set("id", replacement.email.email_id);
             fd.set("version", String(replacement.version));
+            if (replacementMode === "bl") {
+              fd.set("mode", "replace_bl");
+              fd.delete("subject");
+              fd.delete("body");
+            }
           }
           return fd;
         })(),
       });
       update([d.result]);
       if (!activeRequest.current.isCurrent(request)) return;
+      selectedCaseId.current = d.result.email.email_id;
       setSelected(d.result);
       navigateDetail(
         d.result.documents.length > 2 ? "documents" : "comparison",
@@ -599,7 +787,9 @@ export default function Workbench() {
       setReplacement(null);
       setDocument(null);
       setNotice(
-        "Email and attachments saved. Inspect the results before taking action.",
+        replacement && replacementMode === "bl"
+          ? "Revised BL saved against the retained SI. All seven fields rechecked; inspect History for new or resolved differences."
+          : "Email and attachments saved. Inspect the results before taking action.",
       );
     } catch (e) {
       if (activeRequest.current.isCurrent(request))
@@ -709,7 +899,7 @@ export default function Workbench() {
         <div className="workspace-label">
           WORKSPACE <span>01</span>
         </div>
-        <nav aria-label="Workspace navigation">
+        <nav aria-label="Work queue views">
           <button
             className={view === "inbox" ? "active" : ""}
             aria-current={view === "inbox" ? "page" : undefined}
@@ -740,12 +930,17 @@ export default function Workbench() {
           </button>
         </nav>
         <div className="sidebar-info">
-          <span className="eyebrow">DEMO WORKSPACE</span>
+          <span className="eyebrow">
+            {access?.mode === "team" ? "TEAM WORKSPACE" : "SAMPLE WORKSPACE"}
+          </span>
           <div>
-            <Layers3 size={16} /> Organiser sample data
+            <Layers3 size={16} />{" "}
+            {workspaceConfig?.sample_data
+              ? "Sample inbox enabled"
+              : "Imported shipping records"}
           </div>
           <p>
-            520 emails · 250 documents
+            {cases.length} cases · {counts.processed} processed
             <br />
             TXT, PDF, Word & Excel
           </p>
@@ -757,7 +952,9 @@ export default function Workbench() {
             />
           </div>
           <small>
-            {counts.processed} of {cases.length || 520} processed
+            {workspaceConfig
+              ? `${workspaceConfig.upload_limit.toLocaleString()} imported-case capacity`
+              : "Loading workspace settings…"}
           </small>
         </div>
         <div className="sidebar-bottom">
@@ -771,9 +968,16 @@ export default function Workbench() {
             Hackathon 2026
           </p>
           <div className="avatar-line">
-            <span className="avatar">OP</span>
+            <span className="avatar" aria-hidden="true">
+              {initials}
+            </span>
             <span>
-              Operations workspace<small>Private working session</small>
+              {employeeName}
+              <small>
+                {access?.user
+                  ? `${access.user.role} · Shared team`
+                  : "Isolated working session"}
+              </small>
             </span>
           </div>
         </div>
@@ -817,10 +1021,13 @@ export default function Workbench() {
             >
               <RefreshCw size={17} />
             </button>
-            <span className="avatar small">OP</span>
+            <span className="avatar small" title={employeeName}>
+              {initials}
+            </span>
           </div>
         </header>
-        <main data-workspace-view={view}>
+        <WorkspaceNav active="/" />
+        <main id="main-content" tabIndex={-1} data-workspace-view={view}>
           {error && (
             <div className="alert error" role="alert">
               <TriangleAlert size={18} />
@@ -900,6 +1107,16 @@ export default function Workbench() {
               Refresh to retry.
             </div>
           )}
+          {view === "inbox" &&
+            inboxReady &&
+            cases.some((item) => item.result?.workflow === "verified") && (
+              <BatchReview
+                onCompleted={() => {
+                  void load();
+                  void loadFollowups();
+                }}
+              />
+            )}
           {inboxReady && refreshFailed && (
             <div className="alert warning" role="status">
               Showing previously loaded results. Refresh is unavailable; saved
@@ -1059,7 +1276,7 @@ export default function Workbench() {
                       <input
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search email, sender, field…"
+                        placeholder="Search case, owner, reference…"
                         aria-label="Search emails"
                       />
                       {search && (
@@ -1108,9 +1325,47 @@ export default function Workbench() {
                     </select>
                   </div>
                 </div>
+                <div
+                  className="follow-up-filters"
+                  aria-label="Filter by follow-up"
+                >
+                  <span>Follow-up</span>
+                  {FOLLOW_UP_FILTERS.map(([key, label]) => (
+                    <button
+                      key={key}
+                      className={filter === key ? "selected" : ""}
+                      aria-pressed={filter === key}
+                      disabled={!followupsReady}
+                      onClick={() => setFilter(filter === key ? "all" : key)}
+                    >
+                      {label} <b>{followupsReady ? queueCounts[key] : "—"}</b>
+                    </button>
+                  ))}
+                  {followupsLoading && (
+                    <span role="status">Refreshing follow-ups…</span>
+                  )}
+                </div>
+                {followupsError && (
+                  <div className="follow-up-notice error" role="alert">
+                    <span>
+                      {followupsError}{" "}
+                      {followupsReady
+                        ? "Showing the last loaded follow-ups."
+                        : "Follow-up queues are unavailable."}
+                    </span>
+                    <button
+                      className="text-button"
+                      disabled={followupsLoading}
+                      onClick={() => void loadFollowups()}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
                 <div className="queue-caption">
                   <span>
-                    {visible.length} matching cases · action cases first
+                    {visible.length} matching cases · recorded deadlines, then
+                    action
                   </span>
                   <span>
                     Counts above cover this workspace · checked ≠ cargo release
@@ -1120,7 +1375,7 @@ export default function Workbench() {
                   <Table className="email-table">
                     <TableHeader>
                       <TableRow>
-                        <TableHead>EMAIL / SHIPMENT</TableHead>
+                        <TableHead>EMAIL / CASE</TableHead>
                         <TableHead>CATEGORY</TableHead>
                         <TableHead>STATUS</TableHead>
                         <TableHead>NEXT ACTION</TableHead>
@@ -1162,6 +1417,16 @@ export default function Workbench() {
                                   <span className="separator-dot">·</span>
                                   {c.email.from}
                                 </small>
+                                {followups[c.email.email_id]
+                                  ?.shipment_reference && (
+                                  <span className="queue-follow-up-reference">
+                                    Ref:{" "}
+                                    {
+                                      followups[c.email.email_id]
+                                        .shipment_reference
+                                    }
+                                  </span>
+                                )}
                               </span>
                             </button>
                           </TableCell>
@@ -1191,6 +1456,43 @@ export default function Workbench() {
                               {c.email.attachments.length} documents
                               {c.result ? ` · v${c.result.version}` : ""}
                             </small>
+                            {followups[c.email.email_id] &&
+                              (() => {
+                                const value = followups[c.email.email_id];
+                                const state = effectiveFollowUp(value, c);
+                                const overdue = isFollowUpOverdue(
+                                  c,
+                                  value,
+                                  queueNow,
+                                );
+                                return (
+                                  <div className="queue-follow-up">
+                                    <span
+                                      className={`follow-up-badge ${state}`}
+                                    >
+                                      {FOLLOW_UP_LABELS[state]}
+                                    </span>
+                                    <small>{value.owner}</small>
+                                    {value.due_at && state !== "completed" && (
+                                      <small
+                                        className={`follow-up-due ${overdue ? "overdue" : ""}`}
+                                      >
+                                        {overdue ? "Overdue · " : "Due "}
+                                        {new Date(value.due_at).toLocaleString(
+                                          undefined,
+                                          {
+                                            month: "short",
+                                            day: "numeric",
+                                            hour: "2-digit",
+                                            minute: "2-digit",
+                                            timeZoneName: "short",
+                                          },
+                                        )}
+                                      </small>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                           </TableCell>
                           <TableCell>
                             {busyId === c.email.email_id ? (
@@ -1214,21 +1516,33 @@ export default function Workbench() {
                   !visible.length && (
                     <div className="empty-state">
                       <CheckCircle2 size={32} />
-                      <h3>No matching cases</h3>
+                      <h3>
+                        {cases.length
+                          ? "No matching cases"
+                          : "Your work queue is ready"}
+                      </h3>
                       <p>
-                        {counts.processed < cases.length
-                          ? "Run the inbox to create results, or clear filters to see unprocessed cases."
-                          : "Try another search or clear the filters."}
+                        {!cases.length
+                          ? "Import an email and its shipping documents to create your first case. Results and source history are saved in this workspace."
+                          : counts.processed < cases.length
+                            ? "Run the inbox to create results, or clear filters to see unprocessed cases."
+                            : "Try another search or clear the filters."}
                       </p>
                       <button
                         className="button secondary"
                         onClick={() => {
+                          if (!cases.length) {
+                            setReplacement(null);
+                            setIntakeFiles([]);
+                            setUpload(true);
+                            return;
+                          }
                           setSearch("");
                           setFilter("all");
                           setCategory("all");
                         }}
                       >
-                        Clear filters
+                        {cases.length ? "Clear filters" : "Import first email"}
                       </button>
                     </div>
                   )
@@ -1278,6 +1592,13 @@ export default function Workbench() {
                     automatically.
                   </p>
                   <div className="case-actions">
+                    <a
+                      className="text-button"
+                      href="/api/follow-ups?export=1"
+                      download
+                    >
+                      Export follow-up handover
+                    </a>
                     <button
                       className="text-button"
                       disabled={loading || !inboxReady}
@@ -1297,12 +1618,14 @@ export default function Workbench() {
                     >
                       Export reviewed evidence
                     </button>
-                    <button
-                      className="text-button"
-                      onClick={() => void exportAll()}
-                    >
-                      Export automatic baseline
-                    </button>
+                    {workspaceConfig?.sample_data && (
+                      <button
+                        className="text-button"
+                        onClick={() => void exportAll()}
+                      >
+                        Export automatic baseline
+                      </button>
+                    )}
                   </div>
                 </div>
               </details>
@@ -1609,9 +1932,7 @@ export default function Workbench() {
             <div className="drawer-top">
               <div>
                 <span className="eyebrow">VERIFICATION DETAILS</span>
-                <h2>
-                  {selected.email.email_id.replace("email_", "Shipment #")}
-                </h2>
+                <h2>{selected.email.email_id.replace("email_", "Case #")}</h2>
               </div>
               <div className="drawer-tools">
                 <button
@@ -1707,6 +2028,8 @@ export default function Workbench() {
                   ["comparison", "Check"],
                   ["documents", "Sources"],
                   ["history", "History"],
+                  ["followup", "Follow-up"],
+                  ["integrity", "Independent checks"],
                 ].map(([t, label]) => (
                   <button
                     key={t}
@@ -1718,6 +2041,43 @@ export default function Workbench() {
                   </button>
                 ))}
               </div>
+              {detailTab === "integrity" && (
+                <IntegrityChecks
+                  assessment={checkDocumentIntegrity(selected)}
+                />
+              )}
+              {detailTab === "followup" &&
+                (followupsReady ? (
+                  <FollowUpDesk
+                    key={`${selected.email.email_id}-${selected.version}-${followupFormKey}`}
+                    result={selected}
+                    followup={followups[selected.email.email_id]}
+                    ready={followupsReady}
+                    refreshing={
+                      followupsLoading || busyId === selected.email.email_id
+                    }
+                    error={followupsError}
+                    onRefresh={() => void loadFollowups()}
+                    onReloadCase={() =>
+                      void reloadFollowupCase(selected.email.email_id)
+                    }
+                    onReloadValues={() =>
+                      setFollowupFormKey((value) => value + 1)
+                    }
+                    onSaved={(value) => void followupSaved(value)}
+                  />
+                ) : (
+                  <div className="follow-up-notice" role="status">
+                    <span>{followupsError || "Loading saved follow-up…"}</span>
+                    <button
+                      className="text-button"
+                      onClick={() => void loadFollowups()}
+                      disabled={followupsLoading}
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                ))}
               {detailTab === "comparison" && resolutionOpen && (
                 <div className="case-resolution">
                   <div className="case-resolution-heading">
@@ -2068,6 +2428,13 @@ export default function Workbench() {
                             <div className="alert warning">
                               <TriangleAlert size={18} />
                               <p>{d.error}</p>
+                              <button
+                                className="button secondary"
+                                disabled={!!busyId || running}
+                                onClick={reprocess}
+                              >
+                                Retry reading source
+                              </button>
                             </div>
                           ) : (
                             <div className="source-paper">
@@ -2148,6 +2515,7 @@ export default function Workbench() {
                 disabled={running}
                 onClick={() => {
                   setReplacement(selected);
+                  setReplacementMode("all");
                   setIntakeFiles([]);
                   setUpload(true);
                 }}
@@ -2205,7 +2573,9 @@ export default function Workbench() {
               <span className="eyebrow">NEW VERIFICATION</span>
               <DialogTitle>
                 {replacement
-                  ? "Replace source documents."
+                  ? replacementMode === "bl"
+                    ? "Receive a revised draft BL."
+                    : "Replace source documents."
                   : "Bring an email into the queue."}
               </DialogTitle>
             </div>
@@ -2219,8 +2589,11 @@ export default function Workbench() {
             </button>
           </div>
           <p>
-            Paste the message and attach its files. CargoGuard routes the email,
-            checks the documents and keeps every attachment as evidence.
+            {replacement
+              ? replacementMode === "bl"
+                ? "Keep the selected SI as the reference and recheck every field against the new draft BL."
+                : "Supply a complete replacement set. Previous source documents and decisions remain available in History."
+              : "Paste the message and attach its files. CargoGuard routes the email, checks the documents and keeps every attachment as evidence."}
           </p>
           <p className="info-box">
             Hackathon demo: use organiser or synthetic files only, never
@@ -2235,9 +2608,38 @@ export default function Workbench() {
             )}
             {replacement && (
               <>
+                <div
+                  className="replacement-method"
+                  role="group"
+                  aria-label="Replacement scope"
+                >
+                  <button
+                    type="button"
+                    className={replacementMode === "bl" ? "selected" : ""}
+                    aria-pressed={replacementMode === "bl"}
+                    onClick={() => {
+                      setReplacementMode("bl");
+                      setIntakeFiles([]);
+                    }}
+                  >
+                    Revised BL only<small>Keep the current SI</small>
+                  </button>
+                  <button
+                    type="button"
+                    className={replacementMode === "all" ? "selected" : ""}
+                    aria-pressed={replacementMode === "all"}
+                    onClick={() => {
+                      setReplacementMode("all");
+                      setIntakeFiles([]);
+                    }}
+                  >
+                    Full source set<small>Replace SI and BL</small>
+                  </button>
+                </div>
                 <div className="info-box">
-                  Replacing documents for {replacement.email.email_id}. Earlier
-                  decisions remain in the audit trail.
+                  {replacementMode === "bl"
+                    ? `The server retains the selected SI and its original fingerprint for ${replacement.email.email_id}. If the pair is ambiguous, select it in Sources first. Earlier BL versions remain in History.`
+                    : `Replacing documents for ${replacement.email.email_id}. Earlier decisions remain in the audit trail.`}
                 </div>
                 <label>
                   Reviewer name
@@ -2289,15 +2691,22 @@ export default function Workbench() {
             </label>
             <label className="upload-zone">
               <ArrowUpRight size={24} />
-              <strong>Choose email attachments</strong>
+              <strong>
+                {replacement && replacementMode === "bl"
+                  ? "Choose the revised draft BL"
+                  : "Choose email attachments"}
+              </strong>
               <span>
-                TXT, PDF, DOCX or XLSX · Up to 10 files · 5 MB each · 20 MB
-                total
+                {replacement && replacementMode === "bl"
+                  ? "One TXT, PDF, DOCX or XLSX file · 5 MB maximum"
+                  : "TXT, PDF, DOCX or XLSX · Up to 10 files · 5 MB each · 20 MB total"}
               </span>
               <input
                 type="file"
-                name="files"
-                multiple
+                key={`${replacement?.email.email_id ?? "new"}-${replacementMode}`}
+                name={replacement && replacementMode === "bl" ? "bl" : "files"}
+                required={!!replacement}
+                multiple={!(replacement && replacementMode === "bl")}
                 accept=".txt,.pdf,.docx,.xlsx"
                 onChange={(event) =>
                   setIntakeFiles(Array.from(event.target.files ?? []))
@@ -2361,7 +2770,9 @@ export default function Workbench() {
               {uploading
                 ? "Reading documents…"
                 : replacement
-                  ? "Replace documents & recheck"
+                  ? replacementMode === "bl"
+                    ? "Save revised BL & recheck"
+                    : "Replace documents & recheck"
                   : "Import & check email"}
             </button>
           </form>
