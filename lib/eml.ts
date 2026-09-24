@@ -97,8 +97,9 @@ export async function parseEml(
     );
   const fromEntry = mail.from && !mail.from.group ? mail.from : undefined;
   const date = mail.date ? new Date(mail.date) : null;
-  const text = ((mail.text ?? "").trim() || htmlToText(mail.html ?? ""))
-    .replace(/\r\n?/g, "\n");
+  const text = (
+    (mail.text ?? "").trim() || htmlToText(mail.html ?? "")
+  ).replace(/\r\n?/g, "\n");
   const attachments: ParsedEmail["attachments"] = [];
   const skipped: ParsedEmail["skipped"] = [];
   mail.attachments.forEach((item, index) => {

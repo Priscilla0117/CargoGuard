@@ -6,7 +6,7 @@ import { missingFacts } from "./reply";
  * every protected fact (field values, references, dates) must survive or the
  * rewrite is rejected. Disabled unless an administrator configures a key.
  *
- *   CARGO_REPLY_AI_PROVIDER=anthropic | openai
+ *   CARGO_REPLY_AI_PROVIDER=openai
  *   CARGO_REPLY_AI_API_KEY=...          (falls back to CARGO_AI_API_KEY)
  *   CARGO_REPLY_AI_MODEL=...            (optional)
  */
@@ -15,11 +15,9 @@ export function replyAiConfig(
 ) {
   const provider = env.CARGO_REPLY_AI_PROVIDER ?? "";
   const key = (env.CARGO_REPLY_AI_API_KEY ?? env.CARGO_AI_API_KEY ?? "").trim();
-  if (!key || (provider !== "anthropic" && provider !== "openai"))
+  if (!key || provider !== "openai")
     return { available: false as const, label: "AI" };
-  const model =
-    env.CARGO_REPLY_AI_MODEL?.trim() ||
-    (provider === "anthropic" ? "claude-sonnet-5" : "gpt-5.4-mini");
+  const model = env.CARGO_REPLY_AI_MODEL?.trim() || "gpt-5.4-mini";
   if (!/^[A-Za-z0-9._:-]{3,80}$/.test(model))
     return { available: false as const, label: "AI" };
   return {
@@ -27,7 +25,7 @@ export function replyAiConfig(
     provider,
     key,
     model,
-    label: provider === "anthropic" ? "Claude" : "OpenAI",
+    label: "OpenAI",
   };
 }
 
@@ -45,6 +43,50 @@ async function readLimited(response: Response, limit = 256 * 1024) {
   return JSON.parse(text) as unknown;
 }
 
+type AiConfig = Extract<ReturnType<typeof replyAiConfig>, { available: true }>;
+
+/** One plain-text completion from the configured provider. Throws on failure. */
+export async function aiText(
+  config: AiConfig,
+  system: string,
+  user: string,
+  maxTokens: number,
+  fetcher: typeof fetch = fetch,
+) {
+  const response = await fetcher("https://api.openai.com/v1/responses", {
+    method: "POST",
+    redirect: "error",
+    signal: AbortSignal.timeout(30000),
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.key}`,
+    },
+    body: JSON.stringify({
+      model: config.model,
+      store: false,
+      max_output_tokens: maxTokens,
+      input: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+    }),
+  });
+  if (!response.ok) throw new Error(`status ${response.status}`);
+  const data = (await readLimited(response)) as {
+    output?: {
+      type: string;
+      content?: { type: string; text?: string }[];
+    }[];
+  };
+  return (data.output ?? [])
+    .filter((item) => item.type === "message")
+    .flatMap((item) => item.content ?? [])
+    .filter((part) => part.type === "output_text")
+    .map((part) => part.text ?? "")
+    .join("")
+    .trim();
+}
+
 export async function polishReply(
   body: string,
   tone: string,
@@ -60,66 +102,7 @@ export async function polishReply(
   const user = JSON.stringify({ tone, draft: body });
   let text = "";
   try {
-    if (config.provider === "anthropic") {
-      const response = await fetcher("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        redirect: "error",
-        signal: AbortSignal.timeout(30000),
-        headers: {
-          "content-type": "application/json",
-          "x-api-key": config.key,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: config.model,
-          max_tokens: 1500,
-          system: SYSTEM,
-          messages: [{ role: "user", content: user }],
-        }),
-      });
-      if (!response.ok) throw new Error(`status ${response.status}`);
-      const data = (await readLimited(response)) as {
-        content?: { type: string; text?: string }[];
-      };
-      text = (data.content ?? [])
-        .filter((part) => part.type === "text")
-        .map((part) => part.text ?? "")
-        .join("")
-        .trim();
-    } else {
-      const response = await fetcher("https://api.openai.com/v1/responses", {
-        method: "POST",
-        redirect: "error",
-        signal: AbortSignal.timeout(30000),
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${config.key}`,
-        },
-        body: JSON.stringify({
-          model: config.model,
-          store: false,
-          max_output_tokens: 1500,
-          input: [
-            { role: "system", content: SYSTEM },
-            { role: "user", content: user },
-          ],
-        }),
-      });
-      if (!response.ok) throw new Error(`status ${response.status}`);
-      const data = (await readLimited(response)) as {
-        output?: {
-          type: string;
-          content?: { type: string; text?: string }[];
-        }[];
-      };
-      text = (data.output ?? [])
-        .filter((item) => item.type === "message")
-        .flatMap((item) => item.content ?? [])
-        .filter((part) => part.type === "output_text")
-        .map((part) => part.text ?? "")
-        .join("")
-        .trim();
-    }
+    text = await aiText(config, SYSTEM, user, 1500, fetcher);
   } catch {
     throw new HttpError(
       "The AI service did not respond. Your draft is unchanged.",

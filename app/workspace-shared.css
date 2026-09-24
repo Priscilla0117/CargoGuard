@@ -1,7 +1,7 @@
 /* Shared building blocks used by the Label rules and SI template desks. */
 .workspace-eyebrow {
   color: #0b7380;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 750;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -12,7 +12,7 @@
   border-radius: 9px;
   background: #edf8f8;
   color: #215463;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.6;
 }
 .workspace-empty {
@@ -38,7 +38,7 @@
   border-radius: 8px;
   background: #e8f3f5;
   color: #0b6776;
-  font-size: 14px;
+  font-size: 15px;
   vertical-align: middle;
 }
 .workspace-badge {
@@ -49,7 +49,7 @@
   background: #f0f4f7;
   color: #475e72;
   padding: 4px 9px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   line-height: 1.4;
   text-transform: capitalize;

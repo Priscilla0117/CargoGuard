@@ -107,11 +107,11 @@ export function caseStatus(result: CaseResult, plan?: Plan): CaseStatus {
   if (result.workflow === "verified")
     return {
       tone: "done",
-      title: "All 7 details match",
+      title: "No mismatch detected",
       detail:
         plan?.bucket === "todo"
           ? "The documents match, but a follow-up is still open."
-          : "Shipper, consignee, notify party, ports, containers and weight all match. This is a document check only — not cargo release.",
+          : "All 7 details match the Shipping Instruction: shipper, consignee, notify party, both ports, containers and gross weight. This is a document check only — not cargo release.",
       action: { label: "Send confirmation", target: "reply" },
       secondary:
         plan?.bucket === "todo"

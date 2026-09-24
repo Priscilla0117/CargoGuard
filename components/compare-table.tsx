@@ -47,6 +47,41 @@ export function highlightDifferences(value: string, other: string) {
   });
 }
 
+/** One-line excerpt around the first difference, for summaries. */
+export function DiffSnippet({
+  value,
+  other,
+}: {
+  value: string;
+  other: string;
+}) {
+  const flat = (text: string) => text.replace(/\s*\n\s*/g, ", ").trim();
+  const parts = highlightDifferences(flat(value), flat(other));
+  if (!parts.length) return <em>(empty)</em>;
+  const first = parts.findIndex((part) => part.changed);
+  const total = parts.reduce((n, part) => n + part.text.length, 0);
+  let from = 0,
+    to = parts.length;
+  if (total > 60 && first >= 0) {
+    from = Math.max(0, first - 6);
+    to = Math.min(parts.length, first + 10);
+    // Start and end on whole words ("P.O. BOX", not ".O. BOX").
+    while (from > 0 && !/^[\s,;]+$/.test(parts[from - 1].text)) from--;
+    while (to < parts.length && !/^[\s,;]+$/.test(parts[to].text)) to++;
+  } else if (total > 60) to = Math.min(parts.length, 16);
+  return (
+    <>
+      {from > 0 && "… "}
+      {parts
+        .slice(from, to)
+        .map((part, index) =>
+          part.changed ? <mark key={index}>{part.text}</mark> : part.text,
+        )}
+      {to < parts.length && " …"}
+    </>
+  );
+}
+
 function HighlightedValue({ value, other }: { value: string; other: string }) {
   const parts = highlightDifferences(value, other);
   // When nothing overlaps, highlighting every word adds noise: show plain text.
@@ -59,6 +94,15 @@ function HighlightedValue({ value, other }: { value: string; other: string }) {
       )}
     </>
   );
+}
+
+/** "Page 1, y=692" -> "Page 1": coordinates stay in the tooltip. */
+function plainEvidence(evidence: string) {
+  const text = evidence
+    .replace(/^Reviewer confirmed; original source: /, "")
+    .replace(/,?\s*y\s*=\s*[\d.]+/gi, "")
+    .trim();
+  return text ? `See in document · ${text}` : "See in document";
 }
 
 const RESULT_TEXT: Record<ComparisonRow["result"], string> = {
@@ -355,13 +399,10 @@ export function CompareTable({
                             onClick={() =>
                               onSource(value.source, value.evidence)
                             }
-                            title="Show where this value comes from"
+                            title={`Show where this value comes from (${value.evidence})`}
                           >
                             <FileText size={14} />
-                            {value.evidence.replace(
-                              /^Reviewer confirmed; original source: /,
-                              "",
-                            )}
+                            {plainEvidence(value.evidence)}
                           </button>
                         )}
                       </div>

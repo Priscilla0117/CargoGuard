@@ -28,7 +28,12 @@ export interface Scenario {
   body: string;
   docs: DocSpec[];
   expect: {
-    category: "BL_COMPARISON" | "SI_REQUEST" | "INVOICE_QUERY" | "GENERAL" | "SPAM";
+    category:
+      | "BL_COMPARISON"
+      | "SI_REQUEST"
+      | "INVOICE_QUERY"
+      | "GENERAL"
+      | "SPAM";
     outcome?: "OK" | "MISMATCH" | "NEEDS_REVIEW";
     defects?: Field[];
     urgent?: boolean;
@@ -52,8 +57,10 @@ const S1: Party = {
 };
 const S3: Party = {
   shipper: APRIL_MY,
-  consignee: "ROXCEL TRADING GMBH\nTHURNHERSEESTRASSE 1, 6912 HOERBRANZ, AUSTRIA",
-  notify_party: "PACIFIC OFFICE (M) SDN BHD\nLOT 6, JALAN P/7, 43650 BANDAR BARU BANGI, MALAYSIA",
+  consignee:
+    "ROXCEL TRADING GMBH\nTHURNHERSEESTRASSE 1, 6912 HOERBRANZ, AUSTRIA",
+  notify_party:
+    "PACIFIC OFFICE (M) SDN BHD\nLOT 6, JALAN P/7, 43650 BANDAR BARU BANGI, MALAYSIA",
   port_of_loading: "PORT KLANG (WESTPORT), MALAYSIA",
   port_of_discharge: "MERSIN, TURKEY",
   container_count: "TWO (2) X 40' HC",
@@ -61,7 +68,8 @@ const S3: Party = {
 };
 const S4: Party = {
   shipper: APRIL_SG,
-  consignee: "HANSOL PAPER TRADING CO., LTD.\n24 EULJI-RO 5-GIL, JUNG-GU, SEOUL, KOREA",
+  consignee:
+    "HANSOL PAPER TRADING CO., LTD.\n24 EULJI-RO 5-GIL, JUNG-GU, SEOUL, KOREA",
   notify_party: "HANSOL LOGISTICS CO., LTD.\n24 EULJI-RO 5-GIL, SEOUL, KOREA",
   port_of_loading: "SINGAPORE",
   port_of_discharge: "BUSAN, SOUTH KOREA",
@@ -79,7 +87,8 @@ const S5: Party = {
 };
 const S8: Party = {
   shipper: APRIL_SG,
-  consignee: "INDO SUKSES STATIONERY PVT LTD\nPLOT 44, MIDC ANDHERI EAST, MUMBAI 400093, INDIA",
+  consignee:
+    "INDO SUKSES STATIONERY PVT LTD\nPLOT 44, MIDC ANDHERI EAST, MUMBAI 400093, INDIA",
   notify_party: "SAME AS CONSIGNEE",
   port_of_loading: "SINGAPORE",
   port_of_discharge: "NHAVA SHEVA, INDIA",
@@ -95,7 +104,10 @@ const S9: Party = {
   container_count: "5 x 40'HC",
   gross_weight_kg: "112,300 KG",
 };
-const with_ = (base: Party, change: Partial<Party>): Party => ({ ...base, ...change });
+const with_ = (base: Party, change: Partial<Party>): Party => ({
+  ...base,
+  ...change,
+});
 
 const SIGN = (name: string, company = "APRIL Fine Paper Trading Pte Ltd") =>
   `\n\nBest Regards,\n${name}\nShipping Documentation\n${company}`;
@@ -122,7 +134,8 @@ export const FIELD_TEST: Scenario[] = [
     time: "14:30",
     from: "CMA Documentation <docs.sg@cma-demo-lines.com>",
     to: "docs@april-demo.com",
-    subject: "AFEMY - MOMBASA_KENYA - CMA(SIJ4216073) - 5RFR-36541 - DRAFT BL FOR CHECKING",
+    subject:
+      "AFEMY - MOMBASA_KENYA - CMA(SIJ4216073) - 5RFR-36541 - DRAFT BL FOR CHECKING",
     body: `Dear Shipper,\n\nPlease find attached the draft BL SIJ4216073 together with your SI for order 5RFR-36541. Kindly check and confirm, or advise amendments before {{d:+1|dMonY}}.${SIGN("Jasmine Tan", "CMA CGM Singapore Documentation")}`,
     docs: [
       { role: "SI", format: "pdf", name: "SI_5RFR-36541.pdf", fields: S1 },
@@ -131,7 +144,8 @@ export const FIELD_TEST: Scenario[] = [
         format: "pdf",
         name: "DRAFT_BL_SIJ4216073.pdf",
         fields: with_(S1, {
-          consignee: "AFEMY ENTERPRISES LIMITED\nP.O. BOX 90240-80100, MOMBASA, KENYA",
+          consignee:
+            "AFEMY ENTERPRISES LIMITED\nP.O. BOX 90240-80100, MOMBASA, KENYA",
           gross_weight_kg: "68,540 KG",
         }),
       },
@@ -151,7 +165,8 @@ export const FIELD_TEST: Scenario[] = [
     time: "10:05",
     from: "CMA Documentation <docs.sg@cma-demo-lines.com>",
     to: "docs@april-demo.com",
-    subject: "RE: AFEMY - MOMBASA_KENYA - CMA(SIJ4216073) - 5RFR-36541 - REVISED DRAFT BL",
+    subject:
+      "RE: AFEMY - MOMBASA_KENYA - CMA(SIJ4216073) - 5RFR-36541 - REVISED DRAFT BL",
     body: `Dear Shipper,\n\nRevised draft BL attached as per your amendment request. Please check again.${SIGN("Jasmine Tan", "CMA CGM Singapore Documentation")}\n\n________________________________\nFrom: Najiha Nur <najiha@april-demo.com>\nSent: {{d:-4|long}} 4:10 PM\nSubject: RE: 5RFR-36541 - DRAFT BL FOR CHECKING\n\nPlease amend consignee P.O. BOX to 90420-80100 and gross weight to 68,450 KG.`,
     docs: [
       { role: "SI", format: "pdf", name: "SI_5RFR-36541.pdf", fields: S1 },
@@ -176,11 +191,17 @@ export const FIELD_TEST: Scenario[] = [
     time: "16:40",
     from: "CMA Documentation <docs.sg@cma-demo-lines.com>",
     to: "docs@april-demo.com",
-    subject: "RE: RE: AFEMY - MOMBASA_KENYA - CMA(SIJ4216073) - 5RFR-36541 - FINAL DRAFT",
+    subject:
+      "RE: RE: AFEMY - MOMBASA_KENYA - CMA(SIJ4216073) - 5RFR-36541 - FINAL DRAFT",
     body: `Dear Shipper,\n\nPlease see the final draft with 3 x 40HC corrected. Kindly confirm so we can release the original BL.${SIGN("Jasmine Tan", "CMA CGM Singapore Documentation")}`,
     docs: [
       { role: "SI", format: "docx", name: "SI_5RFR-36541.docx", fields: S1 },
-      { role: "BL", format: "docx", name: "FINAL_DRAFT_BL_SIJ4216073.docx", fields: S1 },
+      {
+        role: "BL",
+        format: "docx",
+        name: "FINAL_DRAFT_BL_SIJ4216073.docx",
+        fields: S1,
+      },
     ],
     expect: { category: "BL_COMPARISON", outcome: "OK" },
   },
@@ -218,7 +239,8 @@ export const FIELD_TEST: Scenario[] = [
     time: "11:10",
     from: "Ahmed Camara <ahmed@orientlinks-demo.gn>",
     to: "docs@april-demo.com",
-    subject: "RE: URGENT - SI NEEDED _ 5RCY-60883 _ CONAKRY_GUINEA _ ORIENT LINKS",
+    subject:
+      "RE: URGENT - SI NEEDED _ 5RCY-60883 _ CONAKRY_GUINEA _ ORIENT LINKS",
     body: "2nd reminder: please send the shipping instruction today, otherwise the booking will be rolled to the next vessel.\n\nAhmed\n\n________________________________\nFrom: Ahmed Camara <ahmed@orientlinks-demo.gn>\nSent: {{d:0|long}} 7:45 AM\nSubject: URGENT - SI NEEDED _ 5RCY-60883\n\nWe still have not received the SI for 5RCY-60883.",
     docs: [],
     expect: { category: "SI_REQUEST", urgent: true, deadline: 0 },
@@ -230,7 +252,8 @@ export const FIELD_TEST: Scenario[] = [
     time: "13:25",
     from: "Lee Guan Cheng <guancheng_lee@april-demo.com.my>",
     to: "docs@april-demo.com",
-    subject: "TO CONFIRM DOCS _ 5ALT-19136 _ MERSIN_TURKEY _ ROXCEL TRADING GMBH",
+    subject:
+      "TO CONFIRM DOCS _ 5ALT-19136 _ MERSIN_TURKEY _ ROXCEL TRADING GMBH",
     body: `Hi Najiha,\n\nAttached are the SI and draft BL for OC 5ALT-19136. Please check the details and confirm.${SIGN("Lee Guan Cheng", "APRIL Far East (M) Sdn Bhd")}`,
     docs: [
       { role: "SI", format: "docx", name: "SI 5ALT-19136.docx", fields: S3 },
@@ -238,7 +261,10 @@ export const FIELD_TEST: Scenario[] = [
         role: "BL",
         format: "txt",
         name: "Draft BL 5ALT-19136.txt",
-        fields: with_(S3, { container_count: "2 x 40HC", gross_weight_kg: "18,500 KGS" }),
+        fields: with_(S3, {
+          container_count: "2 x 40HC",
+          gross_weight_kg: "18,500 KGS",
+        }),
       },
     ],
     expect: { category: "BL_COMPARISON", outcome: "OK" },
@@ -253,7 +279,9 @@ export const FIELD_TEST: Scenario[] = [
     to: "docs@april-demo.com",
     subject: "TO CONFIRM DOCS _ 5AAT-45299 _ BUSAN_SOUTH KOREA _ HANSOL",
     body: `Hi team,\n\nPlease check the SI and draft BL for 5AAT-45299 and revert.${SIGN("Sathiya Munusamy", "APRIL Far East (M) Sdn Bhd")}`,
-    docs: [{ role: "SI", format: "txt", name: "SI_5AAT-45299.txt", fields: S4 }],
+    docs: [
+      { role: "SI", format: "txt", name: "SI_5AAT-45299.txt", fields: S4 },
+    ],
     expect: { category: "BL_COMPARISON", outcome: "NEEDS_REVIEW" },
   },
   {
@@ -275,7 +303,11 @@ export const FIELD_TEST: Scenario[] = [
         fields: with_(S4, { notify_party: "SAME AS CONSIGNEE" }),
       },
     ],
-    expect: { category: "BL_COMPARISON", outcome: "MISMATCH", defects: ["notify_party"] },
+    expect: {
+      category: "BL_COMPARISON",
+      outcome: "MISMATCH",
+      defects: ["notify_party"],
+    },
   },
   // ---- PDF where label and value are one text run ----
   {
@@ -287,7 +319,12 @@ export const FIELD_TEST: Scenario[] = [
     subject: "TO CONFIRM DOCS _ 5SUS-86999 _ FREMANTLE_AUSTRALIA _ CERIEX",
     body: `Dear Arlene,\n\nPls assist to check the draft BL against the SI and revert with any discrepancy asap.${SIGN("Teo Ei Leen")}`,
     docs: [
-      { role: "SI", format: "pdf-merged", name: "SI_5SUS-86999.pdf", fields: S5 },
+      {
+        role: "SI",
+        format: "pdf-merged",
+        name: "SI_5SUS-86999.pdf",
+        fields: S5,
+      },
       {
         role: "BL",
         format: "pdf-merged",
@@ -295,7 +332,11 @@ export const FIELD_TEST: Scenario[] = [
         fields: with_(S5, { port_of_discharge: "BUSAN, SOUTH KOREA" }),
       },
     ],
-    expect: { category: "BL_COMPARISON", outcome: "MISMATCH", defects: ["port_of_discharge"] },
+    expect: {
+      category: "BL_COMPARISON",
+      outcome: "MISMATCH",
+      defects: ["port_of_discharge"],
+    },
   },
   // ---- Invoice questions ----
   {
@@ -304,7 +345,8 @@ export const FIELD_TEST: Scenario[] = [
     time: "10:15",
     from: "Nirmala Devi <nirmala@fujito-demo.com>",
     to: "billing@april-demo.com",
-    subject: "REQUEST TO CANCEL INVOICE 5250070084 - PACIFIC OFFICE (M) SDN BHD - 5RSG-40824",
+    subject:
+      "REQUEST TO CANCEL INVOICE 5250070084 - PACIFIC OFFICE (M) SDN BHD - 5RSG-40824",
     body: "Hi,\n\nPlease cancel invoice 5250070084 as it was issued to the wrong party, and reissue to Pacific Office (M) Sdn Bhd.\n\nThank you,\nNirmala",
     docs: [],
     expect: { category: "INVOICE_QUERY" },
@@ -316,7 +358,8 @@ export const FIELD_TEST: Scenario[] = [
     time: "16:20",
     from: "Kargosmar Accounts <accounts@kargosmar-demo.com>",
     to: "billing@april-demo.com",
-    subject: "LOCAL CHARGES FOB - KARGOSMAR - 5AKR-61849 - TELEX RELEASE CHARGES",
+    subject:
+      "LOCAL CHARGES FOB - KARGOSMAR - 5AKR-61849 - TELEX RELEASE CHARGES",
     body: "Dear Sir/Madam,\n\nQuery on invoice 5250075931: why are telex release charges billed when the terms are FOB? Please advise the breakdown.\n\nRegards,\nKargosmar Accounts",
     docs: [],
     expect: { category: "INVOICE_QUERY" },
@@ -329,7 +372,8 @@ export const FIELD_TEST: Scenario[] = [
     time: "09:05",
     from: "Kargosmar Accounts <accounts@kargosmar-demo.com>",
     to: "billing@april-demo.com",
-    subject: "RE: LOCAL CHARGES FOB - KARGOSMAR - 5AKR-61849 - TELEX RELEASE CHARGES",
+    subject:
+      "RE: LOCAL CHARGES FOB - KARGOSMAR - 5AKR-61849 - TELEX RELEASE CHARGES",
     body: "Dear Sir/Madam,\n\nStill waiting for your reply on invoice 5250075931. Please advise today — the cargo is on hold until this is settled.\n\nRegards,\nKargosmar Accounts",
     docs: [],
     expect: { category: "INVOICE_QUERY", urgent: true, deadline: 0 },
@@ -344,8 +388,18 @@ export const FIELD_TEST: Scenario[] = [
     subject: "TO CONFIRM DOCS _ 5APH-26773 _ MERSIN_TURKEY _ UAB NOVAKOPA",
     body: `Hi,\n\nScanned SI and draft BL attached for 5APH-26773. Please check.${SIGN("Elisa Tukiman", "APRIL Far East (M) Sdn Bhd")}`,
     docs: [
-      { role: "SI", format: "pdf-scan", name: "SCAN_SI_5APH-26773.pdf", fields: {} },
-      { role: "BL", format: "pdf-scan", name: "SCAN_BL_5APH-26773.pdf", fields: {} },
+      {
+        role: "SI",
+        format: "pdf-scan",
+        name: "SCAN_SI_5APH-26773.pdf",
+        fields: {},
+      },
+      {
+        role: "BL",
+        format: "pdf-scan",
+        name: "SCAN_BL_5APH-26773.pdf",
+        fields: {},
+      },
     ],
     expect: { category: "BL_COMPARISON", outcome: "NEEDS_REVIEW" },
   },
@@ -366,11 +420,16 @@ export const FIELD_TEST: Scenario[] = [
         format: "txt",
         name: "DRAFT_BL_058.txt",
         fields: with_(S8, {
-          shipper: "APRIL FINE PAPPER TRADING PTE LTD\n77 ROBINSON ROAD #21-01, SINGAPORE 068896",
+          shipper:
+            "APRIL FINE PAPPER TRADING PTE LTD\n77 ROBINSON ROAD #21-01, SINGAPORE 068896",
         }),
       },
     ],
-    expect: { category: "BL_COMPARISON", outcome: "MISMATCH", defects: ["shipper"] },
+    expect: {
+      category: "BL_COMPARISON",
+      outcome: "MISMATCH",
+      defects: ["shipper"],
+    },
   },
   {
     id: "ft_17",
@@ -395,7 +454,8 @@ export const FIELD_TEST: Scenario[] = [
     time: "14:44",
     from: "Willy Situmorang <willy_s@april-demo.com>",
     to: "docs@april-demo.com",
-    subject: "TO CONFIRM DOCS _ 5RSG-00133 _ JEBEL ALI_UAE _ OFFICE SUPPLY SOLUTIONS",
+    subject:
+      "TO CONFIRM DOCS _ 5RSG-00133 _ JEBEL ALI_UAE _ OFFICE SUPPLY SOLUTIONS",
     body: `Hi Najiha,\n\nAttached are the SI and draft BL for OC 5RSG-00133. Please check the details and confirm.${SIGN("Willy Situmorang")}`,
     docs: [
       { role: "SI", format: "txt", name: "SI_5RSG-00133.txt", fields: S9 },
@@ -416,7 +476,8 @@ export const FIELD_TEST: Scenario[] = [
     time: "10:40",
     from: "Deswita Elvyani <deswita@april-demo.com>",
     to: "docs@april-demo.com",
-    subject: "TO CONFIRM DOCS _ 5RAE-20163 _ JEBEL ALI_UAE _ OFFICE SUPPLY SOLUTIONS",
+    subject:
+      "TO CONFIRM DOCS _ 5RAE-20163 _ JEBEL ALI_UAE _ OFFICE SUPPLY SOLUTIONS",
     body: `Dear team,\n\nSI, draft BL and commercial invoice attached for 5RAE-20163. Kindly verify the SI against the BL.${SIGN("Deswita Elvyani")}`,
     docs: [
       { role: "SI", format: "txt", name: "SI_5RAE-20163.txt", fields: S9 },
@@ -515,8 +576,21 @@ export const FIELD_TEST: Scenario[] = [
     subject: "pls check bl 5RCY-72046",
     body: "hi, pls check attached vs SI. thx\n\nMitchelle",
     docs: [
-      { role: "SI", format: "txt", name: "5RCY-72046 SI.txt", fields: with_(S8, { port_of_discharge: "MUNDRA, INDIA" }) },
-      { role: "BL", format: "pdf", name: "5RCY-72046 BL.pdf", fields: with_(S8, { port_of_discharge: "MUNDRA, INDIA", gross_weight_kg: "45.88 MT" }) },
+      {
+        role: "SI",
+        format: "txt",
+        name: "5RCY-72046 SI.txt",
+        fields: with_(S8, { port_of_discharge: "MUNDRA, INDIA" }),
+      },
+      {
+        role: "BL",
+        format: "pdf",
+        name: "5RCY-72046 BL.pdf",
+        fields: with_(S8, {
+          port_of_discharge: "MUNDRA, INDIA",
+          gross_weight_kg: "45.88 MT",
+        }),
+      },
     ],
     expect: { category: "BL_COMPARISON", outcome: "OK" },
   },
@@ -582,15 +656,23 @@ export function documentLines(doc: DocSpec, variant = 0): string[] {
     lines.push(`${label}: ${first}`);
     lines.push(...rest);
   }
-  lines.push("Vessel: MMSS 2507 V.257087E", "Freight: PREPAID", ...(doc.extra ?? []));
+  lines.push(
+    "Vessel: MMSS 2507 V.257087E",
+    "Freight: PREPAID",
+    ...(doc.extra ?? []),
+  );
   return lines;
 }
 
 function pdfEscape(value: string) {
-  return value.replace(/[\\()]/g, (c) => `\\${c}`).replace(/[^\x20-\x7e]/g, "?");
+  return value
+    .replace(/[\\()]/g, (c) => `\\${c}`)
+    .replace(/[^\x20-\x7e]/g, "?");
 }
 /** Tiny PDF writer: one page, Helvetica, positioned text (no dependencies). */
-export function renderPdf(rows: { x: number; y: number; text: string; size?: number }[]) {
+export function renderPdf(
+  rows: { x: number; y: number; text: string; size?: number }[],
+) {
   const content = rows
     .map(
       (row) =>
@@ -613,7 +695,9 @@ export function renderPdf(rows: { x: number; y: number; text: string; size?: num
   const xref = body.length;
   body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets
     .map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`)
-    .join("")}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+    .join(
+      "",
+    )}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
   return strToU8(body);
 }
 /** Minimal Word document with one paragraph per line. */
@@ -621,7 +705,10 @@ export function renderDocx(lines: string[]) {
   const escape = (value: string) =>
     value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const paragraphs = lines
-    .map((line) => `<w:p><w:r><w:t xml:space="preserve">${escape(line)}</w:t></w:r></w:p>`)
+    .map(
+      (line) =>
+        `<w:p><w:r><w:t xml:space="preserve">${escape(line)}</w:t></w:r></w:p>`,
+    )
     .join("");
   return zipSync({
     "[Content_Types].xml": strToU8(
@@ -636,7 +723,11 @@ export function renderDocx(lines: string[]) {
   });
 }
 
-export function renderDocument(doc: DocSpec): { name: string; bytes: Uint8Array; type: string } {
+export function renderDocument(doc: DocSpec): {
+  name: string;
+  bytes: Uint8Array;
+  type: string;
+} {
   if (doc.format === "txt")
     return {
       name: doc.name,
@@ -688,7 +779,10 @@ export function renderDocument(doc: DocSpec): { name: string; bytes: Uint8Array;
       }
       y -= 20;
     }
-  rows.push({ x: 50, y, text: "Ocean Vessel" }, { x: 210, y, text: "MMSS 2507 V.257087E" });
+  rows.push(
+    { x: 50, y, text: "Ocean Vessel" },
+    { x: 210, y, text: "MMSS 2507 V.257087E" },
+  );
   for (const line of doc.extra ?? []) {
     y -= 20;
     rows.push({ x: 50, y, text: line });
@@ -697,26 +791,66 @@ export function renderDocument(doc: DocSpec): { name: string; bytes: Uint8Array;
 }
 
 // Dates in bodies: {{d:+1|dMonY}} etc., relative to the mailbox "today".
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const LONG_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+const LONG_MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const DAYS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
 export function fillDates(text: string, today: Date) {
-  return text.replace(/\{\{d:([+-]?\d+)\|(dmy|dMonY|long)\}\}/g, (_, offset, format) => {
-    const date = new Date(today.getTime() + Number(offset) * 86400000);
-    const d = date.getUTCDate(),
-      m = date.getUTCMonth(),
-      y = date.getUTCFullYear();
-    if (format === "dmy") return `${String(d).padStart(2, "0")}/${String(m + 1).padStart(2, "0")}/${y}`;
-    if (format === "dMonY") return `${d} ${MONTHS[m]} ${y}`;
-    return `${DAYS[date.getUTCDay()]}, ${LONG_MONTHS[m]} ${d}, ${y}`;
-  });
+  return text.replace(
+    /\{\{d:([+-]?\d+)\|(dmy|dMonY|long)\}\}/g,
+    (_, offset, format) => {
+      const date = new Date(today.getTime() + Number(offset) * 86400000);
+      const d = date.getUTCDate(),
+        m = date.getUTCMonth(),
+        y = date.getUTCFullYear();
+      if (format === "dmy")
+        return `${String(d).padStart(2, "0")}/${String(m + 1).padStart(2, "0")}/${y}`;
+      if (format === "dMonY") return `${d} ${MONTHS[m]} ${y}`;
+      return `${DAYS[date.getUTCDay()]}, ${LONG_MONTHS[m]} ${d}, ${y}`;
+    },
+  );
 }
 
 function wrap64(bytes: Uint8Array) {
   let binary = "";
   for (let i = 0; i < bytes.length; i += 0x8000)
     binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(binary).replace(/.{1,76}/g, "$&\r\n").trimEnd();
+  return btoa(binary)
+    .replace(/.{1,76}/g, "$&\r\n")
+    .trimEnd();
 }
 export function messageId(scenario: Pick<Scenario, "id">) {
   return `${scenario.id}.fieldtest@cargoguard-demo.invalid`;
@@ -735,7 +869,13 @@ export function renderEml(scenario: Scenario, today: Date) {
     ? FIELD_TEST.find((item) => item.id === scenario.reply_to)
     : undefined;
   const chain: string[] = [];
-  for (let cursor = parent; cursor; cursor = cursor.reply_to ? FIELD_TEST.find((item) => item.id === cursor!.reply_to) : undefined)
+  for (
+    let cursor = parent;
+    cursor;
+    cursor = cursor.reply_to
+      ? FIELD_TEST.find((item) => item.id === cursor!.reply_to)
+      : undefined
+  )
     chain.unshift(`<${messageId(cursor)}>`);
   const head = [
     `From: ${scenario.from}`,
@@ -743,7 +883,12 @@ export function renderEml(scenario: Scenario, today: Date) {
     `Subject: ${fillDates(scenario.subject, today)}`,
     `Date: ${date.toUTCString().replace("GMT", "+0000")}`,
     `Message-ID: <${messageId(scenario)}>`,
-    ...(parent ? [`In-Reply-To: <${messageId(parent)}>`, `References: ${chain.join(" ")}`] : []),
+    ...(parent
+      ? [
+          `In-Reply-To: <${messageId(parent)}>`,
+          `References: ${chain.join(" ")}`,
+        ]
+      : []),
     "MIME-Version: 1.0",
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
     "",

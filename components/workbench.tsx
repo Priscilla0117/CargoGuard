@@ -13,6 +13,7 @@ import {
   History,
   Inbox,
   Info,
+  ListChecks,
   Loader2,
   Mail,
   MessageSquareText,
@@ -39,6 +40,7 @@ import { AuditDetail, CaseView, tabFor, type CaseTab } from "./case-view";
 import type { FieldEdit } from "./compare-table";
 import type { MailboxState } from "./reply-composer";
 import { ImportDialog, type ImportOutcome } from "./import-dialog";
+import { PlanDialog } from "./plan-dialog";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useCargoTools } from "./cargo-tools";
@@ -50,7 +52,7 @@ import type { PolicySnapshot } from "@/lib/policy";
 import type { FollowUpMap, WorkspaceView } from "@/lib/work-queue";
 import { shiftBrief } from "@/lib/operations";
 import { groupThreads } from "@/lib/mail-intel";
-import { planFor, planText } from "@/lib/priority";
+import { planFor } from "@/lib/priority";
 import { categoryWords } from "@/lib/case-status";
 import {
   CATEGORIES,
@@ -273,6 +275,7 @@ export default function Workbench({
   const [reviewerName, setReviewerNameState] = useState("");
   const [mail, setMail] = useState<MailStatus | null>(null);
   const [mailBusy, setMailBusy] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
   useEffect(() => {
     // Read browser-only preferences after hydration.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -490,6 +493,14 @@ export default function Workbench({
         ]),
       ),
     [cases, followups, queueNow],
+  );
+  const planned = useMemo(
+    () =>
+      cases.map((row) => ({
+        row,
+        plan: plans.get(row.email.email_id)!,
+      })),
+    [cases, plans],
   );
   const threads = useMemo(
     () =>
@@ -904,16 +915,6 @@ export default function Workbench({
       void load();
     }
   }
-  function downloadPlan() {
-    download(
-      "cargoguard-todays-plan.txt",
-      planText(
-        cases.map((row) => ({ row, plan: plans.get(row.email.email_id)! })),
-        new Date(),
-      ),
-      "text/plain;charset=utf-8",
-    );
-  }
   function openImport() {
     setImportState({ open: true, replacement: null });
   }
@@ -1106,7 +1107,7 @@ export default function Workbench({
               now={queueNow}
               onOpen={(id, order) => void openCase(id, "compare", order)}
               onImport={openImport}
-              onPlan={downloadPlan}
+              onPlan={() => setPlanOpen(true)}
               doneTools={
                 inboxReady && counts.verified > 0 ? (
                   <BatchReview
@@ -1203,9 +1204,9 @@ export default function Workbench({
                 <button
                   className="cg-btn primary"
                   disabled={!inboxReady}
-                  onClick={downloadPlan}
+                  onClick={() => setPlanOpen(true)}
                 >
-                  <ArrowDownToLine size={18} /> Today&apos;s plan
+                  <ListChecks size={18} /> Today&apos;s plan
                 </button>
                 <a className="cg-btn" href="/api/follow-ups?export=1" download>
                   <ArrowDownToLine size={18} /> Follow-up handover
@@ -1457,6 +1458,13 @@ export default function Workbench({
           </SheetContent>
         )}
       </Sheet>
+      <PlanDialog
+        open={planOpen}
+        onClose={() => setPlanOpen(false)}
+        rows={planned}
+        now={queueNow}
+        onOpenCase={(id, order) => void openCase(id, "compare", order)}
+      />
       <ImportDialog
         open={importState.open}
         replacement={importState.replacement}
@@ -1585,6 +1593,8 @@ export default function Workbench({
         <GlobalAssistant
           key={assistant.sequence}
           cases={cases}
+          planned={planned}
+          now={queueNow}
           initialCaseId={assistant.id}
           workspaceReady={inboxReady && !loading}
           onUpdated={update}

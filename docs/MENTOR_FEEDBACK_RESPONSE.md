@@ -17,7 +17,7 @@ Each point from the review, what changed, and where to see it in the app.
 - Buttons, all in one row: **Send** (with Gmail connected, after a
   confirmation), **Save to Gmail drafts** (lands in the same Gmail
   conversation), **Open in Gmail**, **Copy**, **Download .eml**.
-- Optional **Improve wording** with Claude or OpenAI. It is rejected
+- Optional **Improve wording** with OpenAI. It is rejected
   automatically if it changes any value, reference or date.
 - Every status card has one button such as *Write correction email*, which
   opens the reply ready to go.
@@ -134,6 +134,15 @@ A custom LLM gives an answer; CargoGuard gives an answer **you can check**:
   a time; we group the whole order history and plan by real deadlines.
 - Runs with **no paid AI**, so it is cheap, fast (inbox insights for 520
   emails in about 45 ms) and keeps customer data in the company.
+- **Ask CargoGuard is a planning assistant, not a chatbot.** It answers
+  "what should I do first?", "what is due this week?", "show open POs",
+  "everything about 5RFR-36541 / PO 25_1234 / invoice 5250074586",
+  "who am I waiting on?" and "which documents do not match?" instantly from
+  the saved inbox, and every answer lists the emails behind it with an
+  *Open* button. When an administrator adds an AI key, *Ask OpenAI for
+  advice* sends only subjects, senders, statuses and dates (never email text
+  or attachments), and the answer is **rejected** if it cites an email or an
+  order/PO/invoice/booking/container number that is not in the inbox.
 
 ## 10. What each person needs
 
@@ -154,6 +163,26 @@ the exact words that differ, writes the reply with the correct values, groups
 the whole order conversation, and puts the most urgent email first, with every
 decision recorded.
 
+## Round 2 changes (UI/UX review)
+
+- **Colour cards are back** on the inbox (*All to do*, *Fix differences*,
+  *Missing documents*, *Check unclear info*, plus *Send SI*, *Invoice
+  question*, *Follow-up due* when they have work), with the *Start here — most
+  urgent* card shown on every tab so the page always looks the same.
+- **Averis logo** in the sidebar and phone header.
+- **Today's plan opens as a pop-up** (Do first / Next / Then / When you have
+  time, numbered, each with *Open*). Copy, Download and Print are optional.
+- **Simpler case page**: one result card that says exactly what is wrong in the
+  Averis format (*SI: 90420 / BL: 90240*, differing characters highlighted), or
+  **No mismatch detected** when all seven details match; then three numbered
+  steps: *1 Check the details → 2 Reply → 3 Finish*. Email, documents and
+  history are one click away but out of the way.
+- **Bigger text everywhere** (minimum 14 px, body 17 px) and one set of
+  colours and buttons on every page, including Shipments, Insights, Label
+  rules and SI templates.
+- **Plain words**: no router jargon, no PDF coordinates ("See in document ·
+  Page 1"), dates written as "Fri 25 Sep".
+
 ## How to demo in five minutes
 
 1. Inbox → *Import email* → **Load 28 practice emails**.
@@ -169,3 +198,5 @@ decision recorded.
    conversations*.
 7. *Email accounts*: connect Gmail with an app password; new mail arrives by
    itself.
+8. **Ask CargoGuard** (bottom right): *What should I do first today?*, then
+   type `5RFR-36541` or *Show open POs*. Click *Open* on any answer.

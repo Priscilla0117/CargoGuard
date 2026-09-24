@@ -19,11 +19,11 @@
 .integrity-panel-heading p,
 .integrity-limit {
   margin: 0.4rem 0;
-  font-size: 14px;
+  font-size: 15px;
   color: var(--muted-foreground, #58666c);
 }
 .integrity-rule-version {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted-foreground, #58666c);
   flex-shrink: 0;
 }
@@ -37,7 +37,7 @@
   padding: 0.25rem 0.5rem;
   border: 1px solid #dce3e6;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 14px;
 }
 .integrity-count.blocking {
   color: #942b27;
@@ -112,18 +112,18 @@
 .integrity-finding-title small {
   display: block;
   margin-top: 0.1rem;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 400;
   color: #58666c;
 }
 .integrity-status {
-  font-size: 13px;
+  font-size: 14px;
   white-space: nowrap;
   color: #52636c;
 }
 .integrity-finding-body {
   padding: 0 0.8rem 0.8rem;
-  font-size: 14px;
+  font-size: 15px;
 }
 .integrity-finding-body p {
   margin: 0.2rem 0 0.6rem;
@@ -141,7 +141,7 @@
   padding: 0.55rem;
 }
 .integrity-evidence li > span {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 .integrity-evidence blockquote {
@@ -151,7 +151,7 @@
 }
 .integrity-evidence small {
   display: block;
-  font-size: 13px;
+  font-size: 14px;
   color: #58666c;
   overflow-wrap: anywhere;
 }
@@ -167,6 +167,6 @@
     display: block;
   }
   .integrity-status {
-    font-size: 13px;
+    font-size: 14px;
   }
 }

@@ -21,7 +21,7 @@
 }
 .outlook-eyebrow {
   text-transform: uppercase;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: #236654;
@@ -51,7 +51,7 @@
   padding: 0.5rem 0.75rem;
   border: 1px solid #c4d3d7;
   border-radius: 7px;
-  font-size: 14px;
+  font-size: 15px;
   background: #f2f8f6;
   color: #165c49;
   cursor: pointer;
@@ -74,7 +74,7 @@
   gap: 0.55rem;
   align-items: flex-start;
   margin: 0.8rem 0;
-  font-size: 14px;
+  font-size: 15px;
 }
 .microsoft-check input {
   margin-top: 0.2rem;
@@ -87,7 +87,7 @@
   padding: 0.75rem;
   background: #f5f7f8;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 15px;
   max-height: 350px;
   overflow: auto;
 }
@@ -112,7 +112,7 @@
   padding: 0.7rem;
   border: 1px solid #d7dfe2;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 15px;
 }
 .microsoft-dispatches > li > span {
   display: block;
@@ -126,7 +126,7 @@
   border-radius: 6px;
 }
 .outlook-workspace footer {
-  font-size: 13px;
+  font-size: 14px;
   color: #65747a;
   margin-top: 1.5rem;
 }

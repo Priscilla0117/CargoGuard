@@ -1,8 +1,20 @@
 "use client";
 import { Fragment, useMemo, useState } from "react";
 import {
+  Archive,
   ArrowRight,
   CalendarClock,
+  CheckCircle2,
+  CircleHelp,
+  Clock,
+  FileText,
+  Inbox,
+  ListChecks,
+  Mails,
+  Receipt,
+  TriangleAlert,
+  BellRing,
+  ScanSearch,
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -33,6 +45,36 @@ import {
 } from "@/lib/priority";
 import { categoryWords, rowStatus } from "@/lib/case-status";
 import { CATEGORIES, type CaseSummary } from "@/lib/types";
+
+const WORK_CARDS: {
+  key: TodoReason;
+  icon: typeof Inbox;
+  hint: string;
+  always?: boolean;
+}[] = [
+  {
+    key: "differences",
+    icon: TriangleAlert,
+    hint: "BL does not match the SI",
+    always: true,
+  },
+  {
+    key: "missing",
+    icon: Paperclip,
+    hint: "Ask for the SI or BL",
+    always: true,
+  },
+  {
+    key: "unclear",
+    icon: CircleHelp,
+    hint: "Confirm what was not clear",
+    always: true,
+  },
+  { key: "si_request", icon: FileText, hint: "Customer is waiting for an SI" },
+  { key: "invoice", icon: Receipt, hint: "Answer the billing question" },
+  { key: "follow_up", icon: BellRing, hint: "A promised follow-up is due" },
+  { key: "unprocessed", icon: ScanSearch, hint: "Press “Check new emails”" },
+];
 
 export interface InboxFilters {
   bucket: Bucket | "all";
@@ -329,10 +371,10 @@ export function InboxView({
 
   return (
     <>
-      {focus && !loading && filters.bucket === "todo" && (
+      {focus && !loading && (
         <section className="cg-focus-card" aria-label="Suggested next email">
           <span className="cg-focus-icon" aria-hidden="true">
-            <Target size={24} />
+            <Target size={26} />
           </span>
           <div style={{ minWidth: 0 }}>
             <span className="cg-focus-label">Start here — most urgent</span>
@@ -347,80 +389,123 @@ export function InboxView({
               )}
               {dueSoon > 0 && (
                 <span className="cg-pill high">
-                  <CalendarClock size={14} /> {dueSoon} due within 3 days
+                  <CalendarClock size={15} /> {dueSoon} due within 3 days
                 </span>
               )}
               {late > 0 && (
                 <span className="cg-pill red">{late} past a deadline</span>
               )}
-              <span className="cg-pill">{todo.length} to do in total</span>
-              {onPlan && (
-                <button className="cg-link cg-small" onClick={onPlan}>
-                  Download today&apos;s plan
-                </button>
-              )}
             </div>
           </div>
-          <button
-            className="cg-btn primary large"
-            onClick={() =>
-              onOpen(
-                focus.row.email.email_id,
-                [...todo]
-                  .sort((a, b) => comparePlanned(a, b, "priority"))
-                  .map((item) => item.row.email.email_id),
-              )
-            }
-          >
-            Open <ArrowRight size={20} />
-          </button>
+          <div className="cg-focus-actions">
+            <button
+              className="cg-btn primary large"
+              onClick={() =>
+                onOpen(
+                  focus.row.email.email_id,
+                  [...todo]
+                    .sort((a, b) => comparePlanned(a, b, "priority"))
+                    .map((item) => item.row.email.email_id),
+                )
+              }
+            >
+              Open this email <ArrowRight size={20} />
+            </button>
+            {onPlan && (
+              <button className="cg-btn" onClick={onPlan}>
+                <ListChecks size={19} /> See today&apos;s plan
+              </button>
+            )}
+          </div>
         </section>
       )}
-      <div className="cg-tabs" role="tablist" aria-label="Inbox sections">
-        {(["todo", "waiting", "done", "other", "all"] as const).map((key) => (
+      <section className="cg-board" aria-label="Your work">
+        <div className="cg-board-head">
+          <h2>Your work</h2>
+          <span>Pick a card to see only those emails</span>
+        </div>
+        <div className="cg-cards" role="group" aria-label="Kinds of work">
           <button
-            key={key}
-            role="tab"
-            className="cg-tab"
-            aria-selected={filters.bucket === key}
-            title={key === "all" ? "Every email" : BUCKET_HINTS[key]}
+            className="cg-card-btn total"
+            aria-pressed={filters.bucket === "todo" && filters.reason === "all"}
             onClick={() => {
-              setFilters({ bucket: key, reason: "all" });
+              setFilters({ bucket: "todo", reason: "all" });
               setLimit(40);
             }}
           >
-            {key === "all" ? "All emails" : BUCKET_LABELS[key]}
-            <span className="cg-count">
-              {loading ? "–" : bucketCounts[key].toLocaleString()}
+            <span className="cg-card-top">
+              <span className="cg-card-icon">
+                <Inbox size={20} />
+              </span>
+              All to do
             </span>
+            <strong>
+              {loading ? "–" : bucketCounts.todo.toLocaleString()}
+            </strong>
+            <small>Everything that needs you</small>
           </button>
-        ))}
-      </div>
-      {filters.bucket === "todo" && (
-        <div className="cg-chips" role="group" aria-label="Kind of work">
-          <button
-            className="cg-chip"
-            aria-pressed={filters.reason === "all"}
-            onClick={() => setFilters({ reason: "all" })}
-          >
-            Everything to do <b>{bucketCounts.todo}</b>
-          </button>
-          {(Object.keys(TODO_REASON_LABELS) as TodoReason[])
-            .filter((key) => reasonCounts[key])
-            .map((key) => (
+          {WORK_CARDS.filter(
+            (card) => card.always || (reasonCounts[card.key] ?? 0) > 0,
+          ).map((card) => {
+            const Icon = card.icon;
+            const count = reasonCounts[card.key] ?? 0;
+            return (
               <button
-                key={key}
-                className="cg-chip"
-                aria-pressed={filters.reason === key}
-                onClick={() =>
-                  setFilters({ reason: filters.reason === key ? "all" : key })
+                key={card.key}
+                className={`cg-card-btn ${card.key}`}
+                aria-pressed={
+                  filters.bucket === "todo" && filters.reason === card.key
                 }
+                onClick={() => {
+                  setFilters({
+                    bucket: "todo",
+                    reason:
+                      filters.bucket === "todo" && filters.reason === card.key
+                        ? "all"
+                        : card.key,
+                  });
+                  setLimit(40);
+                }}
               >
-                {TODO_REASON_LABELS[key]} <b>{reasonCounts[key]}</b>
+                <span className="cg-card-top">
+                  <span className="cg-card-icon">
+                    <Icon size={20} />
+                  </span>
+                  {TODO_REASON_LABELS[card.key]}
+                </span>
+                <strong>{loading ? "–" : count.toLocaleString()}</strong>
+                <small>{count ? card.hint : "All clear"}</small>
               </button>
-            ))}
+            );
+          })}
         </div>
-      )}
+        <div className="cg-status-strip" role="group" aria-label="Other lists">
+          {(["waiting", "done", "other", "all"] as const).map((key) => (
+            <button
+              key={key}
+              className="cg-strip-btn"
+              aria-pressed={filters.bucket === key}
+              title={key === "all" ? "Every email" : BUCKET_HINTS[key]}
+              onClick={() => {
+                setFilters({ bucket: key, reason: "all" });
+                setLimit(40);
+              }}
+            >
+              {key === "waiting" ? (
+                <Clock size={17} />
+              ) : key === "done" ? (
+                <CheckCircle2 size={17} />
+              ) : key === "other" ? (
+                <Archive size={17} />
+              ) : (
+                <Mails size={17} />
+              )}
+              {key === "all" ? "All emails" : BUCKET_LABELS[key]}
+              <b>{loading ? "–" : bucketCounts[key].toLocaleString()}</b>
+            </button>
+          ))}
+        </div>
+      </section>
       {filters.bucket === "done" && bucketCounts.done > 0 && doneTools && (
         <div style={{ paddingTop: 14 }}>{doneTools}</div>
       )}

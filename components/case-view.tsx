@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
-  CalendarClock,
   CheckCircle2,
   CircleHelp,
   ExternalLink,
@@ -45,7 +44,7 @@ import {
   type Field,
   type ParsedDocument,
 } from "@/lib/types";
-import { CompareTable, type FieldEdit } from "./compare-table";
+import { CompareTable, DiffSnippet, type FieldEdit } from "./compare-table";
 import { ReplyComposer, type MailboxState } from "./reply-composer";
 import { DocumentPairSelector } from "./document-pair-selector";
 import { ScanAssist } from "./scan-assist";
@@ -63,14 +62,18 @@ export type CaseTab =
   | "documents"
   | "followup"
   | "history";
-export const CASE_TABS: { id: CaseTab; label: string }[] = [
-  { id: "compare", label: "Check details" },
-  { id: "reply", label: "Reply" },
+export const CASE_TABS: { id: CaseTab; label: string; step?: number }[] = [
+  { id: "compare", label: "Check the details", step: 1 },
+  { id: "reply", label: "Reply", step: 2 },
+  { id: "followup", label: "Finish", step: 3 },
   { id: "conversation", label: "Email & conversation" },
   { id: "documents", label: "Documents" },
-  { id: "followup", label: "Follow-up" },
   { id: "history", label: "History" },
 ];
+const short = (value: string) => {
+  const line = value.split(/\r?\n/)[0].trim();
+  return line.length > 46 ? `${line.slice(0, 45)}…` : line || "(empty)";
+};
 /** Old deep links (assistant, citations) keep working. */
 export function tabFor(target: string): CaseTab {
   if (target === "resolution") return "reply";
@@ -188,6 +191,7 @@ export function CaseView(props: CaseViewProps) {
   const highlighted = useRef<HTMLDivElement | null>(null);
   const plan = plans.get(result.email.email_id);
   const status = caseStatus(result, plan);
+  const attention = result.comparison.filter((row) => row.result !== "match");
   const received = formatReceived(result.email.received_at);
   const insight = emailInsight(result.email);
   const refs = insight.refs;
@@ -360,32 +364,35 @@ export function CaseView(props: CaseViewProps) {
             <p>{props.error}</p>
           </div>
         )}
-        <header className="cg-case-head">
+        <header className={`cg-case-head tone-${status.tone}`}>
+          <span className="cg-case-kicker">
+            {categoryWords(result.category)}
+            {received ? ` · received ${received.day} ${received.time}` : ""}
+          </span>
           <h2>{result.email.subject}</h2>
           <div className="cg-case-meta">
-            <span>
+            <span className="cg-meta-chip">
               <User size={16} />
               {insight.sender_name ? `${insight.sender_name} · ` : ""}
               {result.email.from}
             </span>
-            {received && (
-              <span>
-                <CalendarClock size={16} />
-                {received.day} {received.time}
-              </span>
-            )}
             {refs?.shipment[0] && (
-              <span>
+              <span className="cg-meta-chip">
                 <Hash size={16} /> Order {refs.shipment.join(", ")}
               </span>
             )}
-            {refs?.po[0] && <span>PO {refs.po.join(", ")}</span>}
-            <span>
+            {refs?.po[0] && (
+              <span className="cg-meta-chip">PO {refs.po.join(", ")}</span>
+            )}
+            <button className="cg-meta-chip" onClick={() => go("documents")}>
               <Paperclip size={16} /> {result.documents.length} document
               {result.documents.length === 1 ? "" : "s"}
-            </span>
+            </button>
             {thread && (
-              <button className="cg-link" onClick={() => go("conversation")}>
+              <button
+                className="cg-meta-chip link"
+                onClick={() => go("conversation")}
+              >
                 <MessagesSquare size={16} /> {thread.ids.length} emails in this
                 conversation
               </button>
@@ -394,22 +401,88 @@ export function CaseView(props: CaseViewProps) {
         </header>
         <section
           className={`cg-status-card ${status.tone}`}
-          aria-label="What to do next"
+          aria-label="Result and next step"
         >
           <span className="cg-status-icon" aria-hidden="true">
             {STATUS_ICON[status.tone]}
           </span>
           <div>
+            <span className="cg-status-kicker">Result</span>
             <h3>{status.title}</h3>
-            <p>{status.detail}</p>
+            {attention.length > 0 ? (
+              <ul className="cg-attention">
+                {attention.map((row) => {
+                  const same =
+                    row.si.raw.trim().toUpperCase() ===
+                    row.bl.raw.trim().toUpperCase();
+                  return (
+                    <li key={row.field} className={row.result}>
+                      <strong>{FIELD_LABELS[row.field]}</strong>
+                      {row.result === "uncertain" ? (
+                        <span>
+                          Could not be read with certainty —{" "}
+                          {row.bl.issue || row.si.issue || "please check"}
+                        </span>
+                      ) : same ? (
+                        <span>
+                          Both say “{short(row.si.raw)}” — it follows the
+                          consignee, which differs.
+                        </span>
+                      ) : (
+                        <>
+                          <span className="cg-att-side">
+                            SI:{" "}
+                            <b>
+                              <DiffSnippet
+                                value={row.si.raw}
+                                other={row.bl.raw}
+                              />
+                            </b>
+                          </span>
+                          <span className="cg-att-side">
+                            BL:{" "}
+                            <b>
+                              <DiffSnippet
+                                value={row.bl.raw}
+                                other={row.si.raw}
+                              />
+                            </b>
+                          </span>
+                        </>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p>{status.detail}</p>
+            )}
+            {attention.length > 0 && (
+              <p className="cg-next-line">
+                <strong>Next:</strong>{" "}
+                {status.tone === "differences"
+                  ? "ask the sender to correct the draft BL — the reply is written for you."
+                  : "compare with the document and correct the value if it was read wrongly."}
+              </p>
+            )}
             {plan && plan.bucket === "todo" && plan.reasons.length > 0 && (
-              <p className="cg-small" style={{ marginTop: 6 }}>
-                <strong>Priority: {plan.level}</strong> —{" "}
+              <p className="cg-priority-line">
+                <span className={`cg-pill ${plan.level}`}>
+                  {plan.level[0].toUpperCase() + plan.level.slice(1)} priority
+                </span>
                 {plan.reasons.join(" · ")}
               </p>
             )}
           </div>
           <div className="cg-status-actions">
+            {status.action && (
+              <button
+                className="cg-btn primary large"
+                onClick={() => act(status.action!.target)}
+              >
+                {status.action.label} <ArrowRight size={19} />
+              </button>
+            )}
             {status.secondary && (
               <button
                 className="cg-btn"
@@ -420,23 +493,41 @@ export function CaseView(props: CaseViewProps) {
                 {status.secondary.label}
               </button>
             )}
-            {status.action && (
-              <button
-                className="cg-btn primary"
-                onClick={() => act(status.action!.target)}
-              >
-                {status.action.label} <ArrowRight size={18} />
-              </button>
-            )}
           </div>
         </section>
-        <div className="cg-case-tabs">
-          <div className="cg-tabs" role="tablist" aria-label="Case sections">
-            {CASE_TABS.map((item) => (
+        <nav className="cg-case-tabs" aria-label="Case sections">
+          <div className="cg-steps-nav" role="tablist">
+            {CASE_TABS.filter((item) => item.step).map((item) => (
               <button
                 key={item.id}
                 role="tab"
-                className="cg-tab"
+                className="cg-step-tab"
+                aria-selected={tab === item.id}
+                onClick={() => {
+                  setMarkDoneFor(null);
+                  onTab(item.id);
+                }}
+              >
+                <span className="cg-step-number">{item.step}</span>
+                {item.label}
+                {item.id === "compare" && result.defect_fields.length > 0 && (
+                  <span className="cg-count red">
+                    {result.defect_fields.length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          <div
+            className="cg-more-tabs"
+            role="tablist"
+            aria-label="More about this email"
+          >
+            {CASE_TABS.filter((item) => !item.step).map((item) => (
+              <button
+                key={item.id}
+                role="tab"
+                className="cg-more-tab"
                 aria-selected={tab === item.id}
                 onClick={() => {
                   setMarkDoneFor(null);
@@ -444,11 +535,6 @@ export function CaseView(props: CaseViewProps) {
                 }}
               >
                 {item.label}
-                {item.id === "compare" && result.defect_fields.length > 0 && (
-                  <span className="cg-count">
-                    {result.defect_fields.length}
-                  </span>
-                )}
                 {item.id === "conversation" && thread && (
                   <span className="cg-count">{thread.ids.length}</span>
                 )}
@@ -458,7 +544,7 @@ export function CaseView(props: CaseViewProps) {
               </button>
             ))}
           </div>
-        </div>
+        </nav>
         {tab === "compare" && (
           <div className="cg-panel">
             {result.document_selection && (
@@ -491,7 +577,7 @@ export function CaseView(props: CaseViewProps) {
             ) : (
               <div className="cg-card cg-card-pad">
                 <h2>Nothing to compare yet</h2>
-                <p className="cg-muted">{result.summary}</p>
+                <p className="cg-muted">{nothingToCompare(result)}</p>
                 <div className="cg-page-actions" style={{ marginTop: 12 }}>
                   <button className="cg-btn" onClick={() => onTab("documents")}>
                     See the attachments
@@ -1000,4 +1086,24 @@ function DocumentsPanel(
       )}
     </div>
   );
+}
+
+/** Plain-language reason why no SI/BL comparison is shown. */
+function nothingToCompare(result: CaseResult) {
+  if (result.classification.needs_review && !result.category_override)
+    return "CargoGuard is not sure what this email is about, so it has not compared any documents. Read the email and confirm its type first.";
+  if (
+    result.workflow === "awaiting_documents" ||
+    result.review_reason === "missing_attachment"
+  )
+    return "The Shipping Instruction or the draft BL is missing, so there is nothing to compare. Ask the sender to send it.";
+  if (result.category === "SI_REQUEST")
+    return "The sender is asking for a Shipping Instruction. There is no draft BL to check yet — reply with the SI.";
+  if (result.category === "INVOICE_QUERY")
+    return "This is a billing question, not a document check. Read the email and reply to the sender.";
+  if (result.category === "SPAM")
+    return "This looks like spam or phishing. Do not open links or attachments.";
+  if (result.workflow === "review")
+    return "The attachments could not be read well enough to compare. Open them and check by eye.";
+  return "This email does not contain a Shipping Instruction and a draft BL to compare.";
 }

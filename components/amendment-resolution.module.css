@@ -18,7 +18,7 @@
 
 .panel .eyebrow {
   color: #3b7380;
-  font-size: 13px;
+  font-size: 14px;
   letter-spacing: 1.4px;
   font-weight: 700;
   margin: 0 0 8px;
@@ -33,7 +33,7 @@
 
 .header p {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .panel button {
@@ -47,7 +47,7 @@
 }
 
 .panel .downloadButton {
-  font-size: 13px;
+  font-size: 14px;
   flex-shrink: 0;
 }
 
@@ -87,13 +87,13 @@
 
 .journey strong {
   display: block;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.6;
 }
 
 .journey div > span {
   display: block;
-  font-size: 13px;
+  font-size: 14px;
   color: #5e7485;
   margin-top: 4px;
   line-height: 1.6;
@@ -121,7 +121,7 @@
   gap: 12px;
   margin-bottom: 10px;
   color: #6c624d;
-  font-size: 13px;
+  font-size: 14px;
   flex-wrap: wrap;
 }
 
@@ -140,7 +140,7 @@
 
 .statusCard p {
   margin: 8px 0 0;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .actions {
@@ -151,11 +151,11 @@
 }
 
 .actions button {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .panel .helper {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.7;
   color: #5f7180;
   margin: 10px 0 0;
@@ -177,13 +177,13 @@
 .sourcePair span {
   display: block;
   color: #637a8a;
-  font-size: 13px;
+  font-size: 14px;
   margin-bottom: 6px;
 }
 
 .sourcePair strong,
 .sourcePair a {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   overflow-wrap: anywhere;
   line-height: 1.6;
@@ -219,7 +219,7 @@
   border-radius: 5px;
   background: #eef3f6;
   color: #405e70;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -248,14 +248,14 @@
 
 .values dt {
   color: #5b7486;
-  font-size: 13px;
+  font-size: 14px;
   margin-bottom: 8px;
 }
 
 .values dd {
   margin: 0;
   color: #244357;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -264,7 +264,7 @@
 
 .evidence {
   margin: 15px 0 0;
-  font-size: 13px;
+  font-size: 14px;
   overflow-wrap: anywhere;
 }
 
@@ -278,7 +278,7 @@
 
 .evidence blockquote {
   margin: 12px 0;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.8;
   color: #496578;
 }
@@ -299,7 +299,7 @@
   border-radius: 6px;
   padding: 10px 12px;
   margin: 14px 0 0;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .reconcileForm {
@@ -313,7 +313,7 @@
   flex-direction: row;
   align-items: flex-start;
   gap: 10px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.7;
 }
 
@@ -327,14 +327,14 @@
 }
 
 .reconcileForm > label {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .panel .primaryButton {
   background: #175d6c;
   border-color: #175d6c;
   color: #fff;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .panel .primaryButton:hover:not(:disabled) {
@@ -354,12 +354,12 @@
 }
 
 .empty strong {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .empty p {
   margin-top: 5px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .otherIssues {
@@ -371,7 +371,7 @@
 }
 
 .otherIssues p {
-  font-size: 13px;
+  font-size: 14px;
   margin-top: 5px;
 }
 
@@ -379,7 +379,7 @@
 .blockers ul {
   margin: 12px 0 0;
   padding-left: 18px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.8;
   color: #5e6973;
 }
@@ -396,7 +396,7 @@
 .outsideChange {
   display: inline-block;
   margin-left: 8px;
-  font-size: 13px;
+  font-size: 14px;
   color: #865226;
   background: #f7ecdf;
   padding: 1px 6px;
@@ -407,12 +407,12 @@
   margin: 20px 24px 0;
   padding: 14px 0 0;
   border-top: 1px solid #e0e7eb;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .panel .footer {
   margin: 20px 24px;
-  font-size: 13px;
+  font-size: 14px;
   color: #607585;
   line-height: 1.8;
 }
