@@ -118,6 +118,45 @@ test("independent invalid container identifier blocks batch even when seven fiel
   assert.equal(result.workflow, "verified");
   assert.match(batchReviewBlocker(result)!, /integrity/);
 });
+test("a port code contradicting its stated country blocks batch even when SI and BL agree", async () => {
+  const contradictory = fields.replace(
+    "Port of discharge: Singapore",
+    "Port of discharge: TUTICORIN, INDIA (KEMBA)",
+  );
+  const result = await analyzeTexts(contradictory, contradictory);
+  assert.equal(result.workflow, "verified");
+  assert.match(batchReviewBlocker(result)!, /UN\/LOCODE/);
+  // A reference-data advisory (code absent from the snapshot) does not block batch.
+  const unknown = fields.replace(
+    "Port of discharge: Singapore",
+    "Port of discharge: AQABA, JORDAN (JOAQB)",
+  );
+  assert.equal(batchReviewBlocker(await analyzeTexts(unknown, unknown)), null);
+});
+async function analyzeTexts(si: string, bl: string): Promise<CaseResult> {
+  return {
+    ...analyze(
+      {
+        email_id: "batch-port",
+        from: "test@example.test",
+        subject: "Verify draft BL against SI",
+        body: "Please compare attached SI and draft BL",
+        attachments: ["si.txt", "bl.txt"],
+      },
+      await Promise.all([
+        parseDocument(
+          "si.txt",
+          new TextEncoder().encode(`SHIPPING INSTRUCTION\n${si}`),
+        ),
+        parseDocument(
+          "bl.txt",
+          new TextEncoder().encode(`DRAFT BILL OF LADING\n${bl}`),
+        ),
+      ]),
+    ),
+    version: 1,
+  };
+}
 test("batch input limits, duplicates and required scope cannot be bypassed", () => {
   assert.equal(
     batchReviewInput.safeParse({

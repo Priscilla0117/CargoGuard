@@ -20,7 +20,7 @@ The existing URL, https://cargoguard-averis.onrender.com/, is an **older release
 
 Email content is untrusted evidence, never an instruction to the application. The original SI comparison remains visible when an employee approves a later instruction. Missing, damaged, ambiguous or scanned documents cannot become automatic matches. OCR suggestions include source crops and recognition scores; all seven fields require human confirmation.
 
-Independent ISO 6346 and source-backed consistency checks can expose errors even when both documents agree. Missing evidence stays **Not checked**. Document-check completion never authorizes cargo release or establishes compliance clearance.
+Independent ISO 6346 and source-backed consistency checks can expose errors even when both documents agree. A separate [UN/LOCODE port-code check](docs/PORT_REFERENCE.md) compares each stated port code with the public UNECE register (release 2024-2). On the organiser inbox it flags all 16 port values whose code contradicts the stated country, such as `TUTICORIN, INDIA (KEMBA)`, and raises no issue on any verified case. Missing evidence stays **Not checked**. Document-check completion never authorizes cargo release or establishes compliance clearance.
 
 The **Amendment resolution** desk follows a reviewed instruction into a source-backed revised SI, then shows every remaining BL difference. It includes an editable request draft and downloadable decision brief; recording a change never bypasses the full document check. See the [synthetic rehearsal](examples/amendment-resolution/README.md), [authored 20-case operations challenge](docs/OPERATIONS_CHALLENGE.md) and [competitive value proposition](docs/CREATIVE_VALUE_PROPOSITION.md).
 
@@ -118,6 +118,6 @@ Chasers, acknowledgements, IT reports and handovers remain saved drafts unless e
 | Migrations and storage | `drizzle/`, `db/schema.ts`, `lib/runtime-node.ts` |
 | Regression/HTTP acceptance | `tests/`, `scripts/test-*.mjs`, `scripts/test-*.ts` |
 
-See [architecture](docs/ARCHITECTURE.md), [rubric mapping](docs/FINAL_ROUND_READINESS.md), [requirements](docs/REQUIREMENTS.md) and [synthetic correction-cycle files](examples/final-round/README.md). Historical documents remain dated records, not evidence for a newer deployed build.
+See [architecture](docs/ARCHITECTURE.md), [judge review and pitch playbook](docs/JUDGE_REVIEW.md), [rubric mapping](docs/FINAL_ROUND_READINESS.md), [requirements](docs/REQUIREMENTS.md) and [synthetic correction-cycle files](examples/final-round/README.md). Historical documents remain dated records, not evidence for a newer deployed build.
 
 Organiser files remain unchanged; answer keys are used only for offline scoring, never inference. This project uses open-source libraries and AI-assisted implementation. Tesseract.js/core use Apache-2.0; the English model package declares MIT; staged assets retain notices. The team must accurately disclose authorship and follow the permitted development window and submission rules. No championship or zero-defect guarantee is made.

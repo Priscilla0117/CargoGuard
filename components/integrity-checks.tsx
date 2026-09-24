@@ -24,8 +24,14 @@ const icons = {
 
 export function IntegrityChecks({
   assessment,
+  heading = "Independent document checks",
+  description = "Catch source inconsistencies even when SI and BL agree. These findings are separate from the seven-field comparison.",
+  limit = "A passed check covers only the stated rule and evidence. It is not equipment certification, shipment release or compliance clearance. Missing or incomplete evidence stays “Not checked”.",
 }: {
   assessment: IntegrityAssessment;
+  heading?: string;
+  description?: string;
+  limit?: string;
 }) {
   const ordered = [...assessment.findings].sort(
     (a, b) =>
@@ -33,23 +39,17 @@ export function IntegrityChecks({
       ["blocking", "review", "not_checked", "passed"].indexOf(b.status),
   );
   return (
-    <section
-      className="integrity-panel"
-      aria-label="Independent document checks"
-    >
+    <section className="integrity-panel" aria-label={heading}>
       <div className="integrity-panel-heading">
         <div>
-          <h3>Independent document checks</h3>
-          <p>
-            Catch source inconsistencies even when SI and BL agree. These
-            findings are separate from the seven-field comparison.
-          </p>
+          <h3>{heading}</h3>
+          <p>{description}</p>
         </div>
         <span className="integrity-rule-version">
           Rules {assessment.rule_version}
         </span>
       </div>
-      <div className="integrity-counts" aria-label="Integrity check totals">
+      <div className="integrity-counts" aria-label={`${heading} totals`}>
         {(["blocking", "review", "passed", "not_checked"] as const).map(
           (status) => (
             <span key={status} className={`integrity-count ${status}`}>
@@ -58,11 +58,7 @@ export function IntegrityChecks({
           ),
         )}
       </div>
-      <p className="integrity-limit">
-        A passed check covers only the stated rule and evidence. It is not
-        equipment certification, shipment release or compliance clearance.
-        Missing or incomplete evidence stays “Not checked”.
-      </p>
+      <p className="integrity-limit">{limit}</p>
       <div className="integrity-findings">
         {ordered.map((finding) => {
           const Icon = icons[finding.status];

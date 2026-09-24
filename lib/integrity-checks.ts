@@ -9,7 +9,8 @@ export type IntegrityRule =
   | "container_identifier"
   | "container_count"
   | "container_capacity"
-  | "port_route";
+  | "port_route"
+  | "port_reference";
 export interface IntegrityEvidence {
   quote: string;
   location: string;

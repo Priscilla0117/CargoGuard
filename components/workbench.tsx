@@ -23,6 +23,7 @@ import { EvidenceRecovery } from "@/components/evidence-recovery";
 import { WorkloadInsights } from "@/components/workload-insights";
 import { AiAvailability } from "@/components/ai-availability";
 import { IntegrityChecks } from "./integrity-checks";
+import { PortReferenceChecks } from "./port-reference-checks";
 import { checkDocumentIntegrity } from "@/lib/integrity-checks";
 import { BatchReview } from "./batch-review";
 import "@/app/integrity-checks.css";
@@ -2144,9 +2145,12 @@ export default function Workbench() {
                 ))}
               </div>
               {detailTab === "integrity" && (
-                <IntegrityChecks
-                  assessment={checkDocumentIntegrity(selected)}
-                />
+                <>
+                  <IntegrityChecks
+                    assessment={checkDocumentIntegrity(selected)}
+                  />
+                  <PortReferenceChecks result={selected} />
+                </>
               )}
               {detailTab === "followup" &&
                 (followupsReady ? (

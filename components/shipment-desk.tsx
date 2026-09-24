@@ -22,6 +22,7 @@ import type { CaseResult, CaseSummary, Field } from "@/lib/types";
 import { FIELDS, FIELD_LABELS } from "@/lib/types";
 import { checkDocumentIntegrity } from "@/lib/integrity-checks";
 import { IntegrityChecks } from "./integrity-checks";
+import { PortReferenceChecks } from "./port-reference-checks";
 import { NotificationCenter } from "./notification-center";
 import { MicrosoftTaskDraft } from "./outlook-pane";
 import { AmendmentResolution } from "./amendment-resolution";
@@ -721,6 +722,7 @@ export function ShipmentDesk() {
                       <IntegrityChecks
                         assessment={checkDocumentIntegrity(comparison)}
                       />
+                      <PortReferenceChecks result={comparison} />
                     </div>
                   )}
                   <details className="shipment-card">

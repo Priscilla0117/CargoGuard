@@ -8,6 +8,8 @@ import {
 } from "./follow-up";
 import { saveFollowUp } from "./follow-up-storage";
 import { checkDocumentIntegrity } from "./integrity-checks";
+import { checkPortReferences } from "./port-reference";
+import { portReference } from "./port-reference-server";
 import type { CaseResult, Field } from "./types";
 
 export const batchReviewInput = z
@@ -67,6 +69,10 @@ export function batchReviewBlocker(result: CaseResult): string | null {
     return "Human-reviewed, recovered, selected-source or rule-assisted evidence requires individual completion.";
   if (checkDocumentIntegrity(result).requires_attention)
     return "An independent document integrity finding needs individual review.";
+  // Reference-data advisories may reflect an outdated snapshot; a code whose
+  // country contradicts the stated port is an internal document error.
+  if (checkPortReferences(result, portReference()).counts.blocking)
+    return "A port code contradicts its stated country in the UN/LOCODE reference and needs individual review.";
   return null;
 }
 async function getSource(ws: string, id: string, db: D1Database) {

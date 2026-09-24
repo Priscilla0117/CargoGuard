@@ -140,6 +140,12 @@ test("legacy evidence and assistant destinations resolve to three case sections"
   assert.equal(caseDestination("history").tab, "history");
   assert.equal(caseDestination("unknown").tab, "comparison");
   assert.equal(caseDestination("followup").tab, "followup");
+  // The drawer's "Independent checks" tab must open its own section.
+  assert.deepEqual(caseDestination("integrity"), {
+    tab: "integrity",
+    email: false,
+    resolution: false,
+  });
 });
 
 function followup(

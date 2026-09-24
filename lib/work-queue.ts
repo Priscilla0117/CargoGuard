@@ -127,9 +127,11 @@ export function caseDestination(tab: string) {
         ? "followup"
         : tab === "history"
           ? "history"
-          : tab === "documents" || tab === "email"
-            ? "documents"
-            : "comparison",
+          : tab === "integrity"
+            ? "integrity"
+            : tab === "documents" || tab === "email"
+              ? "documents"
+              : "comparison",
     email: tab === "email",
     resolution: tab === "resolution",
   };
