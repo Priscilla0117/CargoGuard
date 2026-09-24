@@ -8,6 +8,8 @@ The first visit shows three steps: **Add files**, **Review differences**, and **
 
 Choose **Open** beside a case. Each shipment field has clearly labelled shipping-instruction and draft-bill-of-lading panels, with full names and addresses wrapping onto as many lines as needed. Values use 17 px text. **View source** and **Correct value** are visible buttons; the latter opens the correction form directly. **Before you save** still previews all seven checks. **Save correction & recheck** keeps the current case open, while **Save correction & next case** advances through the queue. If the next case cannot load, the current case stays open with an error message.
 
+The case header groups the outcome, subject and short result summary above a compact sender/revision row. **Priority & dates** and **Case details** expand when needed. Elevated priority, due dates and follow-up dates remain visible on the scheduling control. Underlined **Field checks**, **Sources**, **History** and **Email & replies** sections show where you are; **How to review** explains the source and correction buttons on demand.
+
 Use **Back to field checks** when reading a source and **Back to queue** when finished with a case. Calendar filters and comparison-rule explanations are expandable, leaving the main task easier to find. Navigation keeps text labels on smaller screens, and comparison panels stack vertically on narrow screens.
 
 ## Documents and corrected attachments
@@ -28,7 +30,7 @@ Open **Set priority & dates** in a case to record normal, high or urgent priorit
 
 Follow [Gmail setup](GMAIL_SETUP.md) to configure the bounded mailbox pilot. **Sync now** retrieves messages; import an unlinked message as a new case or link it to a current case. Later messages in a uniquely linked thread belong to that same case. Ambiguous links require a person to choose.
 
-In **Reply & email history**, inspect the returned attachment and choose the source to replace or add it as another attachment. Review and submit the new document revision. Correspondence alone does not mark a discrepancy resolved.
+In **Email & replies**, inspect the returned attachment and choose the source to replace or add it as another attachment. Review and submit the new document revision. Correspondence alone does not mark a discrepancy resolved.
 
 The existing **Ask CargoGuard** assistant can prepare a reply when optional AI is configured and the reviewer consents to the disclosed request. The deterministic correction draft also works without AI. Put the reviewed text in the reply editor, check recipients and save the draft. Confirm sending separately. Gmail thread identity, original subject and reply headers keep it in the existing conversation. A changed case revision makes an earlier saved reply stale. A timeout is treated as uncertain and reconciled before another send is considered.
 

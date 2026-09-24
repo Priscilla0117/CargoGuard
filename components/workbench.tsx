@@ -1880,86 +1880,106 @@ export default function Workbench() {
                   {error}
                 </div>
               )}
-              <div className="case-summary">
-                <Status value={selected.workflow} />
-                {selected.reviewed && (
-                  <span className="reviewed-tag">
-                    <Eye size={13} />
-                    Human reviewed
-                  </span>
-                )}
+              <div className="case-summary case-overview">
+                <div className="case-overview-status">
+                  <Status value={selected.workflow} />
+                  {selected.reviewed && (
+                    <span className="reviewed-tag">
+                      <Eye size={14} aria-hidden="true" />
+                      Human reviewed
+                    </span>
+                  )}
+                </div>
                 <h3>{selected.email.subject}</h3>
                 <p>{selected.summary}</p>
-                <CaseScheduleEditor
-                  key={`schedule-${selected.email.email_id}-${cases.find((row) => row.email.email_id === selected.email.email_id)?.scheduling?.version ?? 0}`}
-                  id={selected.email.email_id}
-                  scheduling={
-                    cases.find(
-                      (row) => row.email.email_id === selected.email.email_id,
-                    )?.scheduling
-                  }
-                  onSaved={(scheduling) => {
-                    inboxRequests.current.cancel();
-                    inboxController.current?.abort();
-                    setLoading(false);
-                    setCases((rows) =>
-                      rows.map((row) =>
-                        row.email.email_id === selected.email.email_id
-                          ? { ...row, scheduling }
-                          : row,
-                      ),
-                    );
-                    setNotice(
-                      "Priority and dates saved. The verification outcome is unchanged.",
-                    );
-                  }}
-                />
-                <div className="case-meta">
-                  <span>{selected.email.from}</span>
-                  <span>Revision {selected.version}</span>
+                <div className="case-overview-toolbar">
+                  <div className="case-meta">
+                    <span className="case-sender">
+                      <Mail size={15} aria-hidden="true" />
+                      <span>
+                        <span className="case-meta-label">From </span>
+                        {selected.email.from}
+                      </span>
+                    </span>
+                    <span className="case-revision">
+                      Revision {selected.version}
+                    </span>
+                  </div>
+                  <CaseScheduleEditor
+                    key={`schedule-${selected.email.email_id}-${cases.find((row) => row.email.email_id === selected.email.email_id)?.scheduling?.version ?? 0}`}
+                    id={selected.email.email_id}
+                    scheduling={
+                      cases.find(
+                        (row) => row.email.email_id === selected.email.email_id,
+                      )?.scheduling
+                    }
+                    onSaved={(scheduling) => {
+                      inboxRequests.current.cancel();
+                      inboxController.current?.abort();
+                      setLoading(false);
+                      setCases((rows) =>
+                        rows.map((row) =>
+                          row.email.email_id === selected.email.email_id
+                            ? { ...row, scheduling }
+                            : row,
+                        ),
+                      );
+                      setNotice(
+                        "Priority and dates saved. The verification outcome is unchanged.",
+                      );
+                    }}
+                  />
+                  <details className="case-advanced">
+                    <summary>
+                      <Info size={15} aria-hidden="true" /> Case details{" "}
+                      <ChevronDown size={15} aria-hidden="true" />
+                    </summary>
+                    <div className="case-advanced-content">
+                      <p className="full-case-id">
+                        Case ID: {selected.email.email_id}
+                      </p>
+                      <p>
+                        {categoryNames[selected.category]} · Engine{" "}
+                        {selected.pipeline_version ?? "legacy"}
+                      </p>
+                      <p>{selected.classification.method}</p>
+                      <div className="signal-list">
+                        {selected.classification.signals.map((s, i) => (
+                          <span key={i}>{s}</span>
+                        ))}
+                      </div>
+                      <div className="case-actions">
+                        <button
+                          className="button secondary"
+                          disabled={running || saving || !!busyId}
+                          onClick={() => {
+                            setError("");
+                            setRouteEdit(true);
+                          }}
+                        >
+                          Confirm category
+                        </button>
+                        <button
+                          className="text-button"
+                          disabled={!!busyId}
+                          onClick={() => void openCase(selected.email.email_id)}
+                        >
+                          Reload case
+                        </button>
+                      </div>
+                    </div>
+                  </details>
                 </div>
-                <details className="case-advanced">
-                  <summary>Category & processing details</summary>
-                  <p className="full-case-id">
-                    Case ID: {selected.email.email_id}
-                  </p>
-                  <p>
-                    {categoryNames[selected.category]} · Engine{" "}
-                    {selected.pipeline_version ?? "legacy"}
-                  </p>
-                  <p>{selected.classification.method}</p>
-                  <div className="signal-list">
-                    {selected.classification.signals.map((s, i) => (
-                      <span key={i}>{s}</span>
-                    ))}
-                  </div>
-                  <div className="case-actions">
-                    <button
-                      className="button secondary"
-                      disabled={running || saving || !!busyId}
-                      onClick={() => {
-                        setError("");
-                        setRouteEdit(true);
-                      }}
-                    >
-                      Confirm category
-                    </button>
-                    <button
-                      className="text-button"
-                      disabled={!!busyId}
-                      onClick={() => void openCase(selected.email.email_id)}
-                    >
-                      Reload case
-                    </button>
-                  </div>
-                </details>
               </div>
-              <div className="detail-tabs">
+              <nav
+                className="detail-tabs case-section-nav"
+                aria-label="Case sections"
+              >
                 {[
-                  ["comparison", "Check"],
+                  ["comparison", "Field checks"],
                   ["documents", "Sources"],
                   ["history", "History"],
-                  ["correspondence", "Reply & email history"],
+                  ["correspondence", "Email & replies"],
                 ].map(([t, label]) => (
                   <button
                     key={t}
@@ -1970,7 +1990,7 @@ export default function Workbench() {
                     {label}
                   </button>
                 ))}
-              </div>
+              </nav>
               {detailTab === "comparison" && resolutionOpen && (
                 <div className="case-resolution">
                   <div className="case-resolution-heading">
@@ -2020,17 +2040,25 @@ export default function Workbench() {
                     <>
                       <div className="comparison-intro">
                         <h3 ref={comparisonHeading} tabIndex={-1}>
-                          Check the shipment details
+                          Shipment fields
                         </h3>
-                        <p>
-                          Read each value, then use <strong>View source</strong>{" "}
-                          to check the original. If CargoGuard read it
-                          incorrectly, choose <strong>Correct value</strong>.
-                        </p>
-                        <p className="comparison-note">
-                          Corrections update this check. They do not change the
-                          original files.
-                        </p>
+                        <details className="comparison-help">
+                          <summary>
+                            <Info size={15} aria-hidden="true" /> How to review{" "}
+                            <ChevronDown size={15} aria-hidden="true" />
+                          </summary>
+                          <div>
+                            <p>
+                              Use <strong>View source</strong> to check the
+                              original. Choose <strong>Correct value</strong> if
+                              CargoGuard misread it.
+                            </p>
+                            <p className="comparison-note">
+                              Corrections update this check. They do not change
+                              the original files.
+                            </p>
+                          </div>
+                        </details>
                       </div>
                       <div className="comparison-focus">
                         <label>

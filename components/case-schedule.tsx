@@ -1,6 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Flag } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Flag,
+} from "lucide-react";
 import {
   dailyCaseCounts,
   dayKey,
@@ -275,18 +281,54 @@ export function CaseScheduleEditor({
   return (
     <details className="case-scheduling">
       <summary>
-        <Flag size={15} />{" "}
-        {scheduling.priority === "normal"
-          ? "Set priority & dates"
-          : `${scheduling.priority.toUpperCase()} priority`}{" "}
-        {scheduling.due_at && (
-          <span>
-            · Due{" "}
-            {new Date(scheduling.due_at).toLocaleString("en-GB", {
-              timeZone: OFFICE_TIME_ZONE,
-            })}
+        <span className="case-scheduling-label">
+          <Flag size={15} aria-hidden="true" /> Priority &amp; dates
+        </span>
+        {scheduling.priority !== "normal" && (
+          <span className={`case-scheduling-priority ${scheduling.priority}`}>
+            {scheduling.priority === "urgent" ? "Urgent" : "High"}
           </span>
         )}
+        {(
+          [
+            ["Due", scheduling.due_at],
+            ["Follow up", scheduling.follow_up_at],
+          ] as const
+        ).map(
+          ([label, value]) =>
+            value && (
+              <time
+                key={label}
+                className="case-scheduling-date"
+                dateTime={value}
+                title={`${label} ${new Date(value).toLocaleString("en-GB", {
+                  timeZone: OFFICE_TIME_ZONE,
+                  day: "2-digit",
+                  month: "long",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hourCycle: "h23",
+                })} MYT`}
+              >
+                {label}{" "}
+                {new Date(value).toLocaleString("en-GB", {
+                  timeZone: OFFICE_TIME_ZONE,
+                  day: "2-digit",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hourCycle: "h23",
+                })}{" "}
+                MYT
+              </time>
+            ),
+        )}
+        <ChevronDown
+          size={16}
+          className="case-scheduling-chevron"
+          aria-hidden="true"
+        />
       </summary>
       <form onSubmit={save}>
         <fieldset disabled={busy}>

@@ -139,6 +139,156 @@ summary:focus-visible {
 .full-case-id {
   overflow-wrap: anywhere;
 }
+.case-overview-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.case-overview .reviewed-tag {
+  margin: 0;
+  font-size: 13px;
+  color: #506978;
+}
+.case-overview h3 {
+  margin-top: 10px;
+  font-size: 19px;
+  line-height: 1.45;
+  color: #182c41;
+}
+.case-overview > p {
+  margin-top: 5px;
+  color: #506574;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.case-overview-toolbar {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 14px;
+}
+.case-overview .case-meta {
+  flex: 1 1 300px;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+  min-height: 36px;
+  margin: 0;
+  color: #536777;
+  font-size: 13px;
+}
+.case-sender {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.case-sender > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.case-meta-label {
+  color: #536777;
+}
+.case-revision {
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: #f0f4f6;
+  white-space: nowrap;
+}
+.case-overview-toolbar > details {
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+.case-overview-toolbar > details > summary,
+.comparison-help > summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid #d0dce3;
+  border-radius: 6px;
+  color: #345469;
+  font-size: 13px;
+  line-height: 1.5;
+  cursor: pointer;
+  list-style: none;
+}
+.case-overview-toolbar > details > summary::-webkit-details-marker,
+.comparison-help > summary::-webkit-details-marker {
+  display: none;
+}
+.case-overview-toolbar > details > summary:hover,
+.comparison-help > summary:hover {
+  background: #f2f6f8;
+}
+.case-overview-toolbar > details[open] {
+  flex: 1 0 100%;
+}
+.case-overview-toolbar > details[open] > summary > svg:last-child,
+.comparison-help[open] > summary > svg:last-child {
+  transform: rotate(180deg);
+}
+.case-overview .case-scheduling-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  color: #345469;
+  font-size: 13px;
+}
+.case-overview .case-scheduling-priority {
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.case-overview .case-scheduling-priority.urgent {
+  background: #fbe8e2;
+  color: #983b23;
+}
+.case-overview .case-scheduling-priority.high {
+  background: #fff0d5;
+  color: #79500d;
+}
+.case-scheduling-date {
+  color: #506574;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.case-overview .case-scheduling form,
+.case-overview .case-advanced-content,
+.comparison-help > div {
+  margin-top: 8px;
+  padding: 14px;
+  border: 1px solid #dce5eb;
+  border-radius: 8px;
+  background: #f7fafb;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.case-overview .case-scheduling fieldset {
+  padding: 0;
+}
+.case-overview .case-scheduling label,
+.case-overview .case-scheduling fieldset > p {
+  font-size: 14px;
+}
+.case-overview .case-scheduling input,
+.case-overview .case-scheduling select {
+  min-height: 40px;
+  font-size: 15px;
+}
 .comparison-rules {
   margin-top: 20px;
 }
@@ -147,24 +297,58 @@ summary:focus-visible {
   font-size: 15px;
   min-height: 28px;
 }
-.detail-tabs {
-  gap: 8px;
+.detail-tabs.case-section-nav {
+  gap: 24px;
   flex-wrap: wrap;
+  margin: 18px 0 14px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid #d6e1e7;
+  border-radius: 0;
+  background: transparent;
 }
-.detail-tabs button {
-  padding: 10px 15px;
+.case-section-nav button {
+  padding: 10px 2px;
+  border-radius: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: #506574;
+}
+.case-section-nav button.active {
+  border-bottom-color: #246661;
+  background: transparent;
+  box-shadow: none;
+  color: #185c55;
+  font-weight: 650;
+}
+.case-section-nav button:hover {
+  color: #185c55;
+  background: #f6f9fa;
 }
 .comparison-intro {
-  margin: 20px 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 12px 0;
   color: #243f53;
 }
 .comparison-intro h3 {
-  font-size: 22px;
+  font-size: 17px;
   line-height: 1.4;
-  margin-bottom: 8px;
+  margin: 0;
+}
+.comparison-help[open] {
+  grid-column: 1 / -1;
+}
+.comparison-help > summary {
+  margin-left: auto;
+  min-height: 32px;
+  padding: 5px 8px;
+  border-color: transparent;
 }
 .comparison-intro p {
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.65;
   max-width: 78ch;
 }
@@ -466,15 +650,23 @@ summary:focus-visible {
     font-size: 14px;
     padding: 9px 11px;
   }
-  .detail-tabs {
-    gap: 4px;
+  .detail-tabs.case-section-nav {
+    gap: 16px;
   }
-  .detail-tabs button {
-    padding: 10px;
-    font-size: 15px;
+  .case-section-nav button {
+    padding: 10px 0;
+    font-size: 14px;
   }
 }
 @media (max-width: 650px) {
+  .detail-tabs.case-section-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 16px;
+  }
+  .case-section-nav button {
+    text-align: left;
+  }
   .sidebar {
     height: 72px;
   }
