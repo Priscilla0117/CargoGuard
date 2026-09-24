@@ -106,7 +106,7 @@ export async function listCaseSummaries(
 ): Promise<CaseSummary[]> {
   const rows = await db
     .prepare(
-      "SELECT json_remove(payload, '$.documents', '$.comparison', '$.email.body') AS payload, version FROM cases WHERE workspace=? ORDER BY email_id",
+      "SELECT json_remove(payload, '$.documents', '$.comparison', '$.retained_corrections', '$.email.body') AS payload, version FROM cases WHERE workspace=? ORDER BY email_id",
     )
     .bind(ws)
     .all<{ payload: string; version: number }>();

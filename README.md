@@ -26,6 +26,16 @@ Five email categories. TXT, PDF, Word (.docx) and Excel (.xlsx) inputs. Missing 
 
 Earlier results and original files remain available in **History**. Correction drafts are never sent automatically.
 
+## New on `Chan-modify` · 3.3.0
+
+- Add upload files across separate selections. Append missing documents or replace one damaged/revised source in the same case, retaining earlier originals and review history.
+- Set priority, deadlines and follow-up dates. The daily calendar separates actual email arrival dates from manual import dates; unknown arrival dates stay unknown.
+- Connect a configured Gmail / Google Workspace pilot, import messages, review returned attachments and send an edited reply in the original conversation. Sending requires a separate human confirmation.
+- Recognise compound unknown values such as **TBA / TBC** and **TO BE ADVISED (TBA)**. Classify clearly unrelated emails before reading attachment contents.
+- Freeze independently labelled unseen evaluation data and report false clearances, review workload and measured pilot timings. Supplied-data agreement remains a development result.
+
+These branch changes are locally validated and are not a claim that the linked hosted demo has been upgraded. See the [3.3 workflow guide](docs/REVIEW_WORKSPACE_V33.md), [Gmail setup](docs/GMAIL_SETUP.md) and [unseen pilot protocol](docs/UNSEEN_PILOT.md). Application authentication remains assigned to the team's authentication workstream.
+
 ## Try the prototype
 
 1. **Open the demo → Run inbox.** No account or personal API key needed.
@@ -38,6 +48,8 @@ For multi-file selection, correction previews and history, see the [user guide](
 > Free hosting may take around a minute to wake. Use only organiser/synthetic data. AI has shared limits; core comparison and manual review still work without it.
 
 ## Evidence, not just a demo
+
+The following records the submitted **3.2.1** baseline. Branch 3.3.0 validation is recorded in the [workflow guide](docs/REVIEW_WORKSPACE_V33.md).
 
 | **520 / 520** | **350 passed** | **228 passed** |
 | :---: | :---: | :---: |
@@ -79,7 +91,7 @@ The dated checks above establish supplied-data agreement and tested software beh
 
 ### 6. Scalability plans / future roadmap
 
-**Next:** an approved non-confidential pilot. **Before confidential use:** corporate identity, access controls and retention safeguards. **At larger scale:** queued workers, managed file storage and load testing. Mailbox/ERP integrations remain future work.
+**Next:** an approved non-confidential pilot on independently labelled unseen data. **Before confidential use:** corporate identity, access controls and retention safeguards. **At larger scale:** durable queued document workers, managed file storage and load testing. A bounded Gmail integration is available on `Chan-modify`; ERP integration remains future work.
 
 [Read the detailed written responses and supporting evidence →](docs/WRITTEN_RESPONSES.md)
 

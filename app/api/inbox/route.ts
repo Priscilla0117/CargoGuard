@@ -7,14 +7,16 @@ import {
   getPolicy,
 } from "@/lib/storage";
 import { PIPELINE_VERSION, emailSummaryOf } from "@/lib/types";
+import { schedulingMetadata } from "@/lib/scheduling-storage";
 export async function GET(request: Request) {
   const s = workspace(request);
   try {
     const started = performance.now();
-    const [results, events, policy] = await Promise.all([
+    const [results, events, policy, scheduling] = await Promise.all([
         listCaseSummaries(s.id),
         audit(s.id),
         getPolicy(s.id),
+        schedulingMetadata(s.id),
       ]),
       byId = new Map(results.map((r) => [r.email.email_id, r]));
     const list = emails.map((email) =>
@@ -26,7 +28,10 @@ export async function GET(request: Request) {
       if (!emails.some((e) => e.email_id === r.email.email_id)) list.push(r);
     const response = respond(
       {
-        cases: list,
+        cases: list.map((row) => ({
+          ...row,
+          scheduling: scheduling[row.email.email_id],
+        })),
         audit: events,
         policy,
         loaded_at: new Date().toISOString(),

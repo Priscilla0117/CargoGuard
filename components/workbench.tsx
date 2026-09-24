@@ -7,9 +7,24 @@ import Link from "next/link";
 import { requestJson, requestInbox, latencySummary } from "@/lib/client-api";
 import { previewCorrection } from "@/lib/corrections";
 import { CorrectionPreview } from "./correction-preview";
+import { CorrespondencePanel } from "./correspondence-panel";
+import {
+  WorkspaceSchedule,
+  CaseScheduleEditor,
+  calendarDateFor,
+  type CalendarKind,
+} from "./case-schedule";
+import { matchesSchedule, type ScheduleFilter } from "@/lib/case-scheduling";
 import { DocumentPairSelector } from "./document-pair-selector";
 import { createRequestGate } from "@/lib/request-gate";
 import { mergeCaseSummaries } from "@/lib/case-state";
+import {
+  addIntakeFiles,
+  intakeFilesError,
+  intakeSubmissionError,
+  setIntakeFormFiles,
+  type AttachmentUpdateMode,
+} from "@/lib/intake-files";
 import { ScanAssist } from "@/components/scan-assist";
 import { ResolutionDesk } from "@/components/resolution-desk";
 import { GlobalAssistant } from "@/components/global-assistant";
@@ -73,6 +88,7 @@ import {
   Info,
   Settings2,
   MessageSquareText,
+  Mail,
 } from "lucide-react";
 import {
   CATEGORIES,
@@ -186,6 +202,7 @@ export default function Workbench() {
     [detailTab, setDetailTab] = useState("comparison"),
     [document, setDocument] = useState<ParsedDocument | null>(null);
   const [resolutionOpen, setResolutionOpen] = useState(false);
+  const [mailboxOpen, setMailboxOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [auditSearch, setAuditSearch] = useState("");
   const [queueSession, setQueueSession] = useState<string[]>([]);
@@ -198,6 +215,20 @@ export default function Workbench() {
     [busyId, setBusyId] = useState(""),
     cancel = useRef(false);
   const [replacement, setReplacement] = useState<CaseResult | null>(null);
+  const [replacementDocument, setReplacementDocument] =
+    useState<ParsedDocument | null>(null);
+  const [attachmentMode, setAttachmentMode] =
+    useState<AttachmentUpdateMode>("replace_all");
+  const retainedAttachments =
+    replacement && attachmentMode !== "replace_all"
+      ? replacement.documents.filter(
+          (source) =>
+            attachmentMode === "append" ||
+            source.name !== replacementDocument?.name,
+        )
+      : [];
+  const [addingFiles, setAddingFiles] = useState(false);
+  const intakeSelection = useRef(false);
   const [upload, setUpload] = useState(false),
     [uploading, setUploading] = useState(false),
     [edit, setEdit] = useState<{
@@ -214,6 +245,10 @@ export default function Workbench() {
   const [latencies, setLatencies] = useState<number[]>([]),
     [batchMs, setBatchMs] = useState<number | null>(null);
   const [pagination, setPagination] = useState("");
+  const [scheduleFilter, setScheduleFilter] = useState<ScheduleFilter>("all");
+  const [calendarDay, setCalendarDay] = useState("");
+  const [calendarKind, setCalendarKind] = useState<CalendarKind>("received");
+  const [priorityFilter, setPriorityFilter] = useState("all");
   const [attentionOnly, setAttentionOnly] = useState(false);
   const highlighted = useRef<HTMLDivElement | null>(null);
   const drawerBody = useRef<HTMLDivElement | null>(null);
@@ -347,15 +382,41 @@ export default function Workbench() {
       }
     return c;
   }, [cases]);
-  const pageKey = JSON.stringify([search, filter, category, view]),
+  const pageKey = JSON.stringify([
+      search,
+      filter,
+      category,
+      view,
+      scheduleFilter,
+      calendarDay,
+      calendarKind,
+      priorityFilter,
+    ]),
     shownLimit = pagination === pageKey ? limit : 30;
   const timing = latencySummary(latencies),
     outdated = cases.filter(
       (c) => c.result && c.result.pipeline_version !== PIPELINE_VERSION,
     ).length;
   const visible = useMemo(
-    () => workQueue(cases, filter, category, search),
-    [cases, search, filter, category],
+    () =>
+      workQueue(cases, filter, category, search).filter(
+        (row) =>
+          matchesSchedule(row, scheduleFilter) &&
+          (!calendarDay ||
+            calendarDateFor(row, calendarKind) === calendarDay) &&
+          (priorityFilter === "all" ||
+            (row.scheduling?.priority ?? "normal") === priorityFilter),
+      ),
+    [
+      cases,
+      search,
+      filter,
+      category,
+      scheduleFilter,
+      calendarDay,
+      calendarKind,
+      priorityFilter,
+    ],
   );
   const queueCounts = useMemo(
     () =>
@@ -375,6 +436,10 @@ export default function Workbench() {
     : null;
   function navigateDetail(target: string) {
     drawerBody.current?.scrollTo({ top: 0, behavior: "instant" });
+    if (target === "correspondence") {
+      setDetailTab(target);
+      return;
+    }
     const destination = caseDestination(target);
     setDetailTab(destination.tab);
     setEmailOpen(destination.email);
@@ -411,7 +476,11 @@ export default function Workbench() {
         const d = await api("/api/cases", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "process", ids: [id] }),
+          body: JSON.stringify({
+            action: "process",
+            ids: [id],
+            skipSaved: true,
+          }),
         });
         result = d.results[0];
         if (!result)
@@ -522,7 +591,7 @@ export default function Workbench() {
       );
   }
   async function reprocess() {
-    if (!selected) return;
+    if (!selected || saving || uploading || busyId) return;
     const request = activeRequest.current.next();
     const id = selected.email.email_id;
     setBusyId(selected.email.email_id);
@@ -571,8 +640,65 @@ export default function Workbench() {
       setError((e as Error).message);
     }
   }
+  async function chooseIntakeFiles(files: File[]) {
+    if (uploading || intakeSelection.current) return;
+    intakeSelection.current = true;
+    setAddingFiles(true);
+    setError("");
+    try {
+      const added = await addIntakeFiles(
+        replacementDocument ? [] : intakeFiles,
+        files,
+        replacementDocument ? 1 : 10,
+      );
+      const fileError =
+        added.error ??
+        intakeFilesError(
+          added.files,
+          replacementDocument ? 1 : 10,
+          retainedAttachments,
+        );
+      if (fileError) setError(fileError);
+      else {
+        setIntakeFiles(added.files);
+        if (added.duplicates)
+          setNotice(
+            `${added.duplicates} duplicate attachment${added.duplicates === 1 ? "" : "s"} already selected.`,
+          );
+      }
+    } catch {
+      setError(
+        "This file could not be read. Your earlier selections are retained; choose it again.",
+      );
+    } finally {
+      intakeSelection.current = false;
+      setAddingFiles(false);
+    }
+  }
+  function startReplacement(
+    result: CaseResult,
+    source: ParsedDocument | null = null,
+    mode: AttachmentUpdateMode = source ? "replace_one" : "replace_all",
+  ) {
+    setReplacement(result);
+    setReplacementDocument(source);
+    setAttachmentMode(mode);
+    setIntakeFiles([]);
+    setError("");
+    setUpload(true);
+  }
   async function uploadCase(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (uploading || addingFiles) return;
+    const fileError = intakeSubmissionError(
+      intakeFiles,
+      replacement ? attachmentMode : "new",
+      retainedAttachments,
+    );
+    if (fileError) {
+      setError(fileError);
+      return;
+    }
     const request = activeRequest.current.next();
     setUploading(true);
     setError("");
@@ -580,10 +706,19 @@ export default function Workbench() {
       const d = await api("/api/upload", {
         method: "POST",
         body: (() => {
-          const fd = new FormData(event.currentTarget);
+          const fd = setIntakeFormFiles(
+            new FormData(event.currentTarget),
+            intakeFiles,
+          );
           if (replacement) {
             fd.set("id", replacement.email.email_id);
             fd.set("version", String(replacement.version));
+            fd.set("mode", attachmentMode);
+            if (replacementDocument) {
+              fd.set("mode", "replace_one");
+              fd.set("targetName", replacementDocument.name);
+              fd.set("targetSha256", replacementDocument.sha256 ?? "");
+            }
           }
           return fd;
         })(),
@@ -597,6 +732,9 @@ export default function Workbench() {
       setCaseEvents([]);
       setUpload(false);
       setReplacement(null);
+      setReplacementDocument(null);
+      setAttachmentMode("replace_all");
+      setIntakeFiles([]);
       setDocument(null);
       setNotice(
         "Email and attachments saved. Inspect the results before taking action.",
@@ -610,7 +748,7 @@ export default function Workbench() {
   }
   async function saveEdit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selected || !edit) return;
+    if (!selected || !edit || busyId || saving) return;
     const request = activeRequest.current.next();
     setSaving(true);
     setError("");
@@ -650,7 +788,7 @@ export default function Workbench() {
   }
   async function saveRoute(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selected) return;
+    if (!selected || busyId || saving) return;
     const request = activeRequest.current.next();
     setSaving(true);
     setError("");
@@ -863,9 +1001,17 @@ export default function Workbench() {
               <div className="heading-actions">
                 <button
                   className="button secondary"
+                  onClick={() => setMailboxOpen(true)}
+                >
+                  <Mail size={17} /> Gmail
+                </button>
+                <button
+                  className="button secondary"
                   disabled={loading || !inboxReady}
                   onClick={() => {
                     setReplacement(null);
+                    setReplacementDocument(null);
+                    setAttachmentMode("replace_all");
                     setIntakeFiles([]);
                     setUpload(true);
                   }}
@@ -1021,6 +1167,17 @@ export default function Workbench() {
           )}
           {view === "inbox" && (
             <>
+              <WorkspaceSchedule
+                cases={cases}
+                filter={scheduleFilter}
+                onFilter={setScheduleFilter}
+                selectedDay={calendarDay}
+                onDay={setCalendarDay}
+                kind={calendarKind}
+                onKind={setCalendarKind}
+                priority={priorityFilter}
+                onPriority={setPriorityFilter}
+              />
               <section className="inbox-panel">
                 <div className="table-toolbar">
                   <div className="filter-tabs" aria-label="Filter by outcome">
@@ -1155,6 +1312,29 @@ export default function Workbench() {
                                 <strong title={c.email.subject}>
                                   {shortSubject(c.email.subject)}
                                 </strong>
+                                {c.scheduling?.priority &&
+                                  c.scheduling.priority !== "normal" && (
+                                    <span
+                                      className={`priority-badge priority-${c.scheduling.priority}`}
+                                    >
+                                      {c.scheduling.priority}
+                                    </span>
+                                  )}
+                                {c.scheduling?.due_at && (
+                                  <small>
+                                    Due{" "}
+                                    {new Date(
+                                      c.scheduling.due_at,
+                                    ).toLocaleString("en-GB", {
+                                      timeZone: "Asia/Kuala_Lumpur",
+                                      day: "2-digit",
+                                      month: "short",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}{" "}
+                                    MYT
+                                  </small>
+                                )}
                                 <small>
                                   <span className="mono">
                                     {c.email.email_id.replace("email_", "#")}
@@ -1226,6 +1406,9 @@ export default function Workbench() {
                           setSearch("");
                           setFilter("all");
                           setCategory("all");
+                          setScheduleFilter("all");
+                          setCalendarDay("");
+                          setPriorityFilter("all");
                         }}
                       >
                         Clear filters
@@ -1621,6 +1804,12 @@ export default function Workbench() {
                   <MessageSquareText size={16} /> Ask CargoGuard
                 </button>
                 <button
+                  className="button secondary"
+                  onClick={() => navigateDetail("correspondence")}
+                >
+                  <Mail size={16} /> Email reply
+                </button>
+                <button
                   className="button primary"
                   onClick={() => navigateDetail("resolution")}
                 >
@@ -1665,6 +1854,30 @@ export default function Workbench() {
                 )}
                 <h3>{selected.email.subject}</h3>
                 <p>{selected.summary}</p>
+                <CaseScheduleEditor
+                  key={`schedule-${selected.email.email_id}-${cases.find((row) => row.email.email_id === selected.email.email_id)?.scheduling?.version ?? 0}`}
+                  id={selected.email.email_id}
+                  scheduling={
+                    cases.find(
+                      (row) => row.email.email_id === selected.email.email_id,
+                    )?.scheduling
+                  }
+                  onSaved={(scheduling) => {
+                    inboxRequests.current.cancel();
+                    inboxController.current?.abort();
+                    setLoading(false);
+                    setCases((rows) =>
+                      rows.map((row) =>
+                        row.email.email_id === selected.email.email_id
+                          ? { ...row, scheduling }
+                          : row,
+                      ),
+                    );
+                    setNotice(
+                      "Priority and dates saved. The verification outcome is unchanged.",
+                    );
+                  }}
+                />
                 <div className="case-meta">
                   <span>{selected.email.from}</span>
                   <span>Revision {selected.version}</span>
@@ -1684,7 +1897,7 @@ export default function Workbench() {
                   <div className="case-actions">
                     <button
                       className="button secondary"
-                      disabled={running || saving}
+                      disabled={running || saving || !!busyId}
                       onClick={() => {
                         setError("");
                         setRouteEdit(true);
@@ -1707,6 +1920,7 @@ export default function Workbench() {
                   ["comparison", "Check"],
                   ["documents", "Sources"],
                   ["history", "History"],
+                  ["correspondence", "Email thread"],
                 ].map(([t, label]) => (
                   <button
                     key={t}
@@ -1874,6 +2088,7 @@ export default function Workbench() {
                                     </small>
                                     <button
                                       className="edit-value"
+                                      disabled={!!busyId || saving || running}
                                       onClick={() =>
                                         setEdit({
                                           field: row.field,
@@ -1974,7 +2189,7 @@ export default function Workbench() {
                         <span>
                           {d.name}
                           <small>
-                            {d.type} · {d.method}
+                            {d.deferred ? "Not inspected" : d.type} · {d.method}
                           </small>
                         </span>
                         <span className="format-pill">
@@ -2017,6 +2232,15 @@ export default function Workbench() {
                             >
                               Open original <ExternalLink size={14} />
                             </a>
+                            <button
+                              className="button secondary"
+                              disabled={
+                                running || uploading || !!busyId || !d.sha256
+                              }
+                              onClick={() => startReplacement(selected, d)}
+                            >
+                              Replace this document
+                            </button>
                           </div>
                           {canTranscribe(d) && (
                             <ScanAssist
@@ -2064,7 +2288,28 @@ export default function Workbench() {
                                 />
                               </details>
                             )}
-                          {d.error ? (
+                          {d.deferred ? (
+                            <div className="info-box deferred-document">
+                              <div>
+                                <strong>Not inspected</strong>
+                                <p>
+                                  This email was routed before its attachments
+                                  were parsed. Confirm a document-verification
+                                  category to inspect these files.
+                                </p>
+                                <button
+                                  className="button secondary"
+                                  disabled={saving || !!busyId || running}
+                                  onClick={() => {
+                                    setError("");
+                                    setRouteEdit(true);
+                                  }}
+                                >
+                                  Confirm category
+                                </button>
+                              </div>
+                            </div>
+                          ) : d.error ? (
                             <div className="alert warning">
                               <TriangleAlert size={18} />
                               <p>{d.error}</p>
@@ -2106,6 +2351,20 @@ export default function Workbench() {
                   )}
                 </div>
               )}
+              {detailTab === "correspondence" && (
+                <CorrespondencePanel
+                  key={`mail-${selected.email.email_id}-${selected.version}`}
+                  cases={cases}
+                  initialResult={selected}
+                  onUpdated={update}
+                  onInspectCase={(id, tab) => void openCase(id, tab)}
+                  onImported={(result) => void openCase(result.email.email_id)}
+                  onUseAttachment={(result, source, file, mode) => {
+                    startReplacement(result, source, mode);
+                    setIntakeFiles([file]);
+                  }}
+                />
+              )}
               {detailTab === "history" && (
                 <div className="case-history">
                   <DecisionHistory
@@ -2145,18 +2404,28 @@ export default function Workbench() {
             <div className="drawer-footer">
               <button
                 className="button secondary"
-                disabled={running}
-                onClick={() => {
-                  setReplacement(selected);
-                  setIntakeFiles([]);
-                  setUpload(true);
-                }}
+                disabled={
+                  running ||
+                  saving ||
+                  uploading ||
+                  !!busyId ||
+                  selected.documents.length >= 10
+                }
+                title="Keep existing sources and add a missing or additional document."
+                onClick={() => startReplacement(selected, null, "append")}
+              >
+                <Plus size={15} /> Add documents
+              </button>
+              <button
+                className="button secondary"
+                disabled={running || saving || uploading || !!busyId}
+                onClick={() => startReplacement(selected)}
               >
                 Replace documents
               </button>
               <button
                 className="button secondary"
-                disabled={!!busyId || running}
+                disabled={!!busyId || running || saving || uploading}
                 onClick={reprocess}
                 title="Re-read current bytes; retain confirmed scan transcripts and category; reset individual field edits."
               >
@@ -2186,12 +2455,41 @@ export default function Workbench() {
           </SheetContent>
         )}
       </Sheet>
+      <Dialog open={mailboxOpen} onOpenChange={setMailboxOpen}>
+        <DialogContent
+          className="modal mailbox-modal"
+          aria-describedby={undefined}
+        >
+          <DialogTitle>Gmail correspondence</DialogTitle>
+          <CorrespondencePanel
+            cases={cases}
+            onUpdated={update}
+            onInspectCase={(id, tab) => {
+              setMailboxOpen(false);
+              void openCase(id, tab);
+            }}
+            onImported={(result) => {
+              setMailboxOpen(false);
+              void openCase(result.email.email_id);
+            }}
+            onUseAttachment={(result, source, file, mode) => {
+              setMailboxOpen(false);
+              startReplacement(result, source, mode);
+              setIntakeFiles([file]);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={upload}
         onOpenChange={(v) => {
-          if (!uploading) {
+          if (!uploading && !addingFiles) {
             setUpload(v);
-            if (!v) setReplacement(null);
+            if (!v) {
+              setReplacement(null);
+              setReplacementDocument(null);
+              setAttachmentMode("replace_all");
+            }
           }
         }}
       >
@@ -2202,25 +2500,32 @@ export default function Workbench() {
         >
           <div className="modal-heading">
             <div>
-              <span className="eyebrow">NEW VERIFICATION</span>
+              <span className="eyebrow">
+                {replacement ? "UPDATE DOCUMENTS" : "NEW VERIFICATION"}
+              </span>
               <DialogTitle>
                 {replacement
-                  ? "Replace source documents."
+                  ? attachmentMode === "append"
+                    ? "Add documents to this case."
+                    : replacementDocument
+                      ? "Replace one source document."
+                      : "Replace source documents."
                   : "Bring an email into the queue."}
               </DialogTitle>
             </div>
             <button
               className="icon-button"
               aria-label="Close upload"
-              disabled={uploading}
+              disabled={uploading || addingFiles}
               onClick={() => setUpload(false)}
             >
               <X size={20} />
             </button>
           </div>
           <p>
-            Paste the message and attach its files. CargoGuard routes the email,
-            checks the documents and keeps every attachment as evidence.
+            {replacement
+              ? "Review the document update below. CargoGuard rechecks the case and retains earlier revisions in history."
+              : "Paste the message and attach its files. CargoGuard routes the email, checks the documents and keeps every attachment as evidence."}
           </p>
           <p className="info-box">
             Hackathon demo: use organiser or synthetic files only, never
@@ -2228,142 +2533,186 @@ export default function Workbench() {
             browser’s cookies to retain access to your workspace.
           </p>
           <form onSubmit={uploadCase}>
-            {error && (
-              <p className="alert error" role="alert">
-                {error}
-              </p>
-            )}
-            {replacement && (
-              <>
-                <div className="info-box">
-                  Replacing documents for {replacement.email.email_id}. Earlier
-                  decisions remain in the audit trail.
-                </div>
+            <fieldset
+              className="intake-fields"
+              disabled={uploading || addingFiles}
+            >
+              {error && (
+                <p className="alert error" role="alert">
+                  {error}
+                </p>
+              )}
+              {replacement && (
+                <>
+                  <div className="info-box">
+                    {attachmentMode === "append"
+                      ? `Adding documents to ${replacement.email.email_id}. All ${replacement.documents.length} existing attachments stay in this case. Upload only the additional files.`
+                      : replacementDocument
+                        ? `Replacing ${replacementDocument.name}. The other ${replacement.documents.length - 1} attachment${replacement.documents.length === 2 ? " stays" : "s stay"} in this case.`
+                        : `Replacing the complete attachment set for ${replacement.email.email_id}. Include every document you want in the new revision.`}{" "}
+                    Earlier files and decisions remain in history.
+                  </div>
+                  <label>
+                    Reviewer name
+                    <input required name="actor" minLength={2} maxLength={80} />
+                  </label>
+                  <label>
+                    {attachmentMode === "append"
+                      ? "Reason for adding documents"
+                      : "Reason for replacement"}
+                    <textarea
+                      required
+                      name="reason"
+                      minLength={5}
+                      maxLength={2000}
+                    />
+                  </label>
+                </>
+              )}
+              {!replacement && (
                 <label>
-                  Reviewer name
-                  <input required name="actor" minLength={2} maxLength={80} />
-                </label>
-                <label>
-                  Reason for replacement
-                  <textarea
+                  Sender email
+                  <input
+                    type="email"
+                    name="from"
+                    maxLength={254}
+                    placeholder="shipping@example.test"
+                    defaultValue="demo@example.test"
                     required
-                    name="reason"
-                    minLength={5}
-                    maxLength={2000}
                   />
                 </label>
-              </>
-            )}
-            {!replacement && (
-              <label>
-                Sender email
+              )}
+              <label hidden={!!replacement}>
+                Email subject
                 <input
-                  type="email"
-                  name="from"
-                  maxLength={254}
-                  placeholder="shipping@example.test"
-                  defaultValue="demo@example.test"
-                  required
+                  required={!replacement}
+                  defaultValue={replacement?.email.subject ?? ""}
+                  name="subject"
+                  placeholder="Please verify the draft BL against the SI"
+                  maxLength={500}
                 />
               </label>
-            )}
-            <label hidden={!!replacement}>
-              Email subject
-              <input
-                required={!replacement}
-                defaultValue={replacement?.email.subject ?? ""}
-                name="subject"
-                placeholder="Please verify the draft BL against the SI"
-                maxLength={500}
-              />
-            </label>
-            <label hidden={!!replacement}>
-              Email message
-              <textarea
-                required={!replacement}
-                name="body"
-                rows={3}
-                defaultValue="Please compare the attached Shipping Instruction and draft Bill of Lading. Report any discrepancies."
-                maxLength={20000}
-              />
-            </label>
-            <label className="upload-zone">
-              <ArrowUpRight size={24} />
-              <strong>Choose email attachments</strong>
-              <span>
-                TXT, PDF, DOCX or XLSX · Up to 10 files · 5 MB each · 20 MB
-                total
-              </span>
-              <input
-                type="file"
-                name="files"
-                multiple
-                accept=".txt,.pdf,.docx,.xlsx"
-                onChange={(event) =>
-                  setIntakeFiles(Array.from(event.target.files ?? []))
-                }
-              />
-            </label>
-            {intakeFiles.length > 0 && (
-              <div className="intake-file-list">
-                <b>
-                  {intakeFiles.length} attachment
-                  {intakeFiles.length === 1 ? "" : "s"} selected
-                </b>
-                <ul>
-                  {intakeFiles.map((file, index) => (
-                    <li key={`${file.name}-${index}`}>
-                      <FileText size={14} />
-                      <span>{file.name}</span>
-                      <small>{Math.ceil(file.size / 1024)} KB</small>
-                    </li>
-                  ))}
-                </ul>
+              <label hidden={!!replacement}>
+                Email message
+                <textarea
+                  required={!replacement}
+                  name="body"
+                  rows={3}
+                  defaultValue="Please compare the attached Shipping Instruction and draft Bill of Lading. Report any discrepancies."
+                  maxLength={20000}
+                />
+              </label>
+              <label className="upload-zone">
+                <ArrowUpRight size={24} />
+                <strong>
+                  {replacementDocument
+                    ? "Choose the revised document"
+                    : "Add email attachments"}
+                </strong>
+                <span>
+                  TXT, PDF, DOCX or XLSX ·{" "}
+                  {replacementDocument
+                    ? "One file, up to 5 MB"
+                    : attachmentMode === "append" && replacement
+                      ? `Up to ${10 - retainedAttachments.length} additional files · 5 MB each · 20 MB total including existing documents. Add files in separate selections.`
+                      : "Up to 10 files · 5 MB each · 20 MB total. Add files in separate selections."}
+                </span>
+                <input
+                  type="file"
+                  name="files"
+                  multiple={!replacementDocument}
+                  accept=".txt,.pdf,.docx,.xlsx"
+                  onChange={(event) => {
+                    const files = Array.from(event.target.files ?? []);
+                    event.target.value = "";
+                    if (files.length) void chooseIntakeFiles(files);
+                  }}
+                />
+              </label>
+              {intakeFiles.length > 0 && (
+                <div className="intake-file-list">
+                  <b>
+                    {intakeFiles.length} attachment
+                    {intakeFiles.length === 1 ? "" : "s"} selected
+                  </b>
+                  <ul>
+                    {intakeFiles.map((file, index) => (
+                      <li key={`${file.name}-${index}`}>
+                        <FileText size={14} />
+                        <span>{file.name}</span>
+                        <small>{Math.ceil(file.size / 1024)} KB</small>
+                        <button
+                          type="button"
+                          className="text-button remove-attachment"
+                          aria-label={`Remove ${file.name}`}
+                          onClick={() =>
+                            setIntakeFiles((files) =>
+                              files.filter((_, item) => item !== index),
+                            )
+                          }
+                        >
+                          <X size={14} /> Remove
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {intakeFiles.length + retainedAttachments.length > 2 && (
+                <p className="info-box">
+                  After checking, review the selected SI and draft BL in
+                  Sources. Extra attachments are retained, never silently
+                  included or discarded.
+                </p>
+              )}
+              {intakeFilesError(
+                intakeFiles,
+                replacementDocument ? 1 : 10,
+                retainedAttachments,
+              ) && (
+                <p className="alert error" role="alert">
+                  {intakeFilesError(
+                    intakeFiles,
+                    replacementDocument ? 1 : 10,
+                    retainedAttachments,
+                  )}
+                </p>
+              )}
+              <div className="info-box">
+                <ShieldCheck size={16} />
+                <p>
+                  Files stay in this workspace. Missing or unreadable data is
+                  escalated for review.
+                </p>
               </div>
-            )}
-            {intakeFiles.length > 2 && (
-              <p className="info-box">
-                After import, choose the exact SI and draft BL in Sources. Extra
-                attachments are retained, never silently included or discarded.
-              </p>
-            )}
-            {(intakeFiles.length > 10 ||
-              intakeFiles.some((file) => file.size > 5 * 1024 * 1024) ||
-              intakeFiles.reduce((sum, file) => sum + file.size, 0) >
-                20 * 1024 * 1024) && (
-              <p className="alert error" role="alert">
-                Choose at most 10 files, no larger than 5 MB each or 20 MB
-                combined.
-              </p>
-            )}
-            <div className="info-box">
-              <ShieldCheck size={16} />
-              <p>
-                Files stay in this workspace. Missing or unreadable data is
-                escalated for review.
-              </p>
-            </div>
-            <button
-              className="button primary full"
-              disabled={
-                uploading ||
-                intakeFiles.length > 10 ||
-                intakeFiles.some((file) => file.size > 5 * 1024 * 1024) ||
-                intakeFiles.reduce((sum, file) => sum + file.size, 0) >
-                  20 * 1024 * 1024
-              }
-            >
-              {uploading ? (
-                <Loader2 size={17} className="spin" />
-              ) : (
-                <Sparkles size={17} />
-              )}{" "}
-              {uploading
-                ? "Reading documents…"
-                : replacement
-                  ? "Replace documents & recheck"
-                  : "Import & check email"}
-            </button>
+              <button
+                className="button primary full"
+                disabled={
+                  uploading ||
+                  addingFiles ||
+                  !!intakeSubmissionError(
+                    intakeFiles,
+                    replacement ? attachmentMode : "new",
+                    retainedAttachments,
+                  )
+                }
+              >
+                {uploading ? (
+                  <Loader2 size={17} className="spin" />
+                ) : (
+                  <Sparkles size={17} />
+                )}{" "}
+                {addingFiles
+                  ? "Checking attachments…"
+                  : uploading
+                    ? "Reading documents…"
+                    : replacement
+                      ? attachmentMode === "append"
+                        ? "Add documents & recheck"
+                        : "Replace documents & recheck"
+                      : "Import & check email"}
+              </button>
+            </fieldset>
           </form>
         </DialogContent>
       </Dialog>

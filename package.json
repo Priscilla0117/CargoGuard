@@ -1,6 +1,6 @@
 {
   "name": "cargoguard-averis",
-  "version": "3.2.1",
+  "version": "3.3.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -17,6 +17,10 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "test": "node --import tsx --test tests/*.test.ts",
     "test:api": "node scripts/test-api.mjs",
+    "test:workflow": "node --import tsx scripts/test-chan-modify-api.ts",
+    "evaluate:freeze": "node --import tsx scripts/freeze-evaluation.ts",
+    "evaluate:unseen": "node --import tsx scripts/evaluate-unseen.ts",
+    "gmail:sync": "node --import tsx scripts/gmail-sync.ts",
     "test:hardening": "node scripts/test-hardening-api.mjs",
     "quality": "node scripts/quality-gate.mjs",
     "typecheck": "tsc --noEmit",

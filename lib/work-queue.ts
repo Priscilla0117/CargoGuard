@@ -1,5 +1,6 @@
 import { laneFor, type Lane } from "./operations";
 import type { CaseSummary } from "./types";
+import { compareSchedule } from "./case-scheduling";
 
 export type WorkspaceView = "inbox" | "performance" | "activity" | "policies";
 export const QUEUE_FILTERS = [
@@ -54,6 +55,7 @@ export function workQueue(
     )
     .sort(
       (a, b) =>
+        compareSchedule(a, b) ||
         rank[laneFor(a)] - rank[laneFor(b)] ||
         a.email.email_id.localeCompare(b.email.email_id),
     );

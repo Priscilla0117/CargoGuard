@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "dataset_id": "",
+  "provenance": {
+    "reviewers": [],
+    "adjudicator": "",
+    "adjudicated": false,
+    "labelled_without_model_outputs": false
+  },
+  "labels": []
+}

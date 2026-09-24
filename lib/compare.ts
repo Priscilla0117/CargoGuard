@@ -14,6 +14,7 @@ import {
   type Extracted,
   type ComparisonRow,
   type DocumentSelection,
+  type Classification,
 } from "./types";
 import {
   normalize,
@@ -279,9 +280,17 @@ export function analyze(
   categoryOverride?: Category,
   policy: PolicySnapshot = DEFAULT_POLICY,
   selection?: DocumentSelection,
+  classification?: Classification,
 ): CaseResult {
   return withPolicy(
-    analyzeCore(email, documents, duration, categoryOverride, selection),
+    analyzeCore(
+      email,
+      documents,
+      duration,
+      categoryOverride,
+      selection,
+      classification,
+    ),
     policy,
   );
 }
@@ -291,8 +300,9 @@ function analyzeCore(
   duration = 0,
   categoryOverride?: Category,
   selection?: DocumentSelection,
+  routedClassification?: Classification,
 ): CaseResult {
-  const classification = classify(email),
+  const classification = routedClassification ?? classify(email),
     base: CaseResult = {
       email,
       classification,
@@ -349,15 +359,19 @@ function analyzeCore(
   if (base.category !== "BL_COMPARISON")
     return {
       ...base,
-      summary: (
-        {
-          SI_REQUEST: "Routed to the shipping instructions desk.",
-          INVOICE_QUERY: "Routed to the billing desk.",
-          GENERAL:
-            "General operations message. No document comparison required.",
-          SPAM: "Potential spam. Isolated from document verification.",
-        } as Record<string, string>
-      )[base.category],
+      summary:
+        (
+          {
+            SI_REQUEST: "Routed to the shipping instructions desk.",
+            INVOICE_QUERY: "Routed to the billing desk.",
+            GENERAL:
+              "General operations message. No document comparison required.",
+            SPAM: "Potential spam. Isolated from document verification.",
+          } as Record<string, string>
+        )[base.category] +
+        (documents.some((d) => d.deferred)
+          ? " Attachments retained without parsing; confirm the comparison category to inspect them."
+          : ""),
     };
   const review = (
     reason: NonNullable<CaseResult["review_reason"]>,

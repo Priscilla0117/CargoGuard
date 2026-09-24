@@ -137,7 +137,8 @@ export function DocumentPairSelector({
           <p className="pair-help">
             A file missing from these choices needs its source or role confirmed
             first. Use the recovery tools below. Selecting another pair
-            recalculates from source; earlier corrections remain in history.
+            preserves confirmed corrections for unchanged sources. Earlier
+            decisions remain in history.
           </p>
           <div className="pair-fields">
             <label>

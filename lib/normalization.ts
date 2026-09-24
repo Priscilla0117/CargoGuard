@@ -13,6 +13,21 @@ const missing =
   /^(?:[\s?_\-–—.\/]+|t\.?\s*b\.?\s*[acd]\.?|n\.?\s*\/?\s*a\.?|nil|none|null|unknown|pending|unavailable|not\s+(?:available|provided|specified|stated|known|confirmed|applicable)|to\s+be\s+(?:advised|confirmed|determined|provided|decided)|awaiting\s+(?:confirmation|details|instructions)|same\s+as\s+above)$/i;
 const unitPlaceholder =
   /^(?:[?_\-–—.\s]+)\s*(?:kgs?|kilograms?|mt|metric tonnes?|tonnes?)$/i;
+
+/** Every part must be a placeholder; words inside a real company name are safe. */
+function missingExpression(line: string): boolean {
+  if (missing.test(line) || unitPlaceholder.test(line)) return true;
+  // Keep N/A as one marker while separating alternatives and parenthetical aliases.
+  const parts = line
+    .replace(/\bn\.?\s*\/\s*a\.?(?!\w)/gi, "N.A.")
+    .split(/\s*(?:[\/|;,&()]|\b(?:and|or)\b)\s*/i)
+    .filter(Boolean);
+  return (
+    parts.length > 0 &&
+    parts.every((part) => missing.test(part) || unitPlaceholder.test(part))
+  );
+}
+
 export const sameAsConsignee = (raw: string) =>
   /^(?:same as|as per)\s+(?:the\s+)?consignee\.?$/i.test(
     raw.normalize("NFKC").trim(),
@@ -65,11 +80,7 @@ export function normalizeValue(field: Field, raw: string): NormalizedValue {
     !/[\p{L}\p{N}]/u.test(value) ||
     value
       .split(/\r?\n/)
-      .some(
-        (line) =>
-          line.trim() &&
-          (missing.test(line.trim()) || unitPlaceholder.test(line.trim())),
-      )
+      .some((line) => line.trim() && missingExpression(line.trim()))
   ) {
     return {
       value: null,

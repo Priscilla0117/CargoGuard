@@ -123,6 +123,7 @@ export function CaseAssistant({
   initialMemory,
   onMemory,
   sourceContent,
+  onDraft,
 }: {
   result: CaseResult;
   onSource: (name: string, location: string) => void;
@@ -130,6 +131,7 @@ export function CaseAssistant({
   initialMemory?: AssistantMemory;
   onMemory?: (memory: AssistantMemory) => void;
   sourceContent?: ReactNode;
+  onDraft?: (text: string) => void;
 }) {
   const [question, setQuestion] = useState(initialMemory?.question ?? "");
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -304,6 +306,19 @@ export function CaseAssistant({
                         </strong>
                       )}
                       <p>{assistantDisplayText(block.text, block.citations)}</p>
+                      {block.kind === "draft" && onDraft && (
+                        <button
+                          type="button"
+                          className="button secondary"
+                          onClick={() =>
+                            onDraft(
+                              assistantDisplayText(block.text, block.citations),
+                            )
+                          }
+                        >
+                          Use in reply editor
+                        </button>
+                      )}
                       {!!block.citations.length && (
                         <details className="assistant-citations">
                           <summary>

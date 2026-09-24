@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ready_for_freeze": false,
+  "dataset_id": "",
+  "provenance": {
+    "source_description": "",
+    "permission_reference": "",
+    "collected_by": "",
+    "collected_at": "",
+    "holdout_independence_attested": false,
+    "holdout_not_used_for_tuning": false,
+    "holdout_frozen_before_model_run": false
+  },
+  "cases": []
+}

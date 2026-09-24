@@ -11,6 +11,13 @@ import {
 } from "@/lib/storage";
 import { z } from "zod";
 import { readForm, HttpError } from "@/lib/http";
+import { attachmentPlan, deferredDocument } from "@/lib/processing";
+import {
+  replacementSources,
+  analyzeReplacement,
+} from "@/lib/source-replacement";
+import { bundleBytes } from "@/lib/bundle";
+import type { Email, ParsedDocument } from "@/lib/types";
 
 export async function POST(request: Request) {
   let s = workspace(request);
@@ -29,6 +36,9 @@ export async function POST(request: Request) {
       "from",
       "subject",
       "body",
+      "mode",
+      "targetName",
+      "targetSha256",
     ])
       if (form.getAll(field).length > 1)
         throw new HttpError(`Only one ${field} field is allowed.`);
@@ -61,7 +71,18 @@ export async function POST(request: Request) {
         s,
         409,
       );
-    if (replacement && files.length < 2)
+    const mode = z
+      .enum(["replace_all", "replace_one", "append"])
+      .parse(form.get("mode") ?? "replace_all");
+    if (!replacement && mode !== "replace_all")
+      throw new HttpError(
+        "Choose an existing case for this attachment operation.",
+      );
+    if (replacement && mode === "replace_one" && files.length !== 1)
+      throw new HttpError("Choose exactly one replacement file.");
+    if (replacement && mode === "append" && files.length < 1)
+      throw new HttpError("Choose at least one attachment to add.");
+    if (replacement && mode === "replace_all" && files.length < 2)
       throw new HttpError(
         "Supply both replacement documents: the SI and draft BL.",
       );
@@ -96,15 +117,74 @@ export async function POST(request: Request) {
         "This demo allows 30 uploaded cases per workspace.",
         429,
       );
-    const id = previous?.email.email_id ?? `upload_${crypto.randomUUID()}`,
-      docs = [],
-      paths = [];
+    const id = previous?.email.email_id ?? `upload_${crypto.randomUUID()}`;
+    const retained = previous
+      ? replacementSources(
+          previous,
+          mode,
+          typeof form.get("targetName") === "string"
+            ? String(form.get("targetName"))
+            : undefined,
+          typeof form.get("targetSha256") === "string"
+            ? String(form.get("targetSha256"))
+            : undefined,
+        )
+      : { documents: [] as ParsedDocument[], paths: [] as string[] };
+    const docs: ParsedDocument[] = [...retained.documents],
+      paths = [...retained.paths];
+    if (docs.length + files.length > 10)
+      throw new HttpError(
+        "The resulting case may contain at most 10 attachments.",
+      );
+    let combinedSize = files.reduce((sum, f) => sum + f.size, 0);
+    for (const path of retained.paths) {
+      const bytes =
+        bundleBytes(path) ??
+        (await storage()
+          .BUCKET.get(`${s.id}/${id}/${path.split("/").pop()}`)
+          .then((o) =>
+            o ? o.arrayBuffer().then((b) => new Uint8Array(b)) : null,
+          ));
+      if (!bytes)
+        throw new HttpError(
+          "An unchanged source is unavailable. Restore it before replacing another document.",
+          409,
+        );
+      combinedSize += bytes.length;
+    }
+    if (combinedSize > 20 * 1024 * 1024)
+      throw new HttpError(
+        "The resulting attachments must be 20 MB or smaller.",
+        413,
+      );
+    const email: Email = {
+      ...(previous?.email ?? {}),
+      email_id: id,
+      from,
+      subject,
+      body,
+      attachments: paths,
+      imported_at: previous?.email.imported_at ?? new Date().toISOString(),
+    };
+    const plan = attachmentPlan(email, previous?.category_override);
     const started = performance.now();
     for (let i = 0; i < files.length; i++) {
       const f = files[i],
         safe = `${crypto.randomUUID().slice(0, 8)}_${i + 1}_${f.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-150)}`,
         bytes = new Uint8Array(await f.arrayBuffer());
-      docs.push(await parseDocument(safe, bytes));
+      const doc = plan.parse
+        ? await parseDocument(safe, bytes)
+        : deferredDocument(safe);
+      doc.size_bytes = bytes.length;
+      if (!doc.sha256)
+        doc.sha256 = Array.from(
+          new Uint8Array(
+            await crypto.subtle.digest("SHA-256", bytes.slice().buffer),
+          ),
+        )
+          .map((n) => n.toString(16).padStart(2, "0"))
+          .join("");
+      docs.push(doc);
       paths.push(`uploads/${safe}`);
       const key = `${s.id}/${id}/${safe}`;
       await storage().BUCKET.put(key, bytes, {
@@ -112,20 +192,17 @@ export async function POST(request: Request) {
       });
       keys.push(key);
     }
-    const email = {
-        email_id: id,
-        from,
-        subject,
-        body,
-        attachments: paths,
-      },
-      r = analyze(
-        email,
-        docs,
-        0,
-        previous?.category_override,
-        previous?.policy ?? (await getPolicy(s.id)),
-      );
+    const r = previous
+      ? analyzeReplacement(previous, docs, paths, plan.classification)
+      : analyze(
+          email,
+          docs,
+          0,
+          undefined,
+          await getPolicy(s.id),
+          undefined,
+          plan.classification,
+        );
     if (previous) {
       r.reviewed = true;
       r.source_replaced = true;
@@ -134,6 +211,8 @@ export async function POST(request: Request) {
     const detail = JSON.stringify({
       summary: r.summary,
       reason: replacement?.reason,
+      mode,
+      targetName: form.get("targetName"),
       previousAttachments: previous?.email.attachments,
       attachments: docs.map((d) => ({ name: d.name, sha256: d.sha256 })),
     });

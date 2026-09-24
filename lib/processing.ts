@@ -1,10 +1,33 @@
-import { analyze, deriveResult, recomputeRows } from "./compare";
+import { analyze } from "./compare";
 import { parseDocument } from "./parsers";
-import type { CaseResult, Email, ParsedDocument } from "./types";
+import type { CaseResult, Category, Email, ParsedDocument } from "./types";
+import { classify } from "./classifier";
 import { canTranscribe, transcribeDocument } from "./transcription";
 import { DEFAULT_POLICY, type PolicySnapshot } from "./policy";
 import { recoverDocument } from "./recovery";
 import { selectionStillMatches } from "./document-selection";
+import { preserveSourceCorrections } from "./source-corrections";
+
+/** Decide before reading or parsing attachments. Uncertain routes retain review. */
+export function attachmentPlan(email: Email, override?: Category) {
+  const classification = classify(email);
+  return {
+    classification,
+    parse:
+      (override ?? classification.category) === "BL_COMPARISON" ||
+      (!override && !!classification.needs_review),
+  };
+}
+export function deferredDocument(name: string): ParsedDocument {
+  return {
+    name,
+    format: name.split(".").pop()?.toLowerCase() ?? "unknown",
+    type: "UNKNOWN",
+    lines: [],
+    method: "Not inspected — routed before parsing",
+    deferred: true,
+  };
+}
 
 export async function mapLimited<T, R>(
   items: T[],
@@ -35,7 +58,13 @@ export async function processEmail(
   policy: PolicySnapshot = previous?.policy ?? DEFAULT_POLICY,
 ) {
   const started = performance.now();
+  const plan = attachmentPlan(email, previous?.category_override);
   const docs = await mapLimited(email.attachments, 2, async (path) => {
+    if (!plan.parse)
+      return (
+        previous?.documents.find((d) => d.name === path.split("/").pop()) ??
+        deferredDocument(path.split("/").pop()!)
+      );
     const bytes = await read(path);
     const doc = bytes
       ? await parseDocument(path.split("/").pop()!, bytes)
@@ -72,6 +101,7 @@ export async function processEmail(
     previous?.category_override,
     policy,
     selectionStillMatches(docs, previous?.document_selection),
+    plan.classification,
   );
   result.source_replaced = previous?.source_replaced;
   if (
@@ -80,30 +110,9 @@ export async function processEmail(
     result.document_selection
   )
     result.reviewed = true;
-  // An engine upgrade is not permission to erase a reviewed fact. Preserve
-  // corrections only when every source fingerprint is unchanged.
-  if (
-    preserveCorrections &&
-    previous?.reviewed &&
-    previous.documents.length === docs.length &&
-    docs.every(
-      (d) =>
-        d.sha256 &&
-        previous.documents.some(
-          (old) => old.name === d.name && old.sha256 === d.sha256,
-        ),
-    ) &&
-    result.comparison.length
-  ) {
-    const rows = structuredClone(result.comparison);
-    for (const row of rows)
-      for (const side of ["si", "bl"] as const) {
-        const old = previous.comparison.find((r) => r.field === row.field)?.[
-          side
-        ];
-        if (old?.method.startsWith("Human correction")) row[side] = old;
-      }
-    result = deriveResult({ ...result, reviewed: true }, recomputeRows(rows));
-  }
+  // Keep corrections on unchanged sources through upgrades and unresolved pairs.
+  // Explicit reprocessing (preserveCorrections=false) starts from source evidence.
+  if (preserveCorrections && previous)
+    result = preserveSourceCorrections(previous, result);
   return result;
 }

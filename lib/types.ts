@@ -38,6 +38,8 @@ export interface Email {
   subject: string;
   body: string;
   attachments: string[];
+  received_at?: string;
+  imported_at?: string;
 }
 export interface SourceLine {
   text: string;
@@ -52,6 +54,8 @@ export interface ParsedDocument {
   method: string;
   sha256?: string;
   page_count?: number;
+  deferred?: boolean;
+  size_bytes?: number;
   transcription?: import("./transcription").Transcript;
   recovery?: import("./recovery-schema").ConfirmedRecovery;
 }
@@ -70,6 +74,14 @@ export interface ComparisonRow {
   si: FieldValue;
   bl: FieldValue;
   result: "match" | "mismatch" | "uncertain";
+}
+/** Human facts stay attached to the exact source, even while no pair is selected. */
+export interface SourceCorrection {
+  field: Field;
+  side: "si" | "bl";
+  name: string;
+  sha256: string;
+  value: FieldValue;
 }
 export interface Classification {
   category: Category;
@@ -104,6 +116,7 @@ export interface CaseResult {
   summary: string;
   documents: ParsedDocument[];
   comparison: ComparisonRow[];
+  retained_corrections?: SourceCorrection[];
   duration_ms: number;
   processed_at: string;
   version: number;
@@ -116,8 +129,26 @@ export interface CaseResult {
   policy_assessment?: ReturnType<typeof import("./policy").assessPolicy>;
 }
 export interface CaseSummary {
-  email: Pick<Email, "email_id" | "from" | "subject" | "attachments">;
-  result: Omit<CaseResult, "email" | "documents" | "comparison"> | null;
+  email: Pick<
+    Email,
+    | "email_id"
+    | "from"
+    | "subject"
+    | "attachments"
+    | "received_at"
+    | "imported_at"
+  >;
+  result: Omit<
+    CaseResult,
+    "email" | "documents" | "comparison" | "retained_corrections"
+  > | null;
+  scheduling?: CaseScheduling;
+}
+export interface CaseScheduling {
+  version: number;
+  due_at: string | null;
+  follow_up_at: string | null;
+  priority: "normal" | "high" | "urgent";
 }
 export interface AuditEvent {
   id: string;
@@ -127,14 +158,24 @@ export interface AuditEvent {
   detail: string;
   created_at: string;
 }
-export const PIPELINE_VERSION = "3.2.1";
+export const PIPELINE_VERSION = "3.3.0";
 export function emailSummaryOf(email: Email): CaseSummary["email"] {
-  const { email_id, from, subject, attachments } = email;
-  return { email_id, from, subject, attachments };
+  const { email_id, from, subject, attachments, received_at, imported_at } =
+    email;
+  return {
+    email_id,
+    from,
+    subject,
+    attachments,
+    ...(received_at ? { received_at } : {}),
+    ...(imported_at ? { imported_at } : {}),
+  };
 }
 export function summaryOf(result: CaseResult): CaseSummary {
-  const { email, documents, comparison, ...rest } = result;
+  const { email, documents, comparison, retained_corrections, ...rest } =
+    result;
   void documents;
   void comparison;
+  void retained_corrections;
   return { email: emailSummaryOf(email), result: rest };
 }

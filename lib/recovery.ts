@@ -1,6 +1,7 @@
 import { FIELDS, type CaseResult, type ParsedDocument } from "./types";
 import { HttpError } from "./http";
-import { analyze, deriveResult, recomputeRows } from "./compare";
+import { analyze } from "./compare";
+import { preserveSourceCorrections } from "./source-corrections";
 import {
   requireRecoverable,
   sourceTextHash,
@@ -109,7 +110,7 @@ export async function applyRecovery(
   };
   const recovered = await recoverDocument(doc, recovery);
   const documents = previous.documents.map((d) => (d === doc ? recovered : d));
-  let next = analyze(
+  const next = analyze(
     previous.email,
     documents,
     previous.duration_ms,
@@ -117,21 +118,9 @@ export async function applyRecovery(
     previous.policy,
     previous.document_selection,
   );
-  if (next.comparison.length && previous.comparison.length) {
-    const rows = structuredClone(next.comparison);
-    for (const row of rows)
-      for (const side of ["si", "bl"] as const) {
-        const old = previous.comparison.find((r) => r.field === row.field)?.[
-          side
-        ];
-        if (
-          old?.method.startsWith("Human correction") &&
-          old.source !== doc.name &&
-          old.source === row[side].source
-        )
-          row[side] = old;
-      }
-    next = deriveResult(next, recomputeRows(rows));
-  }
-  return { ...next, reviewed: true, source_replaced: previous.source_replaced };
+  return {
+    ...preserveSourceCorrections(previous, next, [doc.name]),
+    reviewed: true,
+    source_replaced: previous.source_replaced,
+  };
 }
