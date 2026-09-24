@@ -11,7 +11,7 @@ The existing URL, https://cargoguard-averis.onrender.com/, is an **older release
 | Workspace | Working capabilities |
 | --- | --- |
 | Work queue | Email and document import; five-category routing; seven-field comparison; source inspection; corrections; OCR review; replacement BL; revision differences; batch completion of eligible matches |
-| Shipments | Explicit document association; current comparison; ownership; confirmed cutoffs; approved email instructions; missing-document and billing drafts; tasks; handovers; history |
+| Shipments | Explicit document association; current comparison; ownership; confirmed cutoffs; approved email instructions; revised-SI reconciliation; missing-document and billing drafts; tasks; handovers; history |
 | Insights | Source-linked questions and filters; discrepancy distributions; historical party deviations; quoted general-email digest; visible denominators |
 | Label rules | Propose unfamiliar headings, preview impact, approve scoped reuse, inspect history and disable rules |
 | SI templates | Approved stable party fields, source-bound reuse and rollback; shipment-specific values remain blank |
@@ -21,6 +21,8 @@ The existing URL, https://cargoguard-averis.onrender.com/, is an **older release
 Email content is untrusted evidence, never an instruction to the application. The original SI comparison remains visible when an employee approves a later instruction. Missing, damaged, ambiguous or scanned documents cannot become automatic matches. OCR suggestions include source crops and recognition scores; all seven fields require human confirmation.
 
 Independent ISO 6346 and source-backed consistency checks can expose errors even when both documents agree. Missing evidence stays **Not checked**. Document-check completion never authorizes cargo release or establishes compliance clearance.
+
+The **Amendment resolution** desk follows a reviewed instruction into a source-backed revised SI, then shows every remaining BL difference. It includes an editable request draft and downloadable decision brief; recording a change never bypasses the full document check. See the [synthetic rehearsal](examples/amendment-resolution/README.md), [authored 20-case operations challenge](docs/OPERATIONS_CHALLENGE.md) and [competitive value proposition](docs/CREATIVE_VALUE_PROPOSITION.md).
 
 ## Run from a clean checkout
 

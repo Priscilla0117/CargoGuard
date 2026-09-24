@@ -98,6 +98,7 @@ export async function POST(request: Request) {
     if (
       [
         "decide_amendment",
+        "reconcile_amendment",
         "withdraw_amendment",
         "complete",
         "select_comparison",

@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { currentMessage } from "./classifier";
-import { normalize, recomputeRows } from "./normalization";
+import {
+  compareFields,
+  normalize,
+  recomputeRows,
+  sameAsConsignee,
+} from "./normalization";
+import { extract } from "./compare";
 import { selectedDocuments } from "./document-selection";
 import {
   FIELDS,
@@ -8,6 +14,7 @@ import {
   type CaseResult,
   type Field,
   type Email,
+  type Extracted,
 } from "./types";
 
 export const shipmentText = (max: number) =>
@@ -54,10 +61,27 @@ export interface ShipmentAmendment {
   decided_by?: string;
   decided_at?: string;
   reason?: string;
+  /** Reviewer proof against a new SI. The approved email and original SI remain immutable. */
+  incorporation?: {
+    case_id: string;
+    case_version: number;
+    si_sha256: string;
+    si_value: string;
+    si_evidence: string;
+    actor: string;
+    at: string;
+    reason: string;
+  };
 }
 export interface ShipmentTask {
   id: string;
-  kind: "missing_documents" | "billing" | "si_draft" | "it_report" | "handover";
+  kind:
+    | "missing_documents"
+    | "revised_si"
+    | "billing"
+    | "si_draft"
+    | "it_report"
+    | "handover";
   case_id: string;
   title: string;
   body: string;
@@ -89,6 +113,18 @@ export interface Shipment {
   actor: string;
 }
 export const shipmentCommand = z.discriminatedUnion("action", [
+  z
+    .object({
+      action: z.literal("reconcile_amendment"),
+      id: required(80),
+      version: z.number().int().positive().safe(),
+      amendment_id: required(80),
+      case_id: required(120),
+      case_version: z.number().int().positive().safe(),
+      reason: required(600),
+      actor: required(80),
+    })
+    .strict(),
   z
     .object({
       action: z.literal("withdraw_amendment"),
@@ -192,7 +228,10 @@ export const shipmentCommand = z.discriminatedUnion("action", [
       case_id: required(120),
       case_version: z.number().int().min(1),
       field: z.enum(FIELDS),
-      value: required(1000),
+      value: shipmentText(1000).refine(
+        (value) => value.length > 0,
+        "Value is required",
+      ),
       quote: required(2000),
       actor: required(80),
     })
@@ -219,6 +258,7 @@ export const shipmentCommand = z.discriminatedUnion("action", [
       case_version: z.number().int().min(1),
       kind: z.enum([
         "missing_documents",
+        "revised_si",
         "billing",
         "si_draft",
         "it_report",
@@ -366,15 +406,16 @@ export function approvedComparison(
   const approved = shipment.amendments.filter((a) => a.status === "approved");
   const amendments = approved.filter(
     (a) =>
-      a.si_sha256 === pair.si!.sha256 &&
-      shipment.case_ids.includes(a.source_case) &&
-      sources.some(
-        (c) =>
-          c.email.email_id === a.source_case && c.version === a.source_version,
-      ),
+      amendmentSourceCurrent(shipment, a, sources) &&
+      (a.incorporation
+        ? amendmentIncorporationCurrent(shipment, a, result, sources)
+        : a.si_sha256 === pair.si!.sha256),
   );
   const rows = structuredClone(result.comparison);
   for (const amendment of amendments) {
+    // Incorporated instructions are evidenced by the real revised SI; do not
+    // replace its values with an email overlay or conceal its provenance.
+    if (amendment.incorporation) continue;
     const row = rows.find((r) => r.field === amendment.field);
     if (row)
       row.si = {
@@ -395,6 +436,195 @@ export function approvedComparison(
           ? "An instruction change awaits a decision."
           : null,
   };
+}
+
+export function amendmentSourceCurrent(
+  shipment: Shipment,
+  amendment: ShipmentAmendment,
+  sources: CaseResult[],
+) {
+  return (
+    shipment.case_ids.includes(amendment.source_case) &&
+    sources.some(
+      (source) =>
+        source.email.email_id === amendment.source_case &&
+        source.version === amendment.source_version &&
+        source.pipeline_version === PIPELINE_VERSION &&
+        source.email.body.includes(amendment.quote) &&
+        amendment.quote.includes(amendment.value),
+    )
+  );
+}
+
+/** A candidate SI must establish the instruction from source-backed values.
+ * This check never changes the original SI/BL result or grants completion.
+ */
+function amendmentEvidenceBlocker(
+  shipment: Shipment,
+  amendment: ShipmentAmendment,
+  result: CaseResult,
+  sources: CaseResult[],
+  requireRevisedSI: boolean,
+): string | null {
+  if (amendment.status !== "approved")
+    return "Approve this instruction before checking a revised SI.";
+  const active = shipment.amendments.filter(
+    (item) => item.status === "approved",
+  );
+  if (new Set(active.map((item) => item.field)).size !== active.length)
+    return "Conflicting active instructions need review. Withdraw the superseded instruction before reconciling.";
+  if (!amendmentSourceCurrent(shipment, amendment, sources))
+    return "The instruction evidence changed. Withdraw it and propose a new instruction from current evidence.";
+  if (
+    !shipment.case_ids.includes(result.email.email_id) ||
+    shipment.comparison_case_id !== result.email.email_id ||
+    result.category !== "BL_COMPARISON" ||
+    result.pipeline_version !== PIPELINE_VERSION ||
+    (result.classification.needs_review && !result.category_override)
+  )
+    return "Select a current, confirmed document-comparison case linked to this shipment.";
+  const pair = shipmentPair(result);
+  if (
+    !pair.si ||
+    !pair.bl ||
+    pair.si.error ||
+    pair.bl.error ||
+    !/^[a-f0-9]{64}$/.test(pair.si.sha256 ?? "") ||
+    !/^[a-f0-9]{64}$/.test(pair.bl.sha256 ?? "") ||
+    result.comparison.length !== FIELDS.length ||
+    new Set(result.comparison.map((row) => row.field)).size !== FIELDS.length ||
+    FIELDS.some(
+      (field) => !result.comparison.some((row) => row.field === field),
+    ) ||
+    result.comparison.some(
+      (row) =>
+        row.si.source !== pair.si!.name ||
+        row.bl.source !== pair.bl!.name ||
+        !row.si.evidence.trim() ||
+        !row.bl.evidence.trim(),
+    )
+  )
+    return "A readable, selected SI/BL pair with all seven source-linked fields is required.";
+  if (requireRevisedSI && pair.si.sha256 === amendment.si_sha256)
+    return "Obtain and select a revised SI. The selected SI is still the original instruction reference.";
+  // Extract again from the selected document. Editing a comparison value cannot
+  // impersonate receipt of an authoritative revised SI. Confirmed OCR/recovery
+  // stays supported because extract reads that document's bound transcription.
+  const source = extract(pair.si);
+  const displayed = Object.fromEntries(
+    result.comparison.map((row) => [row.field, row.si]),
+  ) as Extracted;
+  const sourceCheck = compareFields(source, displayed);
+  const dependency =
+    amendment.field === "notify_party" &&
+    (sameAsConsignee(amendment.value) ||
+      sameAsConsignee(source.notify_party.raw));
+  if (
+    sourceCheck.some(
+      (row) =>
+        (row.field === amendment.field ||
+          (dependency && row.field === "consignee")) &&
+        row.result !== "match",
+    )
+  )
+    return "The comparison value does not match the revised SI source. Confirm the document transcription or obtain the corrected SI; a field edit alone is not incorporation evidence.";
+  const intended = structuredClone(source);
+  for (const instruction of active) {
+    if (!amendmentSourceCurrent(shipment, instruction, sources))
+      return "Resolve changed evidence for all approved instructions before reconciling the revised SI.";
+    intended[instruction.field] = {
+      raw: instruction.value,
+      normalized: normalize(instruction.field, instruction.value),
+      source: instruction.source_case,
+      evidence: instruction.quote,
+      method: "Approved instruction",
+    };
+  }
+  if (
+    compareFields(source, intended).find((row) => row.field === amendment.field)
+      ?.result !== "match"
+  )
+    return "The revised SI does not yet establish this approved value. Correct or review its source evidence first.";
+  return null;
+}
+
+export function amendmentReconciliationBlocker(
+  shipment: Shipment,
+  amendment: ShipmentAmendment,
+  result: CaseResult,
+  sources: CaseResult[],
+): string | null {
+  return amendmentEvidenceBlocker(shipment, amendment, result, sources, true);
+}
+
+/** A no-change instruction needs support from the real original SI, not edited comparison values. */
+export function amendmentOriginalSupported(
+  shipment: Shipment,
+  amendment: ShipmentAmendment,
+  result: CaseResult,
+  sources: CaseResult[],
+): boolean {
+  return (
+    !amendment.incorporation &&
+    shipmentPair(result).si?.sha256 === amendment.si_sha256 &&
+    amendmentEvidenceBlocker(shipment, amendment, result, sources, false) ===
+      null
+  );
+}
+
+export function amendmentIncorporationCurrent(
+  shipment: Shipment,
+  amendment: ShipmentAmendment,
+  result: CaseResult,
+  sources: CaseResult[],
+) {
+  const proof = amendment.incorporation;
+  const si = shipmentPair(result).si;
+  const source = si && extract(si)[amendment.field];
+  return (
+    !!proof &&
+    proof.case_id === result.email.email_id &&
+    proof.case_version === result.version &&
+    proof.si_sha256 === si?.sha256 &&
+    proof.si_value === source?.raw &&
+    proof.si_evidence === source?.evidence &&
+    amendmentReconciliationBlocker(shipment, amendment, result, sources) ===
+      null
+  );
+}
+
+/** Shared by task creation and the UI; never amplify stale or conflicting advice. */
+export function revisedSiRequestBlocker(
+  shipment: Shipment,
+  result: CaseResult,
+  sources: CaseResult[],
+): string | null {
+  if (
+    !shipment.case_ids.includes(result.email.email_id) ||
+    shipment.comparison_case_id !== result.email.email_id ||
+    result.category !== "BL_COMPARISON" ||
+    result.pipeline_version !== PIPELINE_VERSION ||
+    (result.classification.needs_review && !result.category_override)
+  )
+    return "Use the selected current, confirmed comparison to request a revised SI.";
+  if (shipment.amendments.some((item) => item.status === "proposed"))
+    return "Resolve pending instruction proposals before drafting the revised SI request.";
+  const approved = shipment.amendments.filter(
+    (item) => item.status === "approved",
+  );
+  if (new Set(approved.map((item) => item.field)).size !== approved.length)
+    return "Conflicting active instructions need review before drafting the revised SI request.";
+  if (approved.some((item) => !amendmentSourceCurrent(shipment, item, sources)))
+    return "Instruction evidence changed. Resolve it before drafting a revised SI request.";
+  if (
+    !approved.some(
+      (item) =>
+        !amendmentIncorporationCurrent(shipment, item, result, sources) &&
+        !amendmentOriginalSupported(shipment, item, result, sources),
+    )
+  )
+    return "There are no outstanding approved instructions needing a revised SI request.";
+  return null;
 }
 
 /** Suggestions only: quoted email text never gains authority through extraction. */
@@ -454,9 +684,31 @@ export function taskDraft(
   kind: ShipmentTask["kind"],
   result: CaseResult,
   shipment: Shipment,
+  sources: CaseResult[] = [result],
 ) {
   const refs = shipment.references.join(", ") || "[confirm shipment reference]";
   const read = result.email.body.slice(0, 5000);
+  if (kind === "revised_si") {
+    const outstanding = shipment.amendments.filter(
+      (amendment) =>
+        amendment.status === "approved" &&
+        !amendmentIncorporationCurrent(shipment, amendment, result, sources) &&
+        !amendmentOriginalSupported(shipment, amendment, result, sources),
+    );
+    const blocker = revisedSiRequestBlocker(shipment, result, sources);
+    const lines = blocker
+      ? [blocker]
+      : outstanding.flatMap((amendment) => [
+          `${amendment.field.replaceAll("_", " ")}: ${amendment.value}`,
+          `Approved source: ${amendment.source_case}, revision ${amendment.source_version}. Quote: ${amendment.quote}`,
+          `Original SI fingerprint: ${amendment.si_sha256}`,
+          "",
+        ]);
+    return {
+      title: "Request revised Shipping Instruction",
+      body: `DRAFT — review recipient, authority and references before sending.\nVersion-bound snapshot: regenerate this draft if any cited instruction or selected document changes.\n\nSubject: Revised SI required — ${refs}\n\nPlease provide a revised authoritative Shipping Instruction incorporating the reviewed instructions below and the corresponding current draft Bill of Lading for ${refs}.\n\n${lines.join("\n")}\nSelected comparison: ${result.email.email_id}, revision ${result.version}.\nCurrent SI fingerprint: ${shipmentPair(result).si?.sha256 ?? "not available"}.\n\nWe will recheck every field when the documents arrive. This draft does not approve a BL or authorize cargo release. Nothing has been sent.`,
+    };
+  }
   if (kind === "missing_documents") {
     const si = result.documents.some((d) => d.type === "SI" && !d.error);
     const bl = result.documents.some((d) => d.type === "BL" && !d.error);

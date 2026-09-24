@@ -1,0 +1,8 @@
+DRAFT BILL OF LADING
+Shipper: Synthetic Atlas Export
+Consignee: Synthetic Buyer Two
+Notify party: SAME AS CONSIGNEE
+Port of loading: Port Klang
+Port of discharge: Rotterdam
+Container count: 2
+Gross weight (KG): 42000

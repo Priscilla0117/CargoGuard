@@ -24,6 +24,7 @@ import { checkDocumentIntegrity } from "@/lib/integrity-checks";
 import { IntegrityChecks } from "./integrity-checks";
 import { NotificationCenter } from "./notification-center";
 import { MicrosoftTaskDraft } from "./outlook-pane";
+import { AmendmentResolution } from "./amendment-resolution";
 import type { SiTemplate } from "@/lib/si-templates";
 import "@/app/shipment-desk.css";
 import "@/app/integrity-checks.css";
@@ -82,7 +83,8 @@ export function ShipmentDesk() {
     [now, setNow] = useState(Date.now),
     [tab, setTab] = useState("documents");
   const detailTicket = useRef(0),
-    selectedRef = useRef(selected);
+    selectedRef = useRef(selected),
+    mutationPending = useRef(false);
   function choose(id: string) {
     selectedRef.current = id;
     setSelected(id);
@@ -150,7 +152,8 @@ export function ShipmentDesk() {
     return () => clearInterval(timer);
   }, []);
   const act = async (payload: Record<string, unknown>) => {
-    if (busy) return;
+    if (mutationPending.current) return false;
+    mutationPending.current = true;
     setBusy(true);
     setError("");
     const id = selectedRef.current;
@@ -181,11 +184,13 @@ export function ShipmentDesk() {
       );
       return false;
     } finally {
+      mutationPending.current = false;
       setBusy(false);
     }
   };
   const current = detail?.cases.find((c) => c.email.email_id === caseId),
-    shipment = detail?.shipment;
+    shipment = detail?.shipment,
+    canReview = !identity || ["reviewer", "admin"].includes(identity.role);
   const search = query.trim().toLowerCase();
   const overdue = (s: BoardShipment) =>
     s.effective_state !== "completed" &&
@@ -539,7 +544,9 @@ export function ShipmentDesk() {
                     aria-pressed={tab === t}
                     onClick={() => setTab(t)}
                   >
-                    {t[0].toUpperCase() + t.slice(1)}
+                    {t === "instructions"
+                      ? "Amendment resolution"
+                      : t[0].toUpperCase() + t.slice(1)}
                   </button>
                 ))}
               </nav>
@@ -695,16 +702,24 @@ export function ShipmentDesk() {
                       </div>
                     )}
                   </div>
-                  {current && (
+                  {comparison && (
                     <div className="shipment-card">
-                      <h3>Independent checks · {current.email.email_id}</h3>
+                      <h3>Independent checks · current comparison</h3>
+                      <p>
+                        <Link
+                          href={`/?case=${encodeURIComponent(comparison.email.email_id)}`}
+                        >
+                          {comparison.email.email_id} · revision{" "}
+                          {comparison.version}
+                        </Link>
+                      </p>
                       <p>
                         Separate from the required seven-field SI comparison. A
                         valid check digit does not prove the physical container
                         exists.
                       </p>
                       <IntegrityChecks
-                        assessment={checkDocumentIntegrity(current)}
+                        assessment={checkDocumentIntegrity(comparison)}
                       />
                     </div>
                   )}
@@ -806,6 +821,16 @@ export function ShipmentDesk() {
                       findings. Source changes reopen completion. This never
                       authorizes cargo release.
                     </p>
+                    {shipment.amendments.some(
+                      (a) => a.status === "approved" || a.status === "proposed",
+                    ) && (
+                      <button
+                        type="button"
+                        onClick={() => setTab("instructions")}
+                      >
+                        Review amendment resolution before sign-off
+                      </button>
+                    )}
                     <form
                       onSubmit={(e) => {
                         const v = values(e);
@@ -894,6 +919,9 @@ export function ShipmentDesk() {
                       <select name="kind">
                         <option value="missing_documents">
                           Request missing SI / BL
+                        </option>
+                        <option value="revised_si">
+                          Request revised SI for approved instructions
                         </option>
                         <option value="billing">
                           Billing task and acknowledgement
@@ -1018,187 +1046,210 @@ export function ShipmentDesk() {
                 </div>
               )}
               {tab === "instructions" && (
-                <div className="shipment-card">
-                  <h3>Instruction amendments</h3>
-                  <p>
-                    Email instructions are proposals until approved. The
-                    original SI comparison remains unchanged. Obtain a revised
-                    SI before closing a remaining original-reference mismatch.
-                  </p>
-                  <label>
-                    Instruction source email
-                    <select
-                      value={caseId}
-                      onChange={(e) => setCaseId(e.target.value)}
-                    >
-                      {sourceOptions}
-                    </select>
-                  </label>
-                  {current && (
-                    <>
-                      <details>
-                        <summary>Source email text</summary>
-                        <pre>{current.email.body}</pre>
-                      </details>
-                      {amendmentCandidates(current.email).map(
-                        (proposal, index) => (
-                          <div className="shipment-proposal" key={index}>
-                            <strong>
-                              Suggested {FIELD_LABELS[proposal.field]}:{" "}
-                              {proposal.value}
-                            </strong>
-                            <blockquote>{proposal.quote}</blockquote>
-                            <button
-                              disabled={busy}
-                              onClick={() =>
-                                act({
-                                  action: "propose_amendment",
-                                  case_id: current.email.email_id,
-                                  case_version: current.version,
-                                  field: proposal.field,
-                                  value: proposal.value,
-                                  quote: proposal.quote,
-                                })
-                              }
-                            >
-                              Record for approval
-                            </button>
-                          </div>
-                        ),
-                      )}
-                      <form
-                        onSubmit={(e) => {
-                          const v = values(e);
-                          act({
-                            action: "propose_amendment",
-                            case_id: current.email.email_id,
-                            case_version: current.version,
-                            field: v.field as Field,
-                            value: v.value,
-                            quote: v.quote,
-                          });
-                        }}
+                <>
+                  <AmendmentResolution
+                    key={shipment.id}
+                    shipment={shipment}
+                    cases={detail.cases}
+                    busy={busy}
+                    canReview={canReview}
+                    act={act}
+                    onDocuments={() => setTab("documents")}
+                    onTasks={() => setTab("tasks")}
+                  />
+                  <div className="shipment-card">
+                    <h3>Record and review instructions</h3>
+                    <p>
+                      Capture the quoted request and confirm its authority.
+                      Approval creates an instruction record; the SI evidence
+                      still needs to support the change.
+                    </p>
+                    <label>
+                      Instruction source email
+                      <select
+                        value={caseId}
+                        onChange={(e) => setCaseId(e.target.value)}
                       >
-                        <label>
-                          Field
-                          <select name="field">
-                            {FIELDS.map((f) => (
-                              <option key={f} value={f}>
-                                {FIELD_LABELS[f]}
+                        {sourceOptions}
+                      </select>
+                    </label>
+                    {current && (
+                      <>
+                        <details>
+                          <summary>Source email text</summary>
+                          <pre>{current.email.body}</pre>
+                        </details>
+                        {amendmentCandidates(current.email).map(
+                          (proposal, index) => (
+                            <div className="shipment-proposal" key={index}>
+                              <strong>
+                                Suggested {FIELD_LABELS[proposal.field]}:{" "}
+                                {proposal.value}
+                              </strong>
+                              <blockquote>{proposal.quote}</blockquote>
+                              <button
+                                disabled={busy}
+                                onClick={() =>
+                                  act({
+                                    action: "propose_amendment",
+                                    case_id: current.email.email_id,
+                                    case_version: current.version,
+                                    field: proposal.field,
+                                    value: proposal.value,
+                                    quote: proposal.quote,
+                                  })
+                                }
+                              >
+                                Record for approval
+                              </button>
+                            </div>
+                          ),
+                        )}
+                        <form
+                          onSubmit={(e) => {
+                            const v = values(e);
+                            act({
+                              action: "propose_amendment",
+                              case_id: current.email.email_id,
+                              case_version: current.version,
+                              field: v.field as Field,
+                              value: v.value,
+                              quote: v.quote,
+                            });
+                          }}
+                        >
+                          <label>
+                            Field
+                            <select name="field">
+                              {FIELDS.map((f) => (
+                                <option key={f} value={f}>
+                                  {FIELD_LABELS[f]}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label>
+                            Proposed value
+                            <input name="value" required maxLength={1000} />
+                          </label>
+                          <label>
+                            Exact instruction quote from this email
+                            <textarea name="quote" required maxLength={2000} />
+                          </label>
+                          <button disabled={busy}>Propose amendment</button>
+                        </form>
+                      </>
+                    )}
+                    {shipment.amendments.map((a) => (
+                      <div className="shipment-proposal" key={a.id}>
+                        <strong>
+                          {FIELD_LABELS[a.field]} → {a.value} · {a.status}
+                        </strong>
+                        <blockquote>{a.quote}</blockquote>
+                        <p>
+                          {a.source_case} v{a.source_version} · proposed by{" "}
+                          {a.proposed_by}
+                          {a.decided_by ? ` · decided by ${a.decided_by}` : ""}
+                        </p>
+                        {a.status === "proposed" && (
+                          <form
+                            onSubmit={(e) => {
+                              const v = values(e);
+                              act({
+                                action: "decide_amendment",
+                                amendment_id: a.id,
+                                approve: v.decision === "approve",
+                                reason: v.reason,
+                              });
+                            }}
+                          >
+                            <label>
+                              Verified authority, scope and decision reason
+                              <input
+                                name="reason"
+                                required
+                                minLength={5}
+                                maxLength={600}
+                              />
+                            </label>
+                            <select
+                              name="decision"
+                              aria-label="Instruction decision"
+                            >
+                              <option value="approve">
+                                Approve instruction interpretation
                               </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label>
-                          Proposed value
-                          <input name="value" required maxLength={1000} />
-                        </label>
-                        <label>
-                          Exact instruction quote from this email
-                          <textarea name="quote" required maxLength={2000} />
-                        </label>
-                        <button disabled={busy}>Propose amendment</button>
-                      </form>
-                    </>
-                  )}
-                  {shipment.amendments.map((a) => (
-                    <div className="shipment-proposal" key={a.id}>
-                      <strong>
-                        {FIELD_LABELS[a.field]} → {a.value} · {a.status}
-                      </strong>
-                      <blockquote>{a.quote}</blockquote>
-                      <p>
-                        {a.source_case} v{a.source_version} · proposed by{" "}
-                        {a.proposed_by}
-                        {a.decided_by ? ` · decided by ${a.decided_by}` : ""}
-                      </p>
-                      {a.status === "proposed" && (
-                        <form
-                          onSubmit={(e) => {
-                            const v = values(e);
-                            act({
-                              action: "decide_amendment",
-                              amendment_id: a.id,
-                              approve: v.decision === "approve",
-                              reason: v.reason,
-                            });
-                          }}
-                        >
-                          <label>
-                            Verified authority, scope and decision reason
-                            <input
-                              name="reason"
-                              required
-                              minLength={5}
-                              maxLength={600}
-                            />
-                          </label>
-                          <select name="decision">
-                            <option value="approve">
-                              Approve instruction interpretation
-                            </option>
-                            <option value="reject">Reject proposal</option>
-                          </select>
-                          <button disabled={busy}>Record decision</button>
-                        </form>
-                      )}
-                      {a.status === "approved" && (
-                        <form
-                          onSubmit={(e) => {
-                            const v = values(e);
-                            act({
-                              action: "withdraw_amendment",
-                              amendment_id: a.id,
-                              reason: v.reason,
-                            });
-                          }}
-                        >
-                          <label>
-                            Reason for withdrawing this approved instruction
-                            <input
-                              name="reason"
-                              required
-                              minLength={5}
-                              maxLength={600}
-                            />
-                          </label>
-                          <button disabled={busy}>
-                            Withdraw instruction approval
-                          </button>
-                        </form>
-                      )}
-                    </div>
-                  ))}
-                  {overlay?.blocked && <p role="status">{overlay.blocked}</p>}
-                  {overlay && overlay.applied.length > 0 && (
-                    <>
-                      <h4>Comparison against approved instructions</h4>
-                      {overlay.blocked && (
-                        <p role="status">{overlay.blocked}</p>
-                      )}
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Field</th>
-                            <th>Effective instruction</th>
-                            <th>BL</th>
-                            <th>Result</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {overlay.rows.map((row) => (
-                            <tr key={row.field}>
-                              <td>{FIELD_LABELS[row.field]}</td>
-                              <td>{row.si.raw}</td>
-                              <td>{row.bl.raw}</td>
-                              <td>{row.result}</td>
+                              <option value="reject">Reject proposal</option>
+                            </select>
+                            <button disabled={busy || !canReview}>
+                              Record decision
+                            </button>
+                            {!canReview && (
+                              <p>
+                                A reviewer or administrator must approve or
+                                reject this instruction.
+                              </p>
+                            )}
+                          </form>
+                        )}
+                        {a.status === "approved" && (
+                          <form
+                            onSubmit={(e) => {
+                              const v = values(e);
+                              act({
+                                action: "withdraw_amendment",
+                                amendment_id: a.id,
+                                reason: v.reason,
+                              });
+                            }}
+                          >
+                            <label>
+                              Reason for withdrawing this approved instruction
+                              <input
+                                name="reason"
+                                required
+                                minLength={5}
+                                maxLength={600}
+                              />
+                            </label>
+                            <button disabled={busy || !canReview}>
+                              Withdraw instruction approval
+                            </button>
+                          </form>
+                        )}
+                      </div>
+                    ))}
+                    {overlay?.blocked && <p role="status">{overlay.blocked}</p>}
+                    {overlay && overlay.applied.length > 0 && (
+                      <>
+                        <h4>Comparison against approved instructions</h4>
+                        {overlay.blocked && (
+                          <p role="status">{overlay.blocked}</p>
+                        )}
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Field</th>
+                              <th>Effective instruction</th>
+                              <th>BL</th>
+                              <th>Result</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </>
-                  )}
-                </div>
+                          </thead>
+                          <tbody>
+                            {overlay.rows.map((row) => (
+                              <tr key={row.field}>
+                                <td>{FIELD_LABELS[row.field]}</td>
+                                <td>{row.si.raw}</td>
+                                <td>{row.bl.raw}</td>
+                                <td>{row.result}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </>
+                    )}
+                  </div>
+                </>
               )}
               {tab === "deadlines" && (
                 <div className="shipment-card">

@@ -1,7 +1,19 @@
 {
   "version": "3.3.1",
-  "generated_at": "2026-09-23T23:59:24.604Z",
+  "generated_at": "2026-09-24T01:26:43.910Z",
   "engine": "CargoGuard 3.3.1",
+  "authored_operations_challenge": {
+    "cases": 20,
+    "strict_passed": 20,
+    "integrity_passed": 20,
+    "combined_passed": 20,
+    "expected_mismatches": 5,
+    "expected_reviews": 4,
+    "expected_independent_attention": 5,
+    "dataset_sha256": "5e47afd4e501d2a9c9ceff34799f4a4490c6f38877d82c80cc1f215e731a6a52",
+    "measured_at": "2026-09-24T01:17:05.648Z",
+    "limitations": "Synthetic, self-authored source-text cases, independent of the organiser generator. The author knew the implementation. Not a blinded holdout, external customer validation, OCR evaluation or proof of superiority over another team."
+  },
   "metrics": {
     "classification_macro_f1": 1,
     "defect_f1": 1,
@@ -120,48 +132,48 @@
     ]
   },
   "engineering": {
-    "unit_tests": 507,
-    "test_files": 39,
+    "unit_tests": 531,
+    "test_files": 41,
     "quality_steps": [
       {
         "step": "typecheck",
         "passed": true,
-        "duration_ms": 6660
+        "duration_ms": 12021
       },
       {
         "step": "lint",
         "passed": true,
-        "duration_ms": 16942
+        "duration_ms": 97060
       },
       {
         "step": "unit-tests",
         "passed": true,
-        "duration_ms": 14083
+        "duration_ms": 16511
       },
       {
         "step": "input-integrity",
         "passed": true,
-        "duration_ms": 521
+        "duration_ms": 1616
       },
       {
         "step": "evaluate-organiser",
         "passed": true,
-        "duration_ms": 1199
+        "duration_ms": 1900
       },
       {
         "step": "independent-accuracy",
         "passed": true,
-        "duration_ms": 209
+        "duration_ms": 510
       },
       {
         "step": "ocr-assets",
         "passed": true,
-        "duration_ms": 80
+        "duration_ms": 183
       },
       {
         "step": "build",
         "passed": true,
-        "duration_ms": 33532
+        "duration_ms": 70573
       }
     ]
   },

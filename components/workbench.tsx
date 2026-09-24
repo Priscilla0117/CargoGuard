@@ -114,6 +114,105 @@ const statuses: Record<string, string> = {
   pending: "Not processed",
 };
 type View = WorkspaceView;
+type AuthoredChallenge = {
+  cases: number;
+  strict_passed: number;
+  integrity_passed: number;
+  combined_passed: number;
+  expected_mismatches: number;
+  expected_reviews: number;
+  expected_independent_attention: number;
+  dataset_sha256: string;
+  measured_at: string;
+  limitations: string;
+};
+
+function AuthoredOperationsChallenge({ report }: { report: unknown }) {
+  if (!report || typeof report !== "object" || Array.isArray(report))
+    return null;
+  const data = report as AuthoredChallenge;
+  const counts = [
+    data.cases,
+    data.strict_passed,
+    data.integrity_passed,
+    data.combined_passed,
+    data.expected_mismatches,
+    data.expected_reviews,
+    data.expected_independent_attention,
+  ];
+  if (
+    counts.some((count) => !Number.isSafeInteger(count) || count < 0) ||
+    !data.cases ||
+    counts.slice(1).some((count) => count > data.cases)
+  )
+    return null;
+  return (
+    <section
+      className="validation-extra policy-preview"
+      aria-labelledby="authored-challenge-title"
+    >
+      <h3 id="authored-challenge-title">Authored operations challenge</h3>
+      <p>
+        Synthetic, self-authored cases; not a blinded real-world evaluation.
+        These {data.cases} cases are separate from the organiser benchmark
+        above.
+      </p>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Check</th>
+              <th>Expected outcomes reproduced</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Strict document verification</td>
+              <td>
+                {data.strict_passed} / {data.cases}
+              </td>
+            </tr>
+            <tr>
+              <td>Independent document checks</td>
+              <td>
+                {data.integrity_passed} / {data.cases}
+              </td>
+            </tr>
+            <tr>
+              <td>Both checks together</td>
+              <td>
+                {data.combined_passed} / {data.cases}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Expected findings: {data.expected_mismatches} document mismatches,{" "}
+        {data.expected_reviews} document reviews and{" "}
+        {data.expected_independent_attention} cases needing independent-check
+        attention. Independent findings can overlap document outcomes.
+      </p>
+      {typeof data.limitations === "string" && <p>{data.limitations}</p>}
+      <details>
+        <summary>Measurement and corpus identity</summary>
+        <p>
+          Measured{" "}
+          {typeof data.measured_at === "string"
+            ? data.measured_at
+            : "Not recorded"}
+        </p>
+        <p className="mono" style={{ overflowWrap: "anywhere" }}>
+          Dataset SHA-256:{" "}
+          {typeof data.dataset_sha256 === "string"
+            ? data.dataset_sha256
+            : "Not recorded"}
+        </p>
+      </details>
+    </section>
+  );
+}
+
 interface ApiPayload {
   workspace?: { mode: string; sample_data: boolean; upload_limit: number };
   loaded_at?: string;
@@ -1816,6 +1915,9 @@ export default function Workbench() {
                         <p>{String(validation.challenge_limitations ?? "")}</p>
                       </details>
                     )}
+                    <AuthoredOperationsChallenge
+                      report={validation.authored_operations_challenge}
+                    />
                     <p className="muted">
                       Measured {String(validation.generated_at ?? "")} ·{" "}
                       {String(validation.version ?? "development corpus")}
