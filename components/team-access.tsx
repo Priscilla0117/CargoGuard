@@ -214,29 +214,22 @@ export function TeamAccess({ children }: { children: ReactNode }) {
     );
   return (
     <AccessContext.Provider value={status}>
-      <div className="team-access-banner">
-        {status.mode === "demo" ? (
+      {status.mode !== "demo" && (
+        <div className="team-access-banner">
           <span>
-            <strong>Isolated synthetic demo.</strong> Names are self-reported;
-            no employee login is configured.
+            <strong>{status.user!.display_name}</strong> · {status.user!.role} ·
+            shared team workspace
           </span>
-        ) : (
-          <>
-            <span>
-              <strong>{status.user!.display_name}</strong> · {status.user!.role}{" "}
-              · shared team workspace
-            </span>
-            <div>
-              <button type="button" onClick={() => setPanel(!panel)}>
-                {panel ? "Close team access" : "Team access"}
-              </button>
-              <button disabled={busy} type="button" onClick={logout}>
-                Sign out
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+          <div>
+            <button type="button" onClick={() => setPanel(!panel)}>
+              {panel ? "Close team access" : "Team access"}
+            </button>
+            <button disabled={busy} type="button" onClick={logout}>
+              Sign out
+            </button>
+          </div>
+        </div>
+      )}
       {error && (
         <p className="team-access-error" role="alert">
           {error}
