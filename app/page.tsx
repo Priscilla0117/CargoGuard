@@ -1,3 +1,15 @@
 import Workbench from "@/components/workbench";
-import { TeamAccess } from "@/components/team-access";
-export default function Home() { return <TeamAccess><Workbench /></TeamAccess>; }
+import { Suspense } from "react";
+export default function Home() {
+  return (
+    <Suspense
+      fallback={
+        <main id="main-content" role="status">
+          Loading work queue…
+        </main>
+      }
+    >
+      <Workbench />
+    </Suspense>
+  );
+}

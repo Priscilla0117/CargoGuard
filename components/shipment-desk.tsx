@@ -7,7 +7,6 @@ import {
   type FormEvent,
 } from "react";
 import Link from "next/link";
-import { WorkspaceNav } from "./workspace-nav";
 import { requestJson } from "@/lib/client-api";
 import {
   approvedComparison,
@@ -71,10 +70,12 @@ export function ShipmentDesk() {
     [query, setQuery] = useState(""),
     [queueFilter, setQueueFilter] = useState("all"),
     [error, setError] = useState(""),
+    [detailError, setDetailError] = useState(""),
     [busy, setBusy] = useState(false),
     [loaded, setLoaded] = useState(false),
     [caseId, setCaseId] = useState(""),
     [candidate, setCandidate] = useState<CaseResult | null>(null),
+    [candidateLoading, setCandidateLoading] = useState(false),
     [actor, setActor] = useState("Demo reviewer"),
     [identity, setIdentity] = useState<{
       id: string;
@@ -84,13 +85,20 @@ export function ShipmentDesk() {
     [now, setNow] = useState(Date.now),
     [tab, setTab] = useState("documents");
   const detailTicket = useRef(0),
+    candidateTicket = useRef(0),
     selectedRef = useRef(selected),
     mutationPending = useRef(false);
   function choose(id: string) {
+    if (selectedRef.current === id) return;
+    detailTicket.current++;
+    candidateTicket.current++;
     selectedRef.current = id;
     setSelected(id);
     setDetail(null);
     setCandidate(null);
+    setCandidateLoading(false);
+    setDetailError("");
+    setError("");
   }
   const refresh = useCallback(async () => {
     const [b, i, t] = await Promise.all([
@@ -108,23 +116,36 @@ export function ShipmentDesk() {
     setLoaded(true);
   }, []);
   const open = useCallback(async (id: string) => {
+    if (selectedRef.current !== id) return;
     const ticket = ++detailTicket.current;
-    const data = await requestJson<Detail>(
-      `/api/shipments?id=${encodeURIComponent(id)}`,
-    );
-    if (ticket === detailTicket.current && selectedRef.current === id) {
-      setDetail(data);
-      setCaseId((current) =>
-        data.cases.some((c) => c.email.email_id === current)
-          ? current
-          : (data.shipment.comparison_case_id ??
-            data.cases[0]?.email.email_id ??
-            ""),
+    setDetailError("");
+    try {
+      const data = await requestJson<Detail>(
+        `/api/shipments?id=${encodeURIComponent(id)}`,
       );
+      if (ticket === detailTicket.current && selectedRef.current === id) {
+        setDetail(data);
+        setCaseId((current) =>
+          data.cases.some((c) => c.email.email_id === current)
+            ? current
+            : (data.shipment.comparison_case_id ??
+              data.cases[0]?.email.email_id ??
+              ""),
+        );
+      }
+    } catch (error) {
+      if (ticket === detailTicket.current && selectedRef.current === id) {
+        setDetailError(
+          error instanceof Error
+            ? error.message
+            : "Shipment could not be loaded.",
+        );
+      }
     }
   }, []);
   useEffect(() => {
     let live = true;
+    const candidateRequests = candidateTicket;
     Promise.resolve()
       .then(() => {
         if (live) return refresh();
@@ -142,11 +163,20 @@ export function ShipmentDesk() {
       });
     return () => {
       live = false;
+      candidateRequests.current++;
     };
   }, [refresh]);
   useEffect(() => {
-    if (selected) open(selected).catch((e) => setError(e.message));
-    else detailTicket.current++;
+    let active = true;
+    const detailRequests = detailTicket;
+    if (selected)
+      void Promise.resolve().then(() => {
+        if (active) return open(selected);
+      });
+    return () => {
+      active = false;
+      detailRequests.current++;
+    };
   }, [selected, open]);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30000);
@@ -257,7 +287,6 @@ export function ShipmentDesk() {
       tabIndex={-1}
       aria-labelledby="shipment-page-title"
     >
-      <WorkspaceNav active="/shipments" />
       <header className="shipment-top">
         <div>
           <p className="eyebrow">CARGOGUARD / OPERATIONS</p>
@@ -294,6 +323,14 @@ export function ShipmentDesk() {
             }}
           >
             Load latest saved state
+          </button>
+        </div>
+      )}
+      {detailError && (
+        <div role="alert" className="shipment-error">
+          {detailError}{" "}
+          <button disabled={busy} onClick={() => void open(selected)}>
+            Retry shipment
           </button>
         </div>
       )}
@@ -464,17 +501,21 @@ export function ShipmentDesk() {
           {!shipment && (
             <div
               className="shipment-card shipment-welcome"
-              role={selected ? "status" : undefined}
+              role={selected && !detailError ? "status" : undefined}
             >
               <h2>
                 {selected
-                  ? "Loading shipment…"
+                  ? detailError
+                    ? "Shipment could not be loaded"
+                    : "Loading shipment…"
                   : "One place for the correction cycle"}
               </h2>
               <p>
-                Select a shipment or create one. Link the request, source
-                documents and later replies with their evidence. Conflicting
-                references require your review.
+                {selected
+                  ? detailError
+                    ? "Retry this shipment using the message above, or select another shipment."
+                    : "Reading the saved documents, decisions and shipment history…"
+                  : "Select a shipment or create one. Link the request, source documents and later replies with their evidence. Conflicting references require your review."}
               </p>
               {!selected && (
                 <ol className="shipment-welcome-steps">
@@ -621,6 +662,10 @@ export function ShipmentDesk() {
                     <form
                       onSubmit={async (e) => {
                         const v = values(e);
+                        const shipmentId = selectedRef.current;
+                        const ticket = ++candidateTicket.current;
+                        setCandidate(null);
+                        setCandidateLoading(true);
                         try {
                           setError("");
                           const data = await requestJson<{
@@ -628,19 +673,39 @@ export function ShipmentDesk() {
                           }>(
                             `/api/shipments?candidate=${encodeURIComponent(v.case_id)}`,
                           );
-                          setCandidate(data.result);
+                          if (
+                            ticket === candidateTicket.current &&
+                            selectedRef.current === shipmentId
+                          )
+                            setCandidate(data.result);
                         } catch (err) {
-                          setError(
-                            err instanceof Error
-                              ? err.message
-                              : "Case could not be loaded.",
-                          );
+                          if (
+                            ticket === candidateTicket.current &&
+                            selectedRef.current === shipmentId
+                          ) {
+                            setError(
+                              err instanceof Error
+                                ? err.message
+                                : "Case could not be loaded.",
+                            );
+                          }
+                        } finally {
+                          if (
+                            ticket === candidateTicket.current &&
+                            selectedRef.current === shipmentId
+                          )
+                            setCandidateLoading(false);
                         }
                       }}
                     >
                       <label>
                         Inspect a processed case before linking
-                        <select name="case_id" required>
+                        <select
+                          name="case_id"
+                          required
+                          disabled={busy || candidateLoading}
+                          onChange={() => setCandidate(null)}
+                        >
                           <option value="">Choose a case…</option>
                           {inbox
                             .filter(
@@ -658,8 +723,18 @@ export function ShipmentDesk() {
                             ))}
                         </select>
                       </label>
-                      <button disabled={busy}>Inspect proposed link</button>
+                      <button disabled={busy || candidateLoading}>
+                        {candidateLoading
+                          ? "Loading case evidence…"
+                          : "Inspect proposed link"}
+                      </button>
                     </form>
+                    {candidateLoading && (
+                      <p role="status">
+                        Reading the proposed case before linking it to this
+                        shipment…
+                      </p>
+                    )}
                     {candidate && (
                       <div className="shipment-proposal">
                         <h4>{candidate.email.subject}</h4>

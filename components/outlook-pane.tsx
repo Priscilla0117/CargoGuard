@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Script from "next/script";
-import { WorkspaceNav } from "./workspace-nav";
 import { requestJson } from "@/lib/client-api";
+import { loadOfficeRuntime } from "@/lib/office-runtime";
 import type { ShipmentTask } from "@/lib/shipments";
 import type { MicrosoftDispatch } from "@/lib/microsoft-storage";
 import type { MicrosoftMessagePreview } from "@/lib/microsoft-message";
@@ -34,10 +33,12 @@ export function MicrosoftConnection({
 }) {
   const [status, setStatus] = useState<ConnectionStatus | null>(null),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(true);
   const generation = useRef(0);
   const refresh = useCallback(async () => {
     const request = ++generation.current;
+    setBusy(true);
+    setError("");
     try {
       const current = await requestJson<ConnectionStatus>("/api/microsoft");
       if (request !== generation.current) return;
@@ -143,7 +144,18 @@ export function MicrosoftConnection({
           </div>
         </>
       ) : (
-        <p>Checking connection…</p>
+        <>
+          <p role={busy ? "status" : undefined}>
+            {busy
+              ? "Checking connection…"
+              : "Connection status is unavailable."}
+          </p>
+          {!busy && (
+            <button type="button" onClick={() => void refresh()}>
+              Retry connection
+            </button>
+          )}
+        </>
       )}
       {error && (
         <p role="alert" className="microsoft-error">
@@ -433,13 +445,25 @@ export function OutlookPane() {
     [busy, setBusy] = useState(false),
     [reviewed, setReviewed] = useState(false),
     [caseId, setCaseId] = useState<string | null>(null);
-  function loaded() {
-    (window as OfficeWindow).Office?.onReady((info) =>
-      setOfficeReady(info.host === "Outlook"),
-    );
-  }
+  useEffect(() => {
+    let active = true;
+    void loadOfficeRuntime(window, document)
+      .then(() => {
+        if (!active) return;
+        (window as OfficeWindow).Office?.onReady((info) => {
+          if (active) setOfficeReady(info.host === "Outlook");
+        });
+      })
+      .catch((error: unknown) => {
+        if (active) setError(failure(error));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
   async function readSelected() {
     setError("");
+    setSelected(null);
     setPreview(null);
     setReviewed(false);
     setCaseId(null);
@@ -483,7 +507,9 @@ export function OutlookPane() {
     if (!selected) return;
     setBusy(true);
     setError("");
+    setPreview(null);
     setReviewed(false);
+    setCaseId(null);
     try {
       const response = await requestJson<{ message: MicrosoftMessagePreview }>(
         `/api/microsoft/message?id=${encodeURIComponent(selected.id)}`,
@@ -513,17 +539,6 @@ export function OutlookPane() {
   }
   return (
     <main className="outlook-workspace" id="main-content" tabIndex={-1}>
-      <WorkspaceNav active="/outlook" />
-      <Script
-        src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"
-        strategy="afterInteractive"
-        onLoad={loaded}
-        onError={() =>
-          setError(
-            "Office runtime is unavailable. The regular CargoGuard workspace remains available.",
-          )
-        }
-      />
       <header>
         <p className="outlook-eyebrow">CargoGuard · Outlook workspace</p>
         <h1>Review the selected shipment email</h1>

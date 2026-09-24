@@ -5,10 +5,20 @@ import { effectiveFollowUp, type FollowUp } from "@/lib/follow-up";
 import { PolicyDesk } from "./policy-desk";
 import { DecisionHistory } from "./decision-history";
 import type { PolicySnapshot } from "@/lib/policy";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { WorkspaceNav } from "./workspace-nav";
-import { useTeamAccess } from "./team-access";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+  type SetStateAction,
+} from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  parseWorkbenchSearch,
+  workbenchHref,
+} from "@/lib/workspace-navigation";
 import { requestJson, requestInbox, latencySummary } from "@/lib/client-api";
 import { previewCorrection } from "@/lib/corrections";
 import { CorrectionPreview } from "./correction-preview";
@@ -44,7 +54,6 @@ import { laneFor, LANE_DETAILS, shiftBrief } from "@/lib/operations";
 import { canTranscribe } from "@/lib/transcription";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { Sidebar, SidebarProvider } from "@/components/ui/sidebar";
 import {
   Table,
   TableHeader,
@@ -86,7 +95,6 @@ import {
   Square,
   Printer,
   Info,
-  Settings2,
   MessageSquareText,
 } from "lucide-react";
 import {
@@ -279,16 +287,20 @@ function download(name: string, data: string, type = "application/json") {
 }
 
 export default function Workbench() {
-  const access = useTeamAccess();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { view, caseId: citedCaseId } = parseWorkbenchSearch(searchParams);
+  const setView = useCallback(
+    (next: SetStateAction<View>) => {
+      router.push(
+        workbenchHref(typeof next === "function" ? next(view) : next),
+        { scroll: false },
+      );
+    },
+    [router, view],
+  );
   const [workspaceConfig, setWorkspaceConfig] =
     useState<ApiPayload["workspace"]>();
-  const employeeName = access?.user?.display_name ?? "Operations";
-  const initials = employeeName
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
   const [followups, setFollowups] = useState<FollowUpMap>({});
   const [followupsReady, setFollowupsReady] = useState(false);
   const [followupsLoading, setFollowupsLoading] = useState(false);
@@ -343,8 +355,7 @@ export default function Workbench() {
     [intakeFiles, setIntakeFiles] = useState<File[]>([]),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
-  const [view, setView] = useState<View>("inbox"),
-    [search, setSearch] = useState(""),
+  const [search, setSearch] = useState(""),
     [filter, setFilter] = useState("all"),
     [category, setCategory] = useState("all"),
     [limit, setLimit] = useState(30);
@@ -403,10 +414,9 @@ export default function Workbench() {
     return result;
   }, []);
   const activeRequest = useRef(createRequestGate());
-  const deepLinkHandled = useRef(false);
   const inboxRequests = useRef(createRequestGate());
   const inboxController = useRef<AbortController | null>(null);
-  function closeCase() {
+  const clearCase = useCallback(() => {
     activeRequest.current.cancel();
     selectedCaseId.current = null;
     setSelected(null);
@@ -415,6 +425,10 @@ export default function Workbench() {
     setEdit(null);
     setRouteEdit(false);
     setBusyId("");
+  }, []);
+  function closeCase() {
+    clearCase();
+    if (citedCaseId) router.replace(workbenchHref(view), { scroll: false });
   }
   const load = useCallback(async () => {
     const request = inboxRequests.current.next();
@@ -469,35 +483,6 @@ export default function Workbench() {
           setInboxReady(true);
           setLastSync(d.loaded_at ?? new Date().toISOString());
           setRefreshFailed(false);
-          // Source citations open saved evidence; visiting a link never processes mail.
-          if (!deepLinkHandled.current) {
-            deepLinkHandled.current = true;
-            const id = new URLSearchParams(window.location.search).get("case");
-            if (
-              id &&
-              d.cases.some((c) => c.email.email_id === id && c.result)
-            ) {
-              const ticket = activeRequest.current.next();
-              requestJson<ApiPayload>(
-                `/api/cases?id=${encodeURIComponent(id)}`,
-                { signal: controller.signal },
-              )
-                .then((data) => {
-                  if (active && activeRequest.current.isCurrent(ticket)) {
-                    selectedCaseId.current = id;
-                    setSelected(data.result);
-                    setCaseEvents(data.audit);
-                  }
-                })
-                .catch((e) => {
-                  if (active && activeRequest.current.isCurrent(ticket))
-                    setError(e.message);
-                });
-            } else if (id)
-              setError(
-                "The cited case is not processed or is unavailable in this workspace.",
-              );
-          }
           void loadFollowups();
           setLatencies((prev) => [
             ...prev.slice(-199),
@@ -529,6 +514,52 @@ export default function Workbench() {
       cancel.current = true;
     };
   }, [loadFollowups]);
+  // Citation navigation only reads saved evidence. Processing remains an explicit action.
+  const readCitation = useEffectEvent(
+    async (id: string | null, signal: AbortSignal) => {
+      if (signal.aborted || (id && id === selectedCaseId.current)) return;
+      clearCase();
+      if (!id) return;
+      const request = activeRequest.current.next();
+      setBusyId(id);
+      setError("");
+      try {
+        const data = await requestJson<ApiPayload>(
+          `/api/cases?id=${encodeURIComponent(id)}`,
+          { signal, cache: "no-store" },
+        );
+        if (!signal.aborted && activeRequest.current.isCurrent(request)) {
+          selectedCaseId.current = id;
+          setSelected(data.result);
+          setCaseEvents(data.audit);
+          setSourceLocation("");
+          setDetailTab("comparison");
+          setEmailOpen(false);
+          setResolutionOpen(false);
+          setAttentionOnly(false);
+        }
+      } catch (e) {
+        if (!signal.aborted && activeRequest.current.isCurrent(request))
+          setError(
+            `The cited case could not be opened. ${(e as Error).message}`,
+          );
+      } finally {
+        if (!signal.aborted && activeRequest.current.isCurrent(request))
+          setBusyId("");
+      }
+    },
+  );
+  useEffect(() => {
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      void readCitation(citedCaseId, controller.signal);
+    });
+    const gate = activeRequest.current;
+    return () => {
+      controller.abort();
+      gate.cancel();
+    };
+  }, [citedCaseId, view]);
   useEffect(() => {
     const timer = setInterval(() => setQueueNow(Date.now()), 30000);
     return () => clearInterval(timer);
@@ -687,7 +718,7 @@ export default function Workbench() {
   ) {
     if (!continueQueue)
       setQueueSession(visible.map((row) => row.email.email_id));
-    closeCase();
+    clearCase();
     const request = activeRequest.current.next();
     setBusyId(id);
     setError("");
@@ -720,6 +751,9 @@ export default function Workbench() {
         setCaseEvents(history);
         navigateDetail(tab);
         setAttentionOnly(false);
+        router.push(workbenchHref(view, result.email.email_id), {
+          scroll: false,
+        });
       }
     } catch (e) {
       if (activeRequest.current.isCurrent(request))
@@ -885,6 +919,9 @@ export default function Workbench() {
       if (!activeRequest.current.isCurrent(request)) return;
       selectedCaseId.current = d.result.email.email_id;
       setSelected(d.result);
+      router.replace(workbenchHref(view, d.result.email.email_id), {
+        scroll: false,
+      });
       navigateDetail(
         d.result.documents.length > 2 ? "documents" : "comparison",
       );
@@ -980,8 +1017,8 @@ export default function Workbench() {
     }
   }
   const nav = (v: View) => {
+    clearCase();
     setView(v);
-    closeCase();
     window.scrollTo({ top: 0, behavior: "instant" });
   };
   function openQueue(outcome: string) {
@@ -992,1039 +1029,911 @@ export default function Workbench() {
   }
   useCargoTools({ cases, setSearch, setView, setFilter, setCategory });
   return (
-    <SidebarProvider className="app-shell">
-      <Sidebar collapsible="none" className="sidebar">
-        <Link className="brand" href="/" aria-label="CargoGuard home">
-          <span className="brand-symbol">
-            <ShieldCheck size={25} />
-          </span>
-          <span>
-            CargoGuard<span className="brand-sub">SHIPPING INTELLIGENCE</span>
-          </span>
-        </Link>
-        <div className="workspace-label">
-          WORKSPACE <span>01</span>
-        </div>
-        <nav aria-label="Work queue views">
-          <button
-            className={view === "inbox" ? "active" : ""}
-            aria-current={view === "inbox" ? "page" : undefined}
-            onClick={() => nav("inbox")}
-          >
-            <Inbox size={19} />
-            Work queue<span>{cases.length || "—"}</span>
-          </button>
-          <button
-            className={
-              view === "performance" || view === "activity" ? "active" : ""
-            }
-            aria-current={
-              view === "performance" || view === "activity" ? "page" : undefined
-            }
-            onClick={() => nav("performance")}
-          >
-            <BarChart3 size={19} />
-            Reports
-          </button>
-          <button
-            className={`settings-nav ${view === "policies" ? "active" : ""}`}
-            aria-current={view === "policies" ? "page" : undefined}
-            onClick={() => nav("policies")}
-          >
-            <Settings2 size={19} />
-            Settings
-          </button>
-        </nav>
-        <div className="sidebar-info">
-          <span className="eyebrow">
-            {access?.mode === "team" ? "TEAM WORKSPACE" : "SAMPLE WORKSPACE"}
-          </span>
-          <div>
-            <Layers3 size={16} />{" "}
-            {workspaceConfig?.sample_data
-              ? "Sample inbox enabled"
-              : "Imported shipping records"}
+    <>
+      <main id="main-content" tabIndex={-1} data-workspace-view={view}>
+        {error && (
+          <div className="alert error" role="alert">
+            <TriangleAlert size={18} />
+            <span>{error}</span>
+            <button onClick={() => setError("")} aria-label="Dismiss error">
+              <X size={17} />
+            </button>
           </div>
-          <p>
-            {cases.length} cases · {counts.processed} processed
-            <br />
-            TXT, PDF, Word & Excel
-          </p>
-          <div className="sidebar-progress">
-            <i
-              style={{
-                width: `${(counts.processed / Math.max(cases.length, 1)) * 100}%`,
-              }}
-            />
+        )}
+        {notice && (
+          <div className="toast" role="status">
+            <CheckCircle2 size={18} />
+            {notice}
+            <button
+              onClick={() => setNotice("")}
+              aria-label="Dismiss notification"
+            >
+              <X size={16} />
+            </button>
           </div>
-          <small>
-            {workspaceConfig
-              ? `${workspaceConfig.upload_limit.toLocaleString()} imported-case capacity`
-              : "Loading workspace settings…"}
-          </small>
-        </div>
-        <div className="sidebar-bottom">
-          <div className="averis-word">
-            averis
+        )}
+        <div
+          className="queue-sync-status"
+          aria-label="Workspace refresh status"
+        >
+          <span
+            className={`environment ${refreshFailed ? "sync-failed" : ""}`}
+            title={
+              lastSync
+                ? `Last complete inbox read: ${new Date(lastSync).toLocaleString()}. This is not a continuous health check.`
+                : "Loading cloud workspace"
+            }
+          >
             <span />
-          </div>
-          <p>
-            Built for Averis × Monash
-            <br />
-            Hackathon 2026
-          </p>
-          <div className="avatar-line">
-            <span className="avatar" aria-hidden="true">
-              {initials}
-            </span>
-            <span>
-              {employeeName}
-              <small>
-                {access?.user
-                  ? `${access.user.role} · Shared team`
-                  : "Isolated working session"}
-              </small>
-            </span>
-          </div>
+            {loading
+              ? "Syncing workspace…"
+              : refreshFailed
+                ? "Refresh unavailable"
+                : lastSync
+                  ? `Synced ${new Date(lastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                  : "Not yet synced"}
+          </span>
+          <button
+            className="icon-button"
+            onClick={refreshWorkspace}
+            title="Refresh workspace"
+            aria-label="Refresh workspace"
+            disabled={loading}
+          >
+            <RefreshCw size={17} />
+          </button>
         </div>
-      </Sidebar>
-      <div className="main-shell">
-        <header className="topbar">
-          <div className="breadcrumb">
-            Operations <ChevronRight size={14} />
-            <strong>
+        <div className="page-heading">
+          <div>
+            <h1>
               {view === "inbox"
                 ? "Work queue"
                 : view === "policies"
-                  ? "Settings"
-                  : "Reports"}
-            </strong>
+                  ? "Workspace settings"
+                  : "Reports & evidence"}
+            </h1>
+            <p>
+              {view === "inbox"
+                ? "Inspect the evidence. Resolve the next case."
+                : view === "policies"
+                  ? "Versioned policies and cloud AI availability."
+                  : "Workspace results, validation and recorded decisions."}
+            </p>
           </div>
-          <div className="topbar-right">
-            <span
-              className={`environment ${refreshFailed ? "sync-failed" : ""}`}
-              title={
-                lastSync
-                  ? `Last complete inbox read: ${new Date(lastSync).toLocaleString()}. This is not a continuous health check.`
-                  : "Loading cloud workspace"
-              }
-            >
-              <span />
-              {loading
-                ? "Syncing workspace…"
-                : refreshFailed
-                  ? "Refresh unavailable"
-                  : lastSync
-                    ? `Synced ${new Date(lastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                    : "Not yet synced"}
-            </span>
-            <button
-              className="icon-button"
-              onClick={refreshWorkspace}
-              title="Refresh workspace"
-              aria-label="Refresh workspace"
-              disabled={loading}
-            >
-              <RefreshCw size={17} />
-            </button>
-            <span className="avatar small" title={employeeName}>
-              {initials}
-            </span>
-          </div>
-        </header>
-        <WorkspaceNav active="/" />
-        <main id="main-content" tabIndex={-1} data-workspace-view={view}>
-          {error && (
-            <div className="alert error" role="alert">
-              <TriangleAlert size={18} />
-              <span>{error}</span>
-              <button onClick={() => setError("")} aria-label="Dismiss error">
-                <X size={17} />
-              </button>
-            </div>
-          )}
-          {notice && (
-            <div className="toast" role="status">
-              <CheckCircle2 size={18} />
-              {notice}
+          {view === "inbox" && (
+            <div className="heading-actions">
               <button
-                onClick={() => setNotice("")}
-                aria-label="Dismiss notification"
+                className="button secondary"
+                disabled={loading || !inboxReady}
+                onClick={() => {
+                  setReplacement(null);
+                  setIntakeFiles([]);
+                  setUpload(true);
+                }}
               >
-                <X size={16} />
+                <Plus size={17} />
+                Import email
+              </button>
+              <button
+                className="button primary"
+                onClick={processAll}
+                disabled={
+                  loading ||
+                  !inboxReady ||
+                  (!running && counts.processed === cases.length && !outdated)
+                }
+              >
+                {running ? <Square size={14} /> : <Play size={16} />}{" "}
+                {running
+                  ? "Pause processing"
+                  : counts.processed === cases.length && !outdated && inboxReady
+                    ? "Inbox up to date"
+                    : "Run inbox"}
               </button>
             </div>
           )}
-          <div className="page-heading">
-            <div>
-              <h1>
-                {view === "inbox"
-                  ? "Work queue"
-                  : view === "policies"
-                    ? "Workspace settings"
-                    : "Reports & evidence"}
-              </h1>
-              <p>
-                {view === "inbox"
-                  ? "Inspect the evidence. Resolve the next case."
-                  : view === "policies"
-                    ? "Versioned policies and cloud AI availability."
-                    : "Workspace results, validation and recorded decisions."}
-              </p>
-            </div>
-            {view === "inbox" && (
-              <div className="heading-actions">
-                <button
-                  className="button secondary"
-                  disabled={loading || !inboxReady}
-                  onClick={() => {
-                    setReplacement(null);
-                    setIntakeFiles([]);
-                    setUpload(true);
-                  }}
-                >
-                  <Plus size={17} />
-                  Import email
-                </button>
-                <button
-                  className="button primary"
-                  onClick={processAll}
-                  disabled={
-                    loading ||
-                    !inboxReady ||
-                    (!running && counts.processed === cases.length && !outdated)
-                  }
-                >
-                  {running ? <Square size={14} /> : <Play size={16} />}{" "}
-                  {running
-                    ? "Pause processing"
-                    : counts.processed === cases.length &&
-                        !outdated &&
-                        inboxReady
-                      ? "Inbox up to date"
-                      : "Run inbox"}
-                </button>
-              </div>
-            )}
+        </div>
+        {!inboxReady && !loading && (
+          <div className="alert warning" role="status">
+            Load the workspace before creating or processing cases. Use Refresh
+            to retry.
           </div>
-          {!inboxReady && !loading && (
-            <div className="alert warning" role="status">
-              Load the workspace before creating or processing cases. Use
-              Refresh to retry.
-            </div>
+        )}
+        {view === "inbox" &&
+          inboxReady &&
+          cases.some((item) => item.result?.workflow === "verified") && (
+            <BatchReview
+              onCompleted={() => {
+                void load();
+                void loadFollowups();
+              }}
+            />
           )}
-          {view === "inbox" &&
-            inboxReady &&
-            cases.some((item) => item.result?.workflow === "verified") && (
-              <BatchReview
-                onCompleted={() => {
-                  void load();
-                  void loadFollowups();
+        {inboxReady && refreshFailed && (
+          <div className="alert warning" role="status">
+            Showing previously loaded results. Refresh is unavailable; saved
+            changes are not discarded. Retry when the cloud service is ready.
+          </div>
+        )}
+        {!!outdated && (
+          <div className="alert warning">
+            <Info size={18} />
+            <p>
+              {outdated} saved cases use an older engine. Run inbox to upgrade
+              them safely. Human field corrections are retained when source
+              fingerprints match.
+            </p>
+          </div>
+        )}
+        {running && (
+          <div className="run-progress" role="status">
+            <Loader2 size={17} className="spin" />
+            <span>Processing emails and reading documents</span>
+            <strong>
+              {progress.done} / {progress.total}
+            </strong>
+            <div>
+              <i
+                style={{
+                  width: `${(progress.done / Math.max(1, progress.total)) * 100}%`,
                 }}
               />
-            )}
-          {inboxReady && refreshFailed && (
-            <div className="alert warning" role="status">
-              Showing previously loaded results. Refresh is unavailable; saved
-              changes are not discarded. Retry when the cloud service is ready.
             </div>
-          )}
-          {!!outdated && (
-            <div className="alert warning">
-              <Info size={18} />
-              <p>
-                {outdated} saved cases use an older engine. Run inbox to upgrade
-                them safely. Human field corrections are retained when source
-                fingerprints match.
-              </p>
-            </div>
-          )}
-          {running && (
-            <div className="run-progress" role="status">
-              <Loader2 size={17} className="spin" />
-              <span>Processing emails and reading documents</span>
+          </div>
+        )}
+        {(view === "performance" || view === "activity") && (
+          <div className="report-switch" aria-label="Report sections">
+            <button
+              className={view === "performance" ? "active" : ""}
+              aria-pressed={view === "performance"}
+              onClick={() => nav("performance")}
+            >
+              <BarChart3 size={16} /> Performance
+            </button>
+            <button
+              className={view === "activity" ? "active" : ""}
+              aria-pressed={view === "activity"}
+              onClick={() => {
+                nav("activity");
+                refreshWorkspace();
+              }}
+            >
+              <History size={16} /> Audit trail
+            </button>
+          </div>
+        )}
+        {view === "performance" && (
+          <div className="metric-grid">
+            <button className="metric" onClick={() => openQueue("all")}>
+              <span>
+                Emails processed
+                <Inbox size={18} />
+              </span>
               <strong>
-                {progress.done} / {progress.total}
+                {counts.processed.toLocaleString()}
+                <small>/ {cases.length || 520}</small>
               </strong>
               <div>
-                <i
-                  style={{
-                    width: `${(progress.done / Math.max(1, progress.total)) * 100}%`,
-                  }}
-                />
+                <span className="neutral-dot" />
+                {counts.processed === cases.length && cases.length
+                  ? "Inbox is up to date"
+                  : "Ready for verification"}
               </div>
-            </div>
-          )}
-          {(view === "performance" || view === "activity") && (
-            <div className="report-switch" aria-label="Report sections">
-              <button
-                className={view === "performance" ? "active" : ""}
-                aria-pressed={view === "performance"}
-                onClick={() => nav("performance")}
-              >
-                <BarChart3 size={16} /> Performance
-              </button>
-              <button
-                className={view === "activity" ? "active" : ""}
-                aria-pressed={view === "activity"}
-                onClick={() => {
-                  nav("activity");
-                  refreshWorkspace();
-                }}
-              >
-                <History size={16} /> Audit trail
-              </button>
-            </div>
-          )}
-          {view === "performance" && (
-            <div className="metric-grid">
-              <button className="metric" onClick={() => openQueue("all")}>
-                <span>
-                  Emails processed
-                  <Inbox size={18} />
-                </span>
-                <strong>
-                  {counts.processed.toLocaleString()}
-                  <small>/ {cases.length || 520}</small>
-                </strong>
-                <div>
-                  <span className="neutral-dot" />
-                  {counts.processed === cases.length && cases.length
-                    ? "Inbox is up to date"
-                    : "Ready for verification"}
-                </div>
-              </button>
-              <button
-                className="metric"
-                onClick={() => openQueue("discrepancy")}
-              >
-                <span>
-                  Discrepancies
-                  <TriangleAlert size={18} />
-                </span>
-                <strong>
-                  {queueCounts.discrepancy.toLocaleString()}
-                  <small>cases</small>
-                </strong>
-                <div className="orange-text">
-                  {cases.reduce(
-                    (s, c) => s + (c.result?.defect_fields.length ?? 0),
-                    0,
-                  )}{" "}
-                  fields need attention
-                </div>
-              </button>
-              <button className="metric" onClick={() => openQueue("verified")}>
-                <span>
-                  Verified documents
-                  <FileCheck2 size={18} />
-                </span>
-                <strong>
-                  {queueCounts.verified.toLocaleString()}
-                  <small>pairs</small>
-                </strong>
-                <div className="green-text">
-                  <CheckCheck size={14} /> All seven fields matched
-                </div>
-              </button>
-              <button className="metric" onClick={() => openQueue("review")}>
-                <span>
-                  Recover evidence
-                  <Eye size={18} />
-                </span>
-                <strong>
-                  {queueCounts.review.toLocaleString()}
-                  <small>cases</small>
-                </strong>
-                <div>
-                  {queueCounts.awaiting_documents} need documents separately
-                </div>
-              </button>
-            </div>
-          )}
-          {view === "inbox" && (
-            <>
-              <section className="inbox-panel">
-                <div className="table-toolbar">
-                  <div className="filter-tabs" aria-label="Filter by outcome">
-                    {QUEUE_FILTERS.map(([key, label]) => (
-                      <button
-                        key={key}
-                        className={`queue-card queue-${key} ${filter === key ? "selected" : ""}`}
-                        aria-pressed={filter === key}
-                        onClick={() => setFilter(key)}
-                      >
-                        <span className="queue-card-label">
-                          {key === "all" ? (
-                            <Inbox size={15} />
-                          ) : key === "action" ? (
-                            <Layers3 size={15} />
-                          ) : key === "discrepancy" ? (
-                            <TriangleAlert size={15} />
-                          ) : key === "review" ? (
-                            <Eye size={15} />
-                          ) : key === "awaiting_documents" ? (
-                            <Paperclip size={15} />
-                          ) : (
-                            <ShieldCheck size={15} />
-                          )}
-                          {label}
-                        </span>
-                        <strong>
-                          {loading && !inboxReady ? "—" : queueCounts[key]}
-                        </strong>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="table-tools">
-                    <label className="search-input">
-                      <Search size={16} />
-                      <input
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search case, owner, reference…"
-                        aria-label="Search emails"
-                      />
-                      {search && (
-                        <button
-                          onClick={() => setSearch("")}
-                          aria-label="Clear search"
-                        >
-                          <X size={14} />
-                        </button>
-                      )}
-                    </label>
-                    <label className="category-filter">
-                      <SlidersHorizontal size={16} />
-                      <select
-                        aria-label="Email category"
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                      >
-                        <option value="all">All categories</option>
-                        {CATEGORIES.map((c) => (
-                          <option key={c} value={c}>
-                            {categoryNames[c]}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <select
-                      className="other-queues"
-                      aria-label="Additional queues"
-                      value={
-                        filter === "pending" || filter === "routed"
-                          ? filter
-                          : ""
-                      }
-                      onChange={(event) =>
-                        setFilter(event.target.value || "all")
-                      }
-                    >
-                      <option value="">Other queues</option>
-                      <option value="pending">
-                        Process / recheck ({queueCounts.pending})
-                      </option>
-                      <option value="routed">
-                        Other desks ({queueCounts.routed})
-                      </option>
-                    </select>
-                  </div>
-                </div>
-                <div
-                  className="follow-up-filters"
-                  aria-label="Filter by follow-up"
-                >
-                  <span>Follow-up</span>
-                  {FOLLOW_UP_FILTERS.map(([key, label]) => (
+            </button>
+            <button className="metric" onClick={() => openQueue("discrepancy")}>
+              <span>
+                Discrepancies
+                <TriangleAlert size={18} />
+              </span>
+              <strong>
+                {queueCounts.discrepancy.toLocaleString()}
+                <small>cases</small>
+              </strong>
+              <div className="orange-text">
+                {cases.reduce(
+                  (s, c) => s + (c.result?.defect_fields.length ?? 0),
+                  0,
+                )}{" "}
+                fields need attention
+              </div>
+            </button>
+            <button className="metric" onClick={() => openQueue("verified")}>
+              <span>
+                Verified documents
+                <FileCheck2 size={18} />
+              </span>
+              <strong>
+                {queueCounts.verified.toLocaleString()}
+                <small>pairs</small>
+              </strong>
+              <div className="green-text">
+                <CheckCheck size={14} /> All seven fields matched
+              </div>
+            </button>
+            <button className="metric" onClick={() => openQueue("review")}>
+              <span>
+                Recover evidence
+                <Eye size={18} />
+              </span>
+              <strong>
+                {queueCounts.review.toLocaleString()}
+                <small>cases</small>
+              </strong>
+              <div>
+                {queueCounts.awaiting_documents} need documents separately
+              </div>
+            </button>
+          </div>
+        )}
+        {view === "inbox" && (
+          <>
+            <section className="inbox-panel">
+              <div className="table-toolbar">
+                <div className="filter-tabs" aria-label="Filter by outcome">
+                  {QUEUE_FILTERS.map(([key, label]) => (
                     <button
                       key={key}
-                      className={filter === key ? "selected" : ""}
+                      className={`queue-card queue-${key} ${filter === key ? "selected" : ""}`}
                       aria-pressed={filter === key}
-                      disabled={!followupsReady}
-                      onClick={() => setFilter(filter === key ? "all" : key)}
+                      onClick={() => setFilter(key)}
                     >
-                      {label} <b>{followupsReady ? queueCounts[key] : "—"}</b>
+                      <span className="queue-card-label">
+                        {key === "all" ? (
+                          <Inbox size={15} />
+                        ) : key === "action" ? (
+                          <Layers3 size={15} />
+                        ) : key === "discrepancy" ? (
+                          <TriangleAlert size={15} />
+                        ) : key === "review" ? (
+                          <Eye size={15} />
+                        ) : key === "awaiting_documents" ? (
+                          <Paperclip size={15} />
+                        ) : (
+                          <ShieldCheck size={15} />
+                        )}
+                        {label}
+                      </span>
+                      <strong>
+                        {loading && !inboxReady ? "—" : queueCounts[key]}
+                      </strong>
                     </button>
                   ))}
-                  {followupsLoading && (
-                    <span role="status">Refreshing follow-ups…</span>
-                  )}
                 </div>
-                {followupsError && (
-                  <div className="follow-up-notice error" role="alert">
-                    <span>
-                      {followupsError}{" "}
-                      {followupsReady
-                        ? "Showing the last loaded follow-ups."
-                        : "Follow-up queues are unavailable."}
-                    </span>
-                    <button
-                      className="text-button"
-                      disabled={followupsLoading}
-                      onClick={() => void loadFollowups()}
-                    >
-                      Retry
-                    </button>
-                  </div>
-                )}
-                <div className="queue-caption">
-                  <span>
-                    {visible.length} matching cases · recorded deadlines, then
-                    action
-                  </span>
-                  <span>
-                    Counts above cover this workspace · checked ≠ cargo release
-                  </span>
-                </div>
-                <div className="table-scroll">
-                  <Table className="email-table">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>EMAIL / CASE</TableHead>
-                        <TableHead>CATEGORY</TableHead>
-                        <TableHead>STATUS</TableHead>
-                        <TableHead>NEXT ACTION</TableHead>
-                        <TableHead aria-label="Open case" />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {visible.slice(0, shownLimit).map((c) => (
-                        <TableRow
-                          key={c.email.email_id}
-                          className={
-                            c.result?.workflow === "discrepancy"
-                              ? "attention-row"
-                              : ""
-                          }
-                          onClick={() => void openCase(c.email.email_id)}
-                        >
-                          <TableCell>
-                            <button
-                              className="email-title"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void openCase(c.email.email_id);
-                              }}
-                            >
-                              <span
-                                className={`mail-icon ${c.result?.workflow ?? ""}`}
-                              >
-                                <FileText size={19} />
-                              </span>
-                              <span>
-                                <strong title={c.email.subject}>
-                                  {shortSubject(c.email.subject)}
-                                </strong>
-                                <small>
-                                  <span className="mono">
-                                    {c.email.email_id.replace("email_", "#")}
-                                  </span>
-                                  <span className="separator-dot">·</span>
-                                  {c.email.from}
-                                </small>
-                                {followups[c.email.email_id]
-                                  ?.shipment_reference && (
-                                  <span className="queue-follow-up-reference">
-                                    Ref:{" "}
-                                    {
-                                      followups[c.email.email_id]
-                                        .shipment_reference
-                                    }
-                                  </span>
-                                )}
-                              </span>
-                            </button>
-                          </TableCell>
-                          <TableCell>
-                            <span className="category-label">
-                              {c.result
-                                ? categoryNames[c.result.category]
-                                : "—"}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <Status value={c.result?.workflow ?? "pending"} />
-                            {!!c.result?.defect_fields.length && (
-                              <small className="field-count">
-                                {c.result.defect_fields.length}{" "}
-                                {c.result.defect_fields.length === 1
-                                  ? "field differs"
-                                  : "fields differ"}
-                              </small>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <span className="queue-next-action">
-                              {LANE_DETAILS[laneFor(c)].action}
-                            </span>
-                            <small className="queue-document-count">
-                              {c.email.attachments.length} documents
-                              {c.result ? ` · v${c.result.version}` : ""}
-                            </small>
-                            {followups[c.email.email_id] &&
-                              (() => {
-                                const value = followups[c.email.email_id];
-                                const state = effectiveFollowUp(value, c);
-                                const overdue = isFollowUpOverdue(
-                                  c,
-                                  value,
-                                  queueNow,
-                                );
-                                return (
-                                  <div className="queue-follow-up">
-                                    <span
-                                      className={`follow-up-badge ${state}`}
-                                    >
-                                      {FOLLOW_UP_LABELS[state]}
-                                    </span>
-                                    <small>{value.owner}</small>
-                                    {value.due_at && state !== "completed" && (
-                                      <small
-                                        className={`follow-up-due ${overdue ? "overdue" : ""}`}
-                                      >
-                                        {overdue ? "Overdue · " : "Due "}
-                                        {new Date(value.due_at).toLocaleString(
-                                          undefined,
-                                          {
-                                            month: "short",
-                                            day: "numeric",
-                                            hour: "2-digit",
-                                            minute: "2-digit",
-                                            timeZoneName: "short",
-                                          },
-                                        )}
-                                      </small>
-                                    )}
-                                  </div>
-                                );
-                              })()}
-                          </TableCell>
-                          <TableCell>
-                            {busyId === c.email.email_id ? (
-                              <Loader2 size={18} className="spin" />
-                            ) : (
-                              <ChevronRight size={18} />
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-                {loading ? (
-                  <div className="empty-state">
-                    <Loader2 className="spin" />
-                    <h3>Loading your workspace</h3>
-                    <p>Connecting to the inbox and saved results.</p>
-                  </div>
-                ) : (
-                  !visible.length && (
-                    <div className="empty-state">
-                      <CheckCircle2 size={32} />
-                      <h3>
-                        {cases.length
-                          ? "No matching cases"
-                          : "Your work queue is ready"}
-                      </h3>
-                      <p>
-                        {!cases.length
-                          ? "Import an email and its shipping documents to create your first case. Results and source history are saved in this workspace."
-                          : counts.processed < cases.length
-                            ? "Run the inbox to create results, or clear filters to see unprocessed cases."
-                            : "Try another search or clear the filters."}
-                      </p>
-                      <button
-                        className="button secondary"
-                        onClick={() => {
-                          if (!cases.length) {
-                            setReplacement(null);
-                            setIntakeFiles([]);
-                            setUpload(true);
-                            return;
-                          }
-                          setSearch("");
-                          setFilter("all");
-                          setCategory("all");
-                        }}
-                      >
-                        {cases.length ? "Clear filters" : "Import first email"}
-                      </button>
-                    </div>
-                  )
-                )}
-                <div className="table-footer">
-                  <span>
-                    Showing {Math.min(shownLimit, visible.length)} of{" "}
-                    {visible.length} emails
-                  </span>
-                  <div>
-                    {shownLimit > 30 && (
-                      <button
-                        onClick={() => {
-                          setPagination(pageKey);
-                          setLimit(30);
-                        }}
-                      >
-                        Show fewer
-                      </button>
-                    )}
-                    {visible.length > shownLimit && (
-                      <button
-                        onClick={() => {
-                          setPagination(pageKey);
-                          setLimit(shownLimit + 30);
-                        }}
-                      >
-                        Load next 30 <ChevronDown size={14} />
-                      </button>
-                    )}
-                  </div>
-                  <span className="evidence-note">
-                    <ShieldCheck size={14} /> Every comparison is linked to
-                    source evidence
-                  </span>
-                </div>
-              </section>
-              <details className="queue-help">
-                <summary>Help & exports</summary>
-                <div>
-                  <p>
-                    Run the inbox to classify five email categories and compare
-                    all seven SI / draft BL fields. Open a case to check
-                    sources, recover unreadable evidence or prepare an
-                    amendment. Use History → What changed? after replacing
-                    corrected documents. Nothing is sent or released
-                    automatically.
-                  </p>
-                  <div className="case-actions">
-                    <a
-                      className="text-button"
-                      href="/api/follow-ups?export=1"
-                      download
-                    >
-                      Export follow-up handover
-                    </a>
-                    <button
-                      className="text-button"
-                      disabled={loading || !inboxReady}
-                      onClick={() =>
-                        download(
-                          "cargoguard-shift-brief.txt",
-                          shiftBrief(cases, new Date().toISOString()),
-                          "text/plain;charset=utf-8",
-                        )
-                      }
-                    >
-                      Export shift brief
-                    </button>
-                    <button
-                      className="text-button"
-                      onClick={() => void exportAll("reviewed")}
-                    >
-                      Export reviewed evidence
-                    </button>
-                    {workspaceConfig?.sample_data && (
-                      <button
-                        className="text-button"
-                        onClick={() => void exportAll()}
-                      >
-                        Export automatic baseline
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </details>
-            </>
-          )}
-          {view === "policies" && (
-            <>
-              <PolicyDesk />
-              <details className="settings-ai">
-                <summary>Cloud AI availability & allowance</summary>
-                {inboxReady && !loading && <AiAvailability />}
-              </details>
-            </>
-          )}
-          {view === "performance" && (
-            <div className="performance-grid">
-              <WorkloadInsights cases={cases} />
-              <section className="content-card">
-                <div className="card-title">
-                  <BarChart3 size={19} />
-                  <h2>Saved workflow outcomes</h2>
-                </div>
-                <div className="big-rate">
-                  {counts.comparisons ? (
-                    <>
-                      {Math.round((counts.verified / counts.comparisons) * 100)}
-                      <span>%</span>
-                    </>
-                  ) : (
-                    "—"
-                  )}
-                </div>
-                <p>
-                  Compared pairs with no mismatch detected.
-                  <br />
-                  This is a clean-pair rate, not an accuracy score. Task queues
-                  group missing-attachment reviews under Missing documents.
-                </p>
-                <div className="distribution">
-                  {[
-                    "verified",
-                    "discrepancy",
-                    "review",
-                    "awaiting_documents",
-                    "routed",
-                  ].map((k) => {
-                    const n = counts[k as keyof typeof counts];
-                    return (
-                      <div key={k}>
-                        <label>
-                          {statuses[k]}
-                          <strong>{n}</strong>
-                        </label>
-                        <div>
-                          <i
-                            className={k}
-                            style={{
-                              width: `${(n / Math.max(counts.processed, 1)) * 100}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-              <section className="content-card">
-                <div className="card-title">
-                  <Sparkles size={19} />
-                  <h2>Model & processing</h2>
-                </div>
-                <dl className="facts">
-                  <div>
-                    <dt>Classifier</dt>
-                    <dd>Learned TF-IDF linear router + safety review</dd>
-                  </div>
-                  <div>
-                    <dt>Training source</dt>
-                    <dd>
-                      875 authored-data training rows; 175 grouped validation
-                      rows
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Comparison</dt>
-                    <dd>Typed, deterministic seven-field checks</dd>
-                  </div>
-                  <div>
-                    <dt>Request latency</dt>
-                    <dd>
-                      {timing
-                        ? `Median ${timing.median} ms · p95 ${timing.p95} ms (${timing.count} successful requests in this tab)`
-                        : "No measured requests yet"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Last batch elapsed</dt>
-                    <dd>
-                      {batchMs === null
-                        ? "Run the inbox to measure"
-                        : `${(batchMs / 1000).toFixed(1)} seconds, including network and persistence`}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Engine version</dt>
-                    <dd>
-                      {PIPELINE_VERSION} · conservative uncertainty checks
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Storage</dt>
-                    <dd>Persistent decision & source storage</dd>
-                  </div>
-                  <div>
-                    <dt>Scans</dt>
-                    <dd>
-                      Browser-local OCR suggestions + seven-field human
-                      confirmation; replacement fallback
-                    </dd>
-                  </div>
-                </dl>
-                <div className="info-box">
-                  <Info size={17} />
-                  <p>
-                    Model scores are routing signals, not calibrated
-                    probabilities. Document correctness is established by source
-                    evidence and field checks.
-                  </p>
-                </div>
-              </section>
-              <section className="content-card wide">
-                <div className="card-title">
-                  <ShieldCheck size={19} />
-                  <h2>Reproducible organiser evaluation</h2>
-                  <span className="count-pill">520 emails</span>
-                </div>
-                {validation ? (
-                  <>
-                    <div className="validation-metrics">
-                      {Object.entries(
-                        (validation.metrics ?? {}) as Record<string, number>,
-                      ).map(([key, value]) => (
-                        <div key={key}>
-                          <strong>
-                            {(value * 100).toFixed(1)}
-                            <span>%</span>
-                          </strong>
-                          <small>{key.replaceAll("_", " ")}</small>
-                        </div>
-                      ))}
-                    </div>
-                    <p>{String(validation.note ?? "")}</p>
-                    {Array.isArray(validation.challenge_sets) && (
-                      <details className="validation-extra">
-                        <summary>
-                          Extended synthetic development checks (not a held-out
-                          benchmark)
-                        </summary>
-                        <div className="table-scroll">
-                          <table>
-                            <thead>
-                              <tr>
-                                <th>Dataset</th>
-                                <th>Emails</th>
-                                <th>Output differences</th>
-                                <th>False clearances</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(
-                                validation.challenge_sets as {
-                                  name: string;
-                                  emails: number;
-                                  output_differences: number;
-                                  false_clearances: number;
-                                }[]
-                              ).map((d) => (
-                                <tr key={d.name}>
-                                  <td>{d.name}</td>
-                                  <td>{d.emails}</td>
-                                  <td>{d.output_differences}</td>
-                                  <td>{d.false_clearances}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        <p>{String(validation.challenge_limitations ?? "")}</p>
-                      </details>
-                    )}
-                    <AuthoredOperationsChallenge
-                      report={validation.authored_operations_challenge}
+                <div className="table-tools">
+                  <label className="search-input">
+                    <Search size={16} />
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search case, owner, reference…"
+                      aria-label="Search emails"
                     />
-                    <p className="muted">
-                      Measured {String(validation.generated_at ?? "")} ·{" "}
-                      {String(validation.version ?? "development corpus")}
-                    </p>
-                  </>
-                ) : (
-                  <p>
-                    Evaluation report is not available in this build. Workspace
-                    statistics above show actual processed results.
-                  </p>
-                )}
-                <a href="/validation.json" className="text-button" download>
-                  <ArrowDownToLine size={16} />
-                  Download validation report
-                </a>
-              </section>
-            </div>
-          )}
-          {view === "activity" && (
-            <section className="content-card">
-              <div className="card-title">
-                <History size={19} />
-                <h2>Recent activity</h2>
-                <span className="count-pill">Latest 100 events</span>
-              </div>
-              <label className="audit-search search-input">
-                <Search size={16} />
-                <input
-                  aria-label="Search audit trail"
-                  placeholder="Search case, reviewer or action…"
-                  value={auditSearch}
-                  onChange={(event) => setAuditSearch(event.target.value)}
-                />
-              </label>
-              <p>
-                Search covers the latest 100 workspace events. Open a case’s
-                History for its saved revisions.
-              </p>
-              {!events.length ? (
-                <div className="empty-state">
-                  <History size={28} />
-                  <h3>Your audit trail starts here</h3>
-                  <p>
-                    Processing and reviewer corrections are recorded
-                    automatically.
-                  </p>
+                    {search && (
+                      <button
+                        onClick={() => setSearch("")}
+                        aria-label="Clear search"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </label>
+                  <label className="category-filter">
+                    <SlidersHorizontal size={16} />
+                    <select
+                      aria-label="Email category"
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                    >
+                      <option value="all">All categories</option>
+                      {CATEGORIES.map((c) => (
+                        <option key={c} value={c}>
+                          {categoryNames[c]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <select
+                    className="other-queues"
+                    aria-label="Additional queues"
+                    value={
+                      filter === "pending" || filter === "routed" ? filter : ""
+                    }
+                    onChange={(event) => setFilter(event.target.value || "all")}
+                  >
+                    <option value="">Other queues</option>
+                    <option value="pending">
+                      Process / recheck ({queueCounts.pending})
+                    </option>
+                    <option value="routed">
+                      Other desks ({queueCounts.routed})
+                    </option>
+                  </select>
                 </div>
-              ) : (
-                <div className="timeline">
-                  {events
-                    .filter((e) =>
-                      `${e.email_id} ${e.actor} ${e.action} ${e.detail}`
-                        .toLowerCase()
-                        .includes(auditSearch.trim().toLowerCase()),
-                    )
-                    .map((e) => (
-                      <div key={e.id}>
-                        <span className="timeline-icon">
-                          {e.action === "FIELD_CORRECTED" ? (
-                            <Eye size={16} />
-                          ) : (
-                            <Check size={16} />
-                          )}
-                        </span>
-                        <div>
-                          <strong>
-                            {e.action.replaceAll("_", " ").toLowerCase()}{" "}
-                            <span className="mono">{e.email_id}</span>
-                          </strong>
-                          <AuditDetail detail={e.detail} />
-                          <small>
-                            {e.actor} ·{" "}
-                            {new Date(e.created_at).toLocaleString()}
-                          </small>
-                        </div>
-                      </div>
-                    ))}
+              </div>
+              <div
+                className="follow-up-filters"
+                aria-label="Filter by follow-up"
+              >
+                <span>Follow-up</span>
+                {FOLLOW_UP_FILTERS.map(([key, label]) => (
+                  <button
+                    key={key}
+                    className={filter === key ? "selected" : ""}
+                    aria-pressed={filter === key}
+                    disabled={!followupsReady}
+                    onClick={() => setFilter(filter === key ? "all" : key)}
+                  >
+                    {label} <b>{followupsReady ? queueCounts[key] : "—"}</b>
+                  </button>
+                ))}
+                {followupsLoading && (
+                  <span role="status">Refreshing follow-ups…</span>
+                )}
+              </div>
+              {followupsError && (
+                <div className="follow-up-notice error" role="alert">
+                  <span>
+                    {followupsError}{" "}
+                    {followupsReady
+                      ? "Showing the last loaded follow-ups."
+                      : "Follow-up queues are unavailable."}
+                  </span>
+                  <button
+                    className="text-button"
+                    disabled={followupsLoading}
+                    onClick={() => void loadFollowups()}
+                  >
+                    Retry
+                  </button>
                 </div>
               )}
-              {!!events.length &&
-                !events.some((e) =>
-                  `${e.email_id} ${e.actor} ${e.action} ${e.detail}`
-                    .toLowerCase()
-                    .includes(auditSearch.trim().toLowerCase()),
-                ) && (
-                  <p role="status">
-                    No matching event in the latest 100. Try a shorter search.
-                  </p>
-                )}
+              <div className="queue-caption">
+                <span>
+                  {visible.length} matching cases · recorded deadlines, then
+                  action
+                </span>
+                <span>
+                  Counts above cover this workspace · checked ≠ cargo release
+                </span>
+              </div>
+              <div className="table-scroll">
+                <Table className="email-table">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>EMAIL / CASE</TableHead>
+                      <TableHead>CATEGORY</TableHead>
+                      <TableHead>STATUS</TableHead>
+                      <TableHead>NEXT ACTION</TableHead>
+                      <TableHead aria-label="Open case" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {visible.slice(0, shownLimit).map((c) => (
+                      <TableRow
+                        key={c.email.email_id}
+                        className={
+                          c.result?.workflow === "discrepancy"
+                            ? "attention-row"
+                            : ""
+                        }
+                        onClick={() => void openCase(c.email.email_id)}
+                      >
+                        <TableCell>
+                          <button
+                            className="email-title"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void openCase(c.email.email_id);
+                            }}
+                          >
+                            <span
+                              className={`mail-icon ${c.result?.workflow ?? ""}`}
+                            >
+                              <FileText size={19} />
+                            </span>
+                            <span>
+                              <strong title={c.email.subject}>
+                                {shortSubject(c.email.subject)}
+                              </strong>
+                              <small>
+                                <span className="mono">
+                                  {c.email.email_id.replace("email_", "#")}
+                                </span>
+                                <span className="separator-dot">·</span>
+                                {c.email.from}
+                              </small>
+                              {followups[c.email.email_id]
+                                ?.shipment_reference && (
+                                <span className="queue-follow-up-reference">
+                                  Ref:{" "}
+                                  {
+                                    followups[c.email.email_id]
+                                      .shipment_reference
+                                  }
+                                </span>
+                              )}
+                            </span>
+                          </button>
+                        </TableCell>
+                        <TableCell>
+                          <span className="category-label">
+                            {c.result ? categoryNames[c.result.category] : "—"}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <Status value={c.result?.workflow ?? "pending"} />
+                          {!!c.result?.defect_fields.length && (
+                            <small className="field-count">
+                              {c.result.defect_fields.length}{" "}
+                              {c.result.defect_fields.length === 1
+                                ? "field differs"
+                                : "fields differ"}
+                            </small>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <span className="queue-next-action">
+                            {LANE_DETAILS[laneFor(c)].action}
+                          </span>
+                          <small className="queue-document-count">
+                            {c.email.attachments.length} documents
+                            {c.result ? ` · v${c.result.version}` : ""}
+                          </small>
+                          {followups[c.email.email_id] &&
+                            (() => {
+                              const value = followups[c.email.email_id];
+                              const state = effectiveFollowUp(value, c);
+                              const overdue = isFollowUpOverdue(
+                                c,
+                                value,
+                                queueNow,
+                              );
+                              return (
+                                <div className="queue-follow-up">
+                                  <span className={`follow-up-badge ${state}`}>
+                                    {FOLLOW_UP_LABELS[state]}
+                                  </span>
+                                  <small>{value.owner}</small>
+                                  {value.due_at && state !== "completed" && (
+                                    <small
+                                      className={`follow-up-due ${overdue ? "overdue" : ""}`}
+                                    >
+                                      {overdue ? "Overdue · " : "Due "}
+                                      {new Date(value.due_at).toLocaleString(
+                                        undefined,
+                                        {
+                                          month: "short",
+                                          day: "numeric",
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                          timeZoneName: "short",
+                                        },
+                                      )}
+                                    </small>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                        </TableCell>
+                        <TableCell>
+                          {busyId === c.email.email_id ? (
+                            <Loader2 size={18} className="spin" />
+                          ) : (
+                            <ChevronRight size={18} />
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              {loading ? (
+                <div className="empty-state">
+                  <Loader2 className="spin" />
+                  <h3>Loading your workspace</h3>
+                  <p>Connecting to the inbox and saved results.</p>
+                </div>
+              ) : (
+                !visible.length && (
+                  <div className="empty-state">
+                    <CheckCircle2 size={32} />
+                    <h3>
+                      {cases.length
+                        ? "No matching cases"
+                        : "Your work queue is ready"}
+                    </h3>
+                    <p>
+                      {!cases.length
+                        ? "Import an email and its shipping documents to create your first case. Results and source history are saved in this workspace."
+                        : counts.processed < cases.length
+                          ? "Run the inbox to create results, or clear filters to see unprocessed cases."
+                          : "Try another search or clear the filters."}
+                    </p>
+                    <button
+                      className="button secondary"
+                      onClick={() => {
+                        if (!cases.length) {
+                          setReplacement(null);
+                          setIntakeFiles([]);
+                          setUpload(true);
+                          return;
+                        }
+                        setSearch("");
+                        setFilter("all");
+                        setCategory("all");
+                      }}
+                    >
+                      {cases.length ? "Clear filters" : "Import first email"}
+                    </button>
+                  </div>
+                )
+              )}
+              <div className="table-footer">
+                <span>
+                  Showing {Math.min(shownLimit, visible.length)} of{" "}
+                  {visible.length} emails
+                </span>
+                <div>
+                  {shownLimit > 30 && (
+                    <button
+                      onClick={() => {
+                        setPagination(pageKey);
+                        setLimit(30);
+                      }}
+                    >
+                      Show fewer
+                    </button>
+                  )}
+                  {visible.length > shownLimit && (
+                    <button
+                      onClick={() => {
+                        setPagination(pageKey);
+                        setLimit(shownLimit + 30);
+                      }}
+                    >
+                      Load next 30 <ChevronDown size={14} />
+                    </button>
+                  )}
+                </div>
+                <span className="evidence-note">
+                  <ShieldCheck size={14} /> Every comparison is linked to source
+                  evidence
+                </span>
+              </div>
             </section>
-          )}
-          <footer className="page-footer">
-            <span>
-              CargoGuard <span className="footer-divider">/</span> Shipping
-              document verification
-            </span>
-            <span>SI is the reference. Uncertainty is always visible.</span>
-          </footer>
-        </main>
-      </div>
+            <details className="queue-help">
+              <summary>Help & exports</summary>
+              <div>
+                <p>
+                  Run the inbox to classify five email categories and compare
+                  all seven SI / draft BL fields. Open a case to check sources,
+                  recover unreadable evidence or prepare an amendment. Use
+                  History → What changed? after replacing corrected documents.
+                  Nothing is sent or released automatically.
+                </p>
+                <div className="case-actions">
+                  <a
+                    className="text-button"
+                    href="/api/follow-ups?export=1"
+                    download
+                  >
+                    Export follow-up handover
+                  </a>
+                  <button
+                    className="text-button"
+                    disabled={loading || !inboxReady}
+                    onClick={() =>
+                      download(
+                        "cargoguard-shift-brief.txt",
+                        shiftBrief(cases, new Date().toISOString()),
+                        "text/plain;charset=utf-8",
+                      )
+                    }
+                  >
+                    Export shift brief
+                  </button>
+                  <button
+                    className="text-button"
+                    onClick={() => void exportAll("reviewed")}
+                  >
+                    Export reviewed evidence
+                  </button>
+                  {workspaceConfig?.sample_data && (
+                    <button
+                      className="text-button"
+                      onClick={() => void exportAll()}
+                    >
+                      Export automatic baseline
+                    </button>
+                  )}
+                </div>
+              </div>
+            </details>
+          </>
+        )}
+        {view === "policies" && (
+          <>
+            <PolicyDesk />
+            <details className="settings-ai">
+              <summary>Cloud AI availability & allowance</summary>
+              {inboxReady && !loading && <AiAvailability />}
+            </details>
+          </>
+        )}
+        {view === "performance" && (
+          <div className="performance-grid">
+            <WorkloadInsights cases={cases} />
+            <section className="content-card">
+              <div className="card-title">
+                <BarChart3 size={19} />
+                <h2>Saved workflow outcomes</h2>
+              </div>
+              <div className="big-rate">
+                {counts.comparisons ? (
+                  <>
+                    {Math.round((counts.verified / counts.comparisons) * 100)}
+                    <span>%</span>
+                  </>
+                ) : (
+                  "—"
+                )}
+              </div>
+              <p>
+                Compared pairs with no mismatch detected.
+                <br />
+                This is a clean-pair rate, not an accuracy score. Task queues
+                group missing-attachment reviews under Missing documents.
+              </p>
+              <div className="distribution">
+                {[
+                  "verified",
+                  "discrepancy",
+                  "review",
+                  "awaiting_documents",
+                  "routed",
+                ].map((k) => {
+                  const n = counts[k as keyof typeof counts];
+                  return (
+                    <div key={k}>
+                      <label>
+                        {statuses[k]}
+                        <strong>{n}</strong>
+                      </label>
+                      <div>
+                        <i
+                          className={k}
+                          style={{
+                            width: `${(n / Math.max(counts.processed, 1)) * 100}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+            <section className="content-card">
+              <div className="card-title">
+                <Sparkles size={19} />
+                <h2>Model & processing</h2>
+              </div>
+              <dl className="facts">
+                <div>
+                  <dt>Classifier</dt>
+                  <dd>Learned TF-IDF linear router + safety review</dd>
+                </div>
+                <div>
+                  <dt>Training source</dt>
+                  <dd>
+                    875 authored-data training rows; 175 grouped validation rows
+                  </dd>
+                </div>
+                <div>
+                  <dt>Comparison</dt>
+                  <dd>Typed, deterministic seven-field checks</dd>
+                </div>
+                <div>
+                  <dt>Request latency</dt>
+                  <dd>
+                    {timing
+                      ? `Median ${timing.median} ms · p95 ${timing.p95} ms (${timing.count} successful requests in this tab)`
+                      : "No measured requests yet"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Last batch elapsed</dt>
+                  <dd>
+                    {batchMs === null
+                      ? "Run the inbox to measure"
+                      : `${(batchMs / 1000).toFixed(1)} seconds, including network and persistence`}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Engine version</dt>
+                  <dd>{PIPELINE_VERSION} · conservative uncertainty checks</dd>
+                </div>
+                <div>
+                  <dt>Storage</dt>
+                  <dd>Persistent decision & source storage</dd>
+                </div>
+                <div>
+                  <dt>Scans</dt>
+                  <dd>
+                    Browser-local OCR suggestions + seven-field human
+                    confirmation; replacement fallback
+                  </dd>
+                </div>
+              </dl>
+              <div className="info-box">
+                <Info size={17} />
+                <p>
+                  Model scores are routing signals, not calibrated
+                  probabilities. Document correctness is established by source
+                  evidence and field checks.
+                </p>
+              </div>
+            </section>
+            <section className="content-card wide">
+              <div className="card-title">
+                <ShieldCheck size={19} />
+                <h2>Reproducible organiser evaluation</h2>
+                <span className="count-pill">520 emails</span>
+              </div>
+              {validation ? (
+                <>
+                  <div className="validation-metrics">
+                    {Object.entries(
+                      (validation.metrics ?? {}) as Record<string, number>,
+                    ).map(([key, value]) => (
+                      <div key={key}>
+                        <strong>
+                          {(value * 100).toFixed(1)}
+                          <span>%</span>
+                        </strong>
+                        <small>{key.replaceAll("_", " ")}</small>
+                      </div>
+                    ))}
+                  </div>
+                  <p>{String(validation.note ?? "")}</p>
+                  {Array.isArray(validation.challenge_sets) && (
+                    <details className="validation-extra">
+                      <summary>
+                        Extended synthetic development checks (not a held-out
+                        benchmark)
+                      </summary>
+                      <div className="table-scroll">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Dataset</th>
+                              <th>Emails</th>
+                              <th>Output differences</th>
+                              <th>False clearances</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(
+                              validation.challenge_sets as {
+                                name: string;
+                                emails: number;
+                                output_differences: number;
+                                false_clearances: number;
+                              }[]
+                            ).map((d) => (
+                              <tr key={d.name}>
+                                <td>{d.name}</td>
+                                <td>{d.emails}</td>
+                                <td>{d.output_differences}</td>
+                                <td>{d.false_clearances}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p>{String(validation.challenge_limitations ?? "")}</p>
+                    </details>
+                  )}
+                  <AuthoredOperationsChallenge
+                    report={validation.authored_operations_challenge}
+                  />
+                  <p className="muted">
+                    Measured {String(validation.generated_at ?? "")} ·{" "}
+                    {String(validation.version ?? "development corpus")}
+                  </p>
+                </>
+              ) : (
+                <p>
+                  Evaluation report is not available in this build. Workspace
+                  statistics above show actual processed results.
+                </p>
+              )}
+              <a href="/validation.json" className="text-button" download>
+                <ArrowDownToLine size={16} />
+                Download validation report
+              </a>
+            </section>
+          </div>
+        )}
+        {view === "activity" && (
+          <section className="content-card">
+            <div className="card-title">
+              <History size={19} />
+              <h2>Recent activity</h2>
+              <span className="count-pill">Latest 100 events</span>
+            </div>
+            <label className="audit-search search-input">
+              <Search size={16} />
+              <input
+                aria-label="Search audit trail"
+                placeholder="Search case, reviewer or action…"
+                value={auditSearch}
+                onChange={(event) => setAuditSearch(event.target.value)}
+              />
+            </label>
+            <p>
+              Search covers the latest 100 workspace events. Open a case’s
+              History for its saved revisions.
+            </p>
+            {!events.length ? (
+              <div className="empty-state">
+                <History size={28} />
+                <h3>Your audit trail starts here</h3>
+                <p>
+                  Processing and reviewer corrections are recorded
+                  automatically.
+                </p>
+              </div>
+            ) : (
+              <div className="timeline">
+                {events
+                  .filter((e) =>
+                    `${e.email_id} ${e.actor} ${e.action} ${e.detail}`
+                      .toLowerCase()
+                      .includes(auditSearch.trim().toLowerCase()),
+                  )
+                  .map((e) => (
+                    <div key={e.id}>
+                      <span className="timeline-icon">
+                        {e.action === "FIELD_CORRECTED" ? (
+                          <Eye size={16} />
+                        ) : (
+                          <Check size={16} />
+                        )}
+                      </span>
+                      <div>
+                        <strong>
+                          {e.action.replaceAll("_", " ").toLowerCase()}{" "}
+                          <span className="mono">{e.email_id}</span>
+                        </strong>
+                        <AuditDetail detail={e.detail} />
+                        <small>
+                          {e.actor} · {new Date(e.created_at).toLocaleString()}
+                        </small>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+            {!!events.length &&
+              !events.some((e) =>
+                `${e.email_id} ${e.actor} ${e.action} ${e.detail}`
+                  .toLowerCase()
+                  .includes(auditSearch.trim().toLowerCase()),
+              ) && (
+                <p role="status">
+                  No matching event in the latest 100. Try a shorter search.
+                </p>
+              )}
+          </section>
+        )}
+        <footer className="page-footer">
+          <span>
+            CargoGuard <span className="footer-divider">/</span> Shipping
+            document verification
+          </span>
+          <span>SI is the reference. Uncertainty is always visible.</span>
+        </footer>
+      </main>
       <Sheet
         open={!!selected}
         onOpenChange={(v) => {
@@ -3106,6 +3015,6 @@ export default function Workbench() {
           <span>Ask CargoGuard</span>
         </button>
       )}
-    </SidebarProvider>
+    </>
   );
 }

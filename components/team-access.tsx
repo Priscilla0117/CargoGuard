@@ -2,12 +2,15 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
 } from "react";
+import { usePathname } from "next/navigation";
 import type { TeamIdentity, TeamRole } from "@/lib/auth";
 import "@/app/team-access.css";
 
@@ -37,12 +40,14 @@ export const useTeamAccess = () => useContext(AccessContext);
 async function api<T = Record<string, unknown>>(
   url: string,
   body?: unknown,
+  signal?: AbortSignal,
 ): Promise<T> {
   const response = await fetch(url, {
     method: body ? "POST" : "GET",
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
     cache: "no-store",
+    signal,
   });
   const result = (await response.json()) as T & { error?: string };
   if (!response.ok)
@@ -50,27 +55,88 @@ async function api<T = Record<string, unknown>>(
   return result;
 }
 export function TeamAccess({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const [status, setStatus] = useState<AuthStatus | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [setup, setSetup] = useState(false),
     [panel, setPanel] = useState(false);
-  async function refresh() {
-    setStatus(await api<AuthStatus>("/api/auth"));
-  }
-  useEffect(() => {
-    let active = true;
-    api<AuthStatus>("/api/auth")
+  const mounted = useRef(false);
+  const generation = useRef(0);
+  const lastRefresh = useRef(0);
+  const authRequest = useRef<{
+    controller: AbortController;
+    promise: Promise<void>;
+  } | null>(null);
+  const refresh = useCallback((force = false): Promise<void> => {
+    if (!mounted.current) return Promise.resolve();
+    // Navigation and the focus/visibility pair can arrive together. Reuse one
+    // check, but always replace a pre-login check after an identity mutation.
+    if (!force && authRequest.current) return authRequest.current.promise;
+    if (!force && Date.now() - lastRefresh.current < 2000)
+      return Promise.resolve();
+    authRequest.current?.controller.abort();
+    const controller = new AbortController();
+    const request = ++generation.current;
+    lastRefresh.current = Date.now();
+    const promise = api<AuthStatus>(
+      "/api/auth",
+      undefined,
+      AbortSignal.any([controller.signal, AbortSignal.timeout(90000)]),
+    )
       .then((data) => {
-        if (active) setStatus(data);
+        if (mounted.current && request === generation.current) {
+          setStatus(data);
+          setError("");
+          if (!data.user) setPanel(false);
+        }
       })
-      .catch((e) => {
-        if (active) setError(e.message);
+      .catch((failure: unknown) => {
+        if (
+          mounted.current &&
+          request === generation.current &&
+          !controller.signal.aborted
+        ) {
+          // An outage is not proof of logout. Keep the last confirmed identity
+          // until a successful auth response reports an expired/revoked session.
+          setError(
+            failure instanceof Error
+              ? failure.message
+              : "Workspace access could not be refreshed. Try again.",
+          );
+        }
+      })
+      .finally(() => {
+        if (request === generation.current) authRequest.current = null;
       });
-    return () => {
-      active = false;
-    };
+    authRequest.current = { controller, promise };
+    return promise;
   }, []);
+  const cancelAuthRefresh = useCallback(() => {
+    generation.current++;
+    authRequest.current?.controller.abort();
+    authRequest.current = null;
+    lastRefresh.current = 0;
+  }, []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      cancelAuthRefresh();
+    };
+  }, [cancelAuthRefresh]);
+  useEffect(() => {
+    void refresh();
+    const onFocus = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [pathname, refresh]);
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -91,7 +157,7 @@ export function TeamAccess({ children }: { children: ReactNode }) {
       });
       form.reset();
       setSetup(false);
-      await refresh();
+      await refresh(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sign-in failed.");
     } finally {
@@ -104,7 +170,7 @@ export function TeamAccess({ children }: { children: ReactNode }) {
     try {
       await api("/api/auth", { action: "logout" });
       setPanel(false);
-      await refresh();
+      await refresh(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sign-out failed.");
     } finally {
@@ -121,7 +187,7 @@ export function TeamAccess({ children }: { children: ReactNode }) {
             type="button"
             onClick={() => {
               setError("");
-              refresh().catch((e) => setError(e.message));
+              void refresh(true);
             }}
           >
             Retry connection
@@ -213,7 +279,12 @@ export function TeamAccess({ children }: { children: ReactNode }) {
       </main>
     );
   return (
-    <AccessContext.Provider value={status}>
+    <AccessContext.Provider
+      key={
+        status.user ? `${status.user.workspace}:${status.user.id}` : status.mode
+      }
+      value={status}
+    >
       <div className="team-access-banner">
         {status.mode === "demo" ? (
           <span>
@@ -247,7 +318,7 @@ export function TeamAccess({ children }: { children: ReactNode }) {
           user={status.user}
           onSignedOut={async () => {
             setPanel(false);
-            await refresh();
+            await refresh(true);
           }}
         />
       )}
