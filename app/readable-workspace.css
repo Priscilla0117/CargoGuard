@@ -194,15 +194,15 @@ summary:focus-visible {
 }
 .comparison-rows {
   display: grid;
-  gap: 18px;
+  gap: 10px;
 }
 .comparison-rows .compare-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  padding: 18px;
+  gap: 10px;
+  padding: 12px;
   border: 1px solid #bdcfd7;
-  border-radius: 12px;
+  border-radius: 10px;
   margin: 0;
   background: #f7fafb;
   align-items: stretch;
@@ -234,16 +234,16 @@ summary:focus-visible {
   color: #796011;
 }
 .comparison-rows .row-label strong {
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1.4;
   color: #182c41;
 }
 .comparison-rows .row-label > span {
   grid-column: auto;
-  font-size: 14px;
+  font-size: 13px;
   margin-left: auto;
   color: #244e3e;
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 6px;
   background: #e5f0e9;
 }
@@ -259,27 +259,30 @@ summary:focus-visible {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 18px;
+  padding: 12px;
   border: 1px solid #cfdae1;
-  border-radius: 9px;
+  border-radius: 8px;
   background: #fff;
 }
 .value-document-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
   color: #274657;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 650;
   line-height: 1.5;
 }
 .value-document-label span {
-  display: block;
-  margin-top: 2px;
+  margin-top: 0;
   color: #506573;
   font-size: 13px;
   font-weight: 400;
 }
 .comparison-rows .comparison-value > p {
   font-size: 17px;
-  line-height: 1.7;
+  line-height: 1.5;
   color: #182c41;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -287,17 +290,17 @@ summary:focus-visible {
   overflow: visible;
   text-overflow: clip;
   max-height: none;
-  margin: 14px 0 18px;
+  margin: 8px 0 10px;
 }
 .comparison-rows .field-issue {
   font-size: 15px;
   color: #795019;
-  margin: 0 0 14px;
+  margin: 0 0 8px;
 }
 .value-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
   margin-top: auto;
 }
 .value-actions .value-action {
@@ -305,15 +308,15 @@ summary:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  min-height: 44px;
-  padding: 9px 12px;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 10px;
   margin: 0;
   border: 1px solid #92a8b5;
   border-radius: 7px;
   background: #fff;
   color: #234f65;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
   text-decoration: none;
@@ -329,19 +332,19 @@ summary:focus-visible {
   background: #dcebf3;
 }
 .value-source-location {
-  margin-top: 10px;
+  margin-top: 4px;
   font-size: 13px;
   color: #536777;
   overflow-wrap: anywhere;
 }
 .comparison-rows .value-details {
-  font-size: 14px;
+  font-size: 13px;
   color: #41596b;
-  margin-top: 12px;
+  margin-top: 2px;
 }
-.value-details summary {
-  padding: 8px 0;
-  min-height: 36px;
+.comparison-rows .value-details summary {
+  padding: 4px 0;
+  min-height: 28px;
   cursor: pointer;
 }
 .value-details .normalized-value {
@@ -434,11 +437,11 @@ summary:focus-visible {
 @media (max-width: 800px) {
   .comparison-rows .compare-row {
     grid-template-columns: minmax(0, 1fr);
-    padding: 14px;
-    gap: 12px;
+    padding: 10px;
+    gap: 8px;
   }
   .comparison-rows .comparison-value {
-    padding: 16px;
+    padding: 10px;
   }
   .drawer-top {
     padding: 16px;
@@ -500,6 +503,7 @@ summary:focus-visible {
   }
   .value-actions .value-action {
     flex: 1 1 auto;
+    min-height: 44px;
   }
   .assistant-fab {
     bottom: calc(86px + env(safe-area-inset-bottom));
