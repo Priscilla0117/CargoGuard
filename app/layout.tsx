@@ -7,6 +7,8 @@ import "./work-queue.css";
 import "./review-workspace.css";
 import "./outlook.css";
 import "./release-workspace.css";
+import "./workspace-shared.css";
+import "./ui.css";
 
 export const metadata: Metadata = {
   title: "CargoGuard | Shipping document verification",

@@ -1,0 +1,67 @@
+/* Shared building blocks used by the Label rules and SI template desks. */
+.workspace-eyebrow {
+  color: #0b7380;
+  font-size: 14px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.workspace-status {
+  padding: 12px 16px;
+  border: 1px solid #cbe2e6;
+  border-radius: 9px;
+  background: #edf8f8;
+  color: #215463;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.workspace-empty {
+  padding: 24px;
+  border: 1px dashed #c4d4df;
+  border-radius: 10px;
+  background: #f7fafc;
+  color: #4a6276;
+  line-height: 1.65;
+}
+.workspace-empty strong {
+  display: block;
+  color: #203c51;
+  font-size: 16px;
+}
+.workspace-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 27px;
+  height: 27px;
+  margin-right: 9px;
+  border-radius: 8px;
+  background: #e8f3f5;
+  color: #0b6776;
+  font-size: 14px;
+  vertical-align: middle;
+}
+.workspace-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #d4e0e8;
+  border-radius: 99px;
+  background: #f0f4f7;
+  color: #475e72;
+  padding: 4px 9px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-transform: capitalize;
+}
+.workspace-badge.active,
+.workspace-badge.approved {
+  background: #eaf7f1;
+  color: #176044;
+  border-color: #b9dece;
+}
+.workspace-badge.proposed {
+  background: #fff6e6;
+  color: #845611;
+  border-color: #efdbaf;
+}

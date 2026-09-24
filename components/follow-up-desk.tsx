@@ -13,7 +13,7 @@ import type { CaseResult } from "@/lib/types";
 export const FOLLOW_UP_LABELS = {
   open: "Working",
   waiting: "Awaiting reply",
-  completed: "Check completed",
+  completed: "Done",
   reopened: "Reopened · case changed",
 } as const;
 
@@ -35,6 +35,9 @@ export function FollowUpDesk({
   onReloadCase,
   onReloadValues,
   onSaved,
+  person = "",
+  reference = "",
+  markDone = false,
 }: {
   result: CaseResult;
   followup?: FollowUp;
@@ -45,10 +48,20 @@ export function FollowUpDesk({
   onReloadCase: () => void;
   onReloadValues: () => void;
   onSaved: (value: FollowUp) => void;
+  /** Name to pre-fill for a new follow-up. */
+  person?: string;
+  /** Order/booking reference found in the email. */
+  reference?: string;
+  /** Opened from "Mark as handled": pre-select done when allowed. */
+  markDone?: boolean;
 }) {
   const effective = followup ? effectiveFollowUp(followup, result) : "open";
-  const [state, setState] = useState<FollowUp["state"]>(
-    effective === "reopened" ? "open" : effective,
+  const [state, setState] = useState<FollowUp["state"]>(() =>
+    markDone && !completionBlocker(result)
+      ? "completed"
+      : effective === "reopened"
+        ? "open"
+        : effective,
   );
   const [due, setDue] = useState(localInput(followup?.due_at));
   const [saving, setSaving] = useState(false);
@@ -173,7 +186,7 @@ export function FollowUpDesk({
                 required
                 minLength={2}
                 maxLength={80}
-                defaultValue={followup?.owner ?? ""}
+                defaultValue={followup?.owner ?? person}
                 placeholder="Who will follow this up?"
                 autoComplete="off"
               />
@@ -183,7 +196,7 @@ export function FollowUpDesk({
               <input
                 name="shipment_reference"
                 maxLength={120}
-                defaultValue={followup?.shipment_reference ?? ""}
+                defaultValue={followup?.shipment_reference ?? reference}
                 placeholder="Reference confirmed from the source"
                 autoComplete="off"
               />
@@ -211,7 +224,9 @@ export function FollowUpDesk({
                 <option value="open">Working</option>
                 <option value="waiting">Awaiting reply</option>
                 <option value="completed" disabled={!!blocker}>
-                  Check completed
+                  {result.category === "BL_COMPARISON"
+                    ? "Check completed"
+                    : "Handled — done"}
                 </option>
               </select>
               <small>
@@ -229,7 +244,16 @@ export function FollowUpDesk({
               minLength={5}
               maxLength={2000}
               rows={3}
-              defaultValue={followup?.note ?? ""}
+              defaultValue={
+                followup?.note ??
+                (markDone && !completionBlocker(result)
+                  ? result.category === "SI_REQUEST"
+                    ? "SI prepared and sent to the requester."
+                    : result.category === "INVOICE_QUERY"
+                      ? "Invoice question answered."
+                      : "Handled."
+                  : "")
+              }
               placeholder="For example: revised BL requested externally; check the port and weight when it arrives."
             />
           </label>
@@ -246,7 +270,7 @@ export function FollowUpDesk({
                 required
                 minLength={2}
                 maxLength={80}
-                defaultValue={followup?.actor ?? ""}
+                defaultValue={followup?.actor ?? person}
                 autoComplete="off"
               />
             </label>
