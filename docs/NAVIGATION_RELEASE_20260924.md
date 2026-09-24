@@ -1,6 +1,6 @@
 # Navigation correction and shared workspace — 24 September 2026
 
-**Status: deployment and hosted acceptance pending.** The correction is prepared on `codex/final-round-employee-workflow`; its deployment commit will be recorded after publication. Engine version remains **3.4.1** because the document-processing engine and database schema are unchanged. Main and older shared Git history remain unchanged.
+**Status: deployed and accepted on 24 September 2026.** Commit `69f2519e329efa4cc994f2e33c52bc8c65eabfeb` from `codex/final-round-employee-workflow` is live on Render. Engine version remains **3.4.1** because the document-processing engine and database schema are unchanged. Main and older shared Git history remain unchanged.
 
 ## Confirmed problem and correction
 
@@ -32,12 +32,24 @@ These changes do not establish live Microsoft mailbox connectivity, enterprise S
 | Import dialog | Open and close checked |
 | Shipment workflow | Create shipment, reselect and change detail tabs checked |
 
-The final production build, including the short-height sidebar adjustment, passed. Hosted checks must be recorded separately after deploying the exact final commit. These are bounded synthetic checks, not proof that every browser or workflow is defect-free.
+The final production build, including the short-height sidebar adjustment, passed. [GitHub CI for the deployed commit](https://github.com/Priscilla0117/CargoGuard/actions/runs/35991728016) completed successfully. These are bounded synthetic checks, not proof that every browser or workflow is defect-free.
+
+## Hosted acceptance
+
+- Render deployment: `dep-daqgbqm7bikc738e24m0`; service `srv-dao05suk1f9s73a6qsm0`.
+- Live at **19:16:36 MYT / 11:16:36 UTC on 24 September 2026**, from the exact commit above.
+- Live `/api/health`: `{"status":"ready","engine":"3.4.1"}`.
+- Release API suite: **30/30 assertions**, 31 counted requests; no paid AI calls.
+- Retained-data recheck after deployment: **7/7 checks**, 8 requests, recorded at **11:17:19 UTC**. Saved case, policy, historical revision, two exact 5 MiB originals and cross-workspace isolation were preserved. The pre-deployment recheck also passed at 11:14:19 UTC.
+- A fresh browser opened directly on Outlook, loaded the real Office runtime and returned to Work queue successfully. All seven destination round trips were then checked on desktop and at **390 × 844**, including cached Outlook revisits. Queue controls became available after the normal data refresh; no navigation errors or horizontal page overflow were observed.
+- Reports/Settings Back and Forward, import-dialog opening and closing, and a direct pointer hit on its close control were checked on the live site. The short-height desktop sidebar retained all navigation and identity without an internal scrollbar.
+
+An already-open browser tab may retain the previous JavaScript. Refresh that tab to load this release. No Microsoft tenant was configured or authenticated during these checks; actual Outlook mailbox operations still require tenant acceptance testing.
 
 ## Deployment and rollback
 
-The current hosted application is the previous accepted deployment `dep-daqfq97f3r2c73b74f3g` at commit `22d1ccfd7acd2adfca8214597e6e5f4f2518159d`. Retain this as the rollback target for the navigation release. Its [earlier hosted acceptance](CLOUD_RELEASE_341.md) does not cover this correction.
+The previous deployment `dep-daqfq97f3r2c73b74f3g` at commit `22d1ccfd7acd2adfca8214597e6e5f4f2518159d` is the rollback target. It contains the known Office navigation defect, so use rollback only for a more serious regression. Its [earlier hosted acceptance](CLOUD_RELEASE_341.md) does not cover this correction.
 
 There are **no database migrations or comparison-engine changes** in this navigation release. Reverting the executable does not require reverting or deleting stored cases, originals, reviews or shipment records. An application rollback is not a database backup or recovery test; confirm the target artifact is still available before using [Render's rollback procedure](https://render.com/docs/rollbacks).
 
-Record the final commit, Render deployment identity, completion time, live health result and hosted navigation/workflow checks here before changing the status to deployed and accepted. Leave automatic deployment off and keep all source changes on the final-round branch.
+Automatic deployment remains off. All source changes stay on the final-round branch. `main` remains at `949f98537f4b963362b480120af41fc843207571`.
