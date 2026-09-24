@@ -1,7 +1,8 @@
 import { deriveResult, recomputeRows } from "./compare";
 import { normalizeValue } from "./normalization";
 import { HttpError } from "./http";
-import { PIPELINE_VERSION, type CaseResult, type Field } from "./types";
+import { requireCurrentEngine } from "./review-guard";
+import type { CaseResult, Field } from "./types";
 
 export interface FieldCorrection {
   field: Field;
@@ -15,6 +16,7 @@ export function correctField(
   edit: FieldCorrection,
   actor: string,
 ): CaseResult {
+  requireCurrentEngine(previous);
   if (!previous.comparison.length)
     throw new HttpError(
       "This case requires readable SI and BL documents before field correction.",
@@ -42,10 +44,7 @@ export function correctField(
     method: `Human correction by ${actor}`,
     evidence: `Reviewer confirmed; original source: ${row[edit.side].evidence}`,
   };
-  return deriveResult(
-    { ...previous, reviewed: true, pipeline_version: PIPELINE_VERSION },
-    recomputeRows(rows),
-  );
+  return deriveResult({ ...previous, reviewed: true }, recomputeRows(rows));
 }
 
 export function previewCorrection(previous: CaseResult, edit: FieldCorrection) {

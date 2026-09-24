@@ -1,0 +1,11 @@
+DRAFT BILL OF LADING
+Complete container list:
+MSCU1234560
+End container list
+Shipper: Bright Paper Exports Pte Ltd
+Consignee: Peninsula Stationery Sdn Bhd
+Notify Party: Same as consignee
+Port of Loading: Singapore
+Port of Discharge: Port Klang
+Container Count: 1 x 40HC
+Gross Weight (KG): 26500

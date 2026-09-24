@@ -1,0 +1,30 @@
+.scan-source-crop {
+  margin: 12px 0;
+  border: 1px solid #c8d6e1;
+  border-radius: 6px;
+  overflow: hidden;
+  background: white;
+}
+.scan-source-crop figcaption {
+  font-size: 11px;
+  padding: 8px 10px;
+  background: #eaf0f5;
+  color: #38566d;
+}
+.scan-source-crop svg {
+  display: block;
+  width: 100%;
+  max-height: 190px;
+  min-height: 60px;
+}
+.scan-recognition .scan-score {
+  color: #355b78;
+}
+.scan-original-pages > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.scan-recognition .alert {
+  padding: 10px;
+  border-radius: 5px;
+}

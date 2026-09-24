@@ -5,6 +5,8 @@ import "./assistant.css";
 import "./workspace-design.css";
 import "./work-queue.css";
 import "./review-workspace.css";
+import "./outlook.css";
+import "./release-workspace.css";
 
 export const metadata: Metadata = {
   title: "CargoGuard | Shipping document verification",
@@ -23,7 +25,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <a className="skip-content" href="#main-content">
+          Skip to main content
+        </a>
+        {children}
+      </body>
     </html>
   );
 }

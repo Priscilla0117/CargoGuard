@@ -14,10 +14,6 @@ export function suggestScanFields(doc: ParsedDocument, lines: SourceLine[]) {
       /^(?:container\s*count|(?:no\.?\s*of\s*)?containers)\b\s*[:.,;]?\s*/i,
       "Container count",
     ],
-    [
-      /^(?:total\s*)?gross\s*(?:weight|wt)\b(?:\s*\(kg\))?\s*[:.,;]?\s*/i,
-      "Gross weight",
-    ],
     [/^vessel\b\s*[:.,;]?\s*/i, "Vessel"],
     [/^booking\b\s*[:.,;]?\s*/i, "Booking"],
   ];
@@ -27,6 +23,18 @@ export function suggestScanFields(doc: ParsedDocument, lines: SourceLine[]) {
     transcription: undefined,
     method: "Unconfirmed OCR suggestion",
     lines: lines.map((line) => {
+      // Unit annotations are source evidence, including unsupported/conflicting
+      // units. Never discard them while recovering an OCR label.
+      const weight = line.text
+        .trim()
+        .match(
+          /^((?:total\s*)?gross\s*(?:weight|wt)\b)((?:\s*\([^)]*\))*)\s*[:.,;]?\s*/i,
+        );
+      if (weight)
+        return {
+          ...line,
+          text: `${/^total/i.test(weight[1]) ? "Total " : ""}Gross weight${weight[2]}: ${line.text.trim().slice(weight[0].length)}`,
+        };
       const match = labels.find(([rx]) => rx.test(line.text.trim()));
       return match
         ? {

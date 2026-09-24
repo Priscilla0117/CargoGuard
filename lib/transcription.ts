@@ -8,6 +8,7 @@ import {
   type ParsedDocument,
 } from "./types";
 import { HttpError } from "./http";
+import { requireCurrentEngine } from "./review-guard";
 
 export interface Transcript {
   role: "SI" | "BL";
@@ -80,6 +81,7 @@ export function applyTranscript(
   sha256: string,
   transcript: Transcript,
 ): CaseResult {
+  requireCurrentEngine(previous);
   const doc = previous.documents.find((d) => d.name === name);
   if (!doc || doc.sha256 !== sha256)
     throw new HttpError(

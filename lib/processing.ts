@@ -5,6 +5,7 @@ import { canTranscribe, transcribeDocument } from "./transcription";
 import { DEFAULT_POLICY, type PolicySnapshot } from "./policy";
 import { recoverDocument } from "./recovery";
 import { selectionStillMatches } from "./document-selection";
+import { applyLabelRules, type LabelRule } from "./label-rules";
 
 export async function mapLimited<T, R>(
   items: T[],
@@ -33,9 +34,10 @@ export async function processEmail(
   previous?: CaseResult,
   preserveCorrections = false,
   policy: PolicySnapshot = previous?.policy ?? DEFAULT_POLICY,
+  labelRules: LabelRule[] = [],
 ) {
   const started = performance.now();
-  const docs = await mapLimited(email.attachments, 2, async (path) => {
+  let docs = await mapLimited(email.attachments, 2, async (path) => {
     const bytes = await read(path);
     const doc = bytes
       ? await parseDocument(path.split("/").pop()!, bytes)
@@ -65,6 +67,7 @@ export async function processEmail(
       ? transcribeDocument(doc, original.transcription)
       : doc;
   });
+  docs = await applyLabelRules(docs, labelRules);
   let result = analyze(
     email,
     docs,
@@ -75,7 +78,7 @@ export async function processEmail(
   );
   result.source_replaced = previous?.source_replaced;
   if (
-    docs.some((d) => d.transcription || d.recovery) ||
+    docs.some((d) => d.transcription || d.recovery || d.label_rules) ||
     previous?.category_override ||
     result.document_selection
   )

@@ -1,9 +1,16 @@
+import { workspaceUploadLimit } from "@/lib/workspace-mode";
+import {
+  authenticatedActor,
+  errorSession,
+  requireCapability,
+} from "@/lib/auth";
 import { parseDocument } from "@/lib/parsers";
+import { applyLabelRules } from "@/lib/label-rules";
+import { loadLabelRules } from "@/lib/label-rule-storage";
 import { analyze } from "@/lib/compare";
 import {
   requireMutation,
   respond,
-  workspace,
   saveCase,
   getCase,
   storage,
@@ -11,13 +18,17 @@ import {
 } from "@/lib/storage";
 import { z } from "zod";
 import { readForm, HttpError } from "@/lib/http";
+import { bundleBytes } from "@/lib/bundle";
+import { blReplacementSources, replaceDraftBl } from "@/lib/bl-replacement";
+import type { ParsedDocument } from "@/lib/types";
 
 export async function POST(request: Request) {
-  let s = workspace(request);
+  let s = errorSession(request);
   const keys: string[] = [];
   let persistAttempted = false;
   try {
-    s = requireMutation(request);
+    s = await requireCapability(request, "operate");
+    requireMutation(request);
     const form = await readForm(request, 21 * 1024 * 1024);
     // FormData.get() reads the first value but Object.fromEntries() keeps the
     // last. Reject ambiguous control fields before choosing upload vs replace.
@@ -29,13 +40,43 @@ export async function POST(request: Request) {
       "from",
       "subject",
       "body",
+      "mode",
+      "bl",
     ])
       if (form.getAll(field).length > 1)
         throw new HttpError(`Only one ${field} field is allowed.`);
+    const mode = form.get("mode");
+    if (mode !== null && mode !== "replace_bl")
+      throw new HttpError("Unknown document replacement mode.");
+    const blOnly = mode === "replace_bl";
+    if (blOnly) {
+      const allowed = new Set([
+        "mode",
+        "id",
+        "version",
+        "actor",
+        "reason",
+        "bl",
+      ]);
+      if ([...form.keys()].some((key) => !allowed.has(key)))
+        throw new HttpError(
+          "BL-only replacement accepts only the revised BL and review details. The SI comes from the saved case.",
+        );
+      const bl = form.get("bl");
+      if (!(bl instanceof File) || !bl.name || !bl.size)
+        throw new HttpError("Choose exactly one nonempty revised BL file.");
+      if (!form.get("id"))
+        throw new HttpError(
+          "Select an existing comparison case before replacing its BL.",
+        );
+    } else if (form.has("bl"))
+      throw new HttpError(
+        "Use BL-only replacement mode for a revised BL file.",
+      );
     if (form.getAll("files").some((x) => !(x instanceof File)))
       throw new HttpError("The attachment field must contain files.");
     const files = form
-      .getAll("files")
+      .getAll(blOnly ? "bl" : "files")
       .filter((x): x is File => x instanceof File && !!x.name);
     if (files.length > 10)
       throw new HttpError("Attach at most 10 documents per email.");
@@ -48,12 +89,14 @@ export async function POST(request: Request) {
       ? z
           .object({
             id: z.string().min(1).max(80),
-            version: z.coerce.number().int().positive(),
+            version: z.coerce.number().int().positive().safe(),
             actor: z.string().trim().min(2).max(80),
             reason: z.string().trim().min(5).max(2000),
           })
           .parse(Object.fromEntries(form))
       : null;
+    if (replacement)
+      replacement.actor = authenticatedActor(request, replacement.actor);
     const previous = replacement ? await getCase(s.id, replacement.id) : null;
     if (replacement && (!previous || previous.version !== replacement.version))
       return respond(
@@ -61,7 +104,8 @@ export async function POST(request: Request) {
         s,
         409,
       );
-    if (replacement && files.length < 2)
+    if (blOnly && previous) blReplacementSources(previous);
+    if (replacement && !blOnly && files.length < 2)
       throw new HttpError(
         "Supply both replacement documents: the SI and draft BL.",
       );
@@ -91,14 +135,14 @@ export async function POST(request: Request) {
           )
           .bind(s.id)
           .first<number>("n");
-    if ((uploaded ?? 0) >= 30)
+    if ((uploaded ?? 0) >= workspaceUploadLimit())
       throw new HttpError(
-        "This demo allows 30 uploaded cases per workspace.",
+        `This workspace has reached its limit of ${workspaceUploadLimit()} imported cases. Ask your administrator to review capacity.`,
         429,
       );
     const id = previous?.email.email_id ?? `upload_${crypto.randomUUID()}`,
-      docs = [],
-      paths = [];
+      docs: ParsedDocument[] = [],
+      paths: string[] = [];
     const started = performance.now();
     for (let i = 0; i < files.length; i++) {
       const f = files[i],
@@ -113,15 +157,38 @@ export async function POST(request: Request) {
       keys.push(key);
     }
     const email = {
-        email_id: id,
-        from,
-        subject,
-        body,
-        attachments: paths,
-      },
-      r = analyze(
+      email_id: id,
+      from,
+      subject,
+      body,
+      attachments: paths,
+    };
+    const labelRules = await loadLabelRules(s.id);
+    const partial =
+      blOnly && previous
+        ? await replaceDraftBl(
+            previous,
+            docs[0],
+            async (path) =>
+              bundleBytes(path) ??
+              (await storage()
+                .BUCKET.get(`${s.id}/${id}/${path.split("/").pop()}`)
+                .then((object) =>
+                  object
+                    ? object
+                        .arrayBuffer()
+                        .then((bytes) => new Uint8Array(bytes))
+                    : null,
+                )),
+            { actor: replacement!.actor, reason: replacement!.reason },
+            labelRules,
+          )
+        : null;
+    const r =
+      partial?.result ??
+      analyze(
         email,
-        docs,
+        await applyLabelRules(docs, labelRules),
         0,
         previous?.category_override,
         previous?.policy ?? (await getPolicy(s.id)),
@@ -130,12 +197,27 @@ export async function POST(request: Request) {
       r.reviewed = true;
       r.source_replaced = true;
     }
+    if (r.documents.some((doc) => doc.label_rules)) r.reviewed = true;
     r.duration_ms = Math.round(performance.now() - started);
     const detail = JSON.stringify({
       summary: r.summary,
       reason: replacement?.reason,
       previousAttachments: previous?.email.attachments,
       attachments: docs.map((d) => ({ name: d.name, sha256: d.sha256 })),
+      ...(partial
+        ? {
+            mode: "replace_bl",
+            retainedSi: partial.retainedSi,
+            replacedBl: partial.replacedBl,
+            retainedSiCorrections: partial.retainedCorrections,
+            excludedAttachments: r.documents
+              .filter(
+                (doc) =>
+                  ![partial.retainedSi.name, docs[0].name].includes(doc.name),
+              )
+              .map((doc) => ({ name: doc.name, sha256: doc.sha256 })),
+          }
+        : {}),
     });
     persistAttempted = true;
     const result = await saveCase(
@@ -143,7 +225,7 @@ export async function POST(request: Request) {
       r,
       previous?.version ?? 0,
       previous ? "DOCUMENTS_REPLACED" : "UPLOADED",
-      replacement?.actor ?? "Workspace user",
+      authenticatedActor(request, replacement?.actor ?? "Workspace user"),
       detail,
     );
     return respond({ result }, s);

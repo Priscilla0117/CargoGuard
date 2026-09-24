@@ -8,6 +8,7 @@ import {
   caseDestination,
 } from "../lib/work-queue";
 import { PIPELINE_VERSION, summaryOf, type CaseSummary } from "../lib/types";
+import type { FollowUp } from "../lib/follow-up";
 
 function row(
   id: string,
@@ -138,4 +139,136 @@ test("legacy evidence and assistant destinations resolve to three case sections"
   });
   assert.equal(caseDestination("history").tab, "history");
   assert.equal(caseDestination("unknown").tab, "comparison");
+  assert.equal(caseDestination("followup").tab, "followup");
+});
+
+function followup(
+  current: CaseSummary,
+  overrides: Partial<FollowUp> = {},
+): FollowUp {
+  return {
+    email_id: current.email.email_id,
+    version: 1,
+    case_version: current.result!.version,
+    owner: "Amina",
+    shipment_reference: "BOOK-204",
+    due_at: "2026-09-23T02:00:00.000Z",
+    state: "waiting",
+    note: "Await corrected port from issuer",
+    actor: "Amina",
+    updated_at: "2026-09-22T02:00:00.000Z",
+    created_at: "2026-09-22T02:00:00.000Z",
+    completed_at: null,
+    ...overrides,
+  };
+}
+const queueTime = Date.parse("2026-09-23T04:00:00.000Z");
+
+test("follow-up queues keep document mismatches visible and use only recorded deadlines", () => {
+  const mismatch = row("mismatch", "discrepancy"),
+    missing = row("missing", "review"),
+    verified = row("checked", "verified");
+  const map = {
+    mismatch: followup(mismatch),
+    missing: followup(missing, { due_at: null }),
+    checked: followup(verified, { state: "completed" }),
+  };
+  assert.equal(matchesQueue(mismatch, "waiting", map, queueTime), true);
+  assert.equal(matchesQueue(mismatch, "discrepancy", map, queueTime), true);
+  assert.equal(matchesQueue(mismatch, "overdue", map, queueTime), true);
+  assert.equal(matchesQueue(missing, "overdue", map, queueTime), false);
+  assert.equal(matchesQueue(verified, "overdue", map, queueTime), false);
+  assert.equal(
+    workQueue([mismatch], "all", "all", "amina", map, queueTime).length,
+    1,
+  );
+  assert.equal(
+    workQueue([mismatch], "all", "all", "book-204", map, queueTime).length,
+    1,
+  );
+});
+
+test("changed revision reopens completed follow-up even when new comparison matches", () => {
+  const current = row("one", "verified");
+  current.result!.version = 2;
+  const map = {
+    one: followup(current, { case_version: 1, state: "completed" }),
+  };
+  assert.equal(matchesQueue(current, "reopened", map, queueTime), true);
+  assert.equal(matchesQueue(current, "action", map, queueTime), true);
+  assert.equal(matchesQueue(current, "overdue", map, queueTime), true);
+  assert.equal(matchesQueue(current, "verified", map, queueTime), true);
+  assert.equal(matchesQueue(current, "waiting", map, queueTime), false);
+});
+
+test("needs action includes renewed review and working follow-ups but excludes future waits and completed checks", () => {
+  const cases = [
+    "reopened",
+    "completed",
+    "working",
+    "future",
+    "overdue",
+    "undated",
+  ].map((id) => {
+    const current = row(id, "verified");
+    current.result!.version = 2;
+    return current;
+  });
+  const mismatch = row("mismatch", "discrepancy");
+  cases.push(mismatch);
+  const futureDue = "2026-09-24T02:00:00.000Z";
+  const map = {
+    reopened: followup(cases[0], {
+      state: "completed",
+      case_version: 1,
+      due_at: futureDue,
+    }),
+    completed: followup(cases[1], { state: "completed" }),
+    working: followup(cases[2], { state: "open", due_at: null }),
+    future: followup(cases[3], { state: "waiting", due_at: futureDue }),
+    overdue: followup(cases[4], { state: "waiting" }),
+    undated: followup(cases[5], { state: "waiting", due_at: null }),
+    mismatch: followup(mismatch, { state: "waiting", due_at: futureDue }),
+  };
+  const original = JSON.stringify({ cases, map });
+  assert.deepEqual(
+    new Set(
+      workQueue(cases, "action", "all", "", map, queueTime).map(
+        (current) => current.email.email_id,
+      ),
+    ),
+    new Set(["reopened", "working", "overdue", "mismatch"]),
+  );
+  assert.equal(matchesQueue(cases[3], "waiting", map, queueTime), true);
+  assert.equal(matchesQueue(cases[5], "waiting", map, queueTime), true);
+  assert.equal(
+    workQueue(cases, "verified", "all", "", map, queueTime).length,
+    6,
+  );
+  assert.equal(JSON.stringify({ cases, map }), original);
+});
+
+test("recorded active deadlines sort before lane order without mutating cases", () => {
+  const cases = [
+    row("mismatch", "discrepancy"),
+    row("later", "review"),
+    row("due", "verified"),
+    row("done", "verified"),
+  ];
+  const original = JSON.stringify(cases);
+  const map = {
+    later: followup(cases[1], { due_at: "2026-09-24T02:00:00.000Z" }),
+    due: followup(cases[2]),
+    done: followup(cases[3], {
+      state: "completed",
+      due_at: "2026-09-20T02:00:00.000Z",
+    }),
+  };
+  assert.deepEqual(
+    workQueue(cases, "all", "all", "", map, queueTime).map(
+      (c) => c.email.email_id,
+    ),
+    ["due", "later", "mismatch", "done"],
+  );
+  assert.equal(JSON.stringify(cases), original);
 });

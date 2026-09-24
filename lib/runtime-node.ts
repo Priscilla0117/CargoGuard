@@ -6,6 +6,7 @@ import {
 } from "@libsql/client";
 import { HttpError } from "./http";
 import { databaseFetch } from "./database-fetch";
+import { RUNTIME_SCHEMA_PROBE } from "./runtime-schema";
 
 // Implement only the small storage API CargoGuard uses. Multi-statement writes
 // remain one SQLite/libSQL transaction, including CAS, revision and event.
@@ -59,7 +60,7 @@ export function createNodeBindings(client: Client) {
       });
       if (r.rowsAffected !== 1)
         throw new HttpError(
-          "The demo's 256 MB upload storage limit has been reached. Existing evidence is retained.",
+          "The deployment's 256 MB upload storage limit has been reached. Existing evidence is retained.",
           429,
         );
       return null;
@@ -97,7 +98,7 @@ export function createNodeBindings(client: Client) {
   };
 }
 export function nodeClient(timeoutMs = 15000) {
-  const url = process.env.TURSO_DATABASE_URL;
+  const url = process.env.TURSO_DATABASE_URL?.trim() || undefined;
   if (url && !/^(libsql|https):\/\//.test(url))
     throw new Error("Cloud database URL must use libsql:// or https://.");
   if (!url && (!process.env.CARGO_LOCAL_DB || process.env.RENDER))
@@ -117,7 +118,7 @@ export function nodeClient(timeoutMs = 15000) {
 export async function databaseReady() {
   const client = nodeClient(2000);
   try {
-    await client.execute("SELECT version FROM result_revisions LIMIT 1");
+    await client.execute(RUNTIME_SCHEMA_PROBE);
   } finally {
     client.close();
   }

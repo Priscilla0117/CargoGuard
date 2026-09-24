@@ -1,19 +1,23 @@
+import { requireCapability } from "@/lib/auth";
 import { bundleBytes, emails } from "@/lib/bundle";
-import { workspace, storage, getCase, getRevision } from "@/lib/storage";
+import { includeSampleData } from "@/lib/workspace-mode";
+import { storage, getCase, getRevision } from "@/lib/storage";
 import { HttpError, revisionNumber } from "@/lib/http";
 export async function GET(request: Request) {
   try {
+    const s = await requireCapability(request, "read");
     const u = new URL(request.url),
       id = u.searchParams.get("id") ?? "",
-      name = u.searchParams.get("name") ?? "",
-      s = workspace(request);
+      name = u.searchParams.get("name") ?? "";
     const revision = revisionNumber(u.searchParams.get("revision"));
     const saved = revision
       ? await getRevision(s.id, id, revision)
       : await getCase(s.id, id);
     const e =
       saved?.email ??
-      (revision ? undefined : emails.find((e) => e.email_id === id));
+      (revision || !includeSampleData()
+        ? undefined
+        : emails.find((e) => e.email_id === id));
     const p = e?.attachments.find((a) => a.split("/").pop() === name);
     if (!p) return new Response("Document not found", { status: 404 });
     const bytes =

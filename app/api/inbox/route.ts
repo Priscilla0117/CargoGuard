@@ -1,15 +1,15 @@
+import { HttpError } from "@/lib/http";
+import { errorSession, requireCapability } from "@/lib/auth";
 import { emails } from "@/lib/bundle";
-import {
-  listCaseSummaries,
-  respond,
-  workspace,
-  audit,
-  getPolicy,
-} from "@/lib/storage";
+import { workspaceConfiguration } from "@/lib/workspace-mode";
+import { listCaseSummaries, respond, audit, getPolicy } from "@/lib/storage";
 import { PIPELINE_VERSION, emailSummaryOf } from "@/lib/types";
 export async function GET(request: Request) {
-  const s = workspace(request);
+  let s = errorSession(request);
   try {
+    s = await requireCapability(request, "read");
+    const workspace = workspaceConfiguration();
+    const initialEmails = workspace.sample_data ? emails : [];
     const started = performance.now();
     const [results, events, policy] = await Promise.all([
         listCaseSummaries(s.id),
@@ -17,16 +17,18 @@ export async function GET(request: Request) {
         getPolicy(s.id),
       ]),
       byId = new Map(results.map((r) => [r.email.email_id, r]));
-    const list = emails.map((email) =>
+    const list = initialEmails.map((email) =>
       byId.has(email.email_id)
         ? byId.get(email.email_id)!
         : { email: emailSummaryOf(email), result: null },
     );
     for (const r of results)
-      if (!emails.some((e) => e.email_id === r.email.email_id)) list.push(r);
+      if (!initialEmails.some((e) => e.email_id === r.email.email_id))
+        list.push(r);
     const response = respond(
       {
         cases: list,
+        workspace,
         audit: events,
         policy,
         loaded_at: new Date().toISOString(),
@@ -36,7 +38,9 @@ export async function GET(request: Request) {
           training:
             "Independently authored intent examples; organiser labels are evaluation-only",
           cloud: "Server-side processing + persistent workspace storage",
-          dataset: "Organiser synthetic inbox",
+          dataset: workspace.sample_data
+            ? "Organiser synthetic inbox and imported records"
+            : "Imported workspace records",
         },
       },
       s,
@@ -46,7 +50,9 @@ export async function GET(request: Request) {
       `workspace;dur=${Math.round(performance.now() - started)}`,
     );
     return response;
-  } catch {
+  } catch (error) {
+    if (error instanceof HttpError)
+      return respond({ error: error.message }, s, error.status);
     return respond(
       {
         error:
