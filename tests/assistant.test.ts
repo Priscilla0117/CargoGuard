@@ -543,6 +543,26 @@ test("assistant API enforces consent, preview binding, isolation, caching, histo
         assert.equal(calls, 0);
       },
     );
+    await t.test(
+      "typed secrets and personal identifiers are refused before preview or AI",
+      async () => {
+        for (const question of [
+          "Explain the findings, my password is Hunter2024",
+          "Card 4111 1111 1111 1111 was charged, explain",
+          "Use key sk-proj-abcdefghijklmnopqrstuv123 to explain",
+          "My IC is 050604-10-1234, explain the findings",
+        ]) {
+          const previewAttempt = await send({ ...input, question });
+          assert.equal(previewAttempt.status, 422);
+          assert.match(
+            (await apiJson(previewAttempt)).error,
+            /nothing was sent to AI/,
+          );
+          assert.equal((await send({ ...ask, question })).status, 422);
+        }
+        assert.equal(calls, 0);
+      },
+    );
     const firstResponse = await send(ask);
     assert.equal(firstResponse.status, 200);
     const first = await apiJson(firstResponse);

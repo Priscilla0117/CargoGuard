@@ -54,11 +54,12 @@ export async function aiText(
   user: string,
   maxTokens: number,
   fetcher: typeof fetch = fetch,
+  timeoutMs = 30000,
 ) {
   const response = await fetcher("https://api.openai.com/v1/responses", {
     method: "POST",
     redirect: "error",
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(timeoutMs),
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${config.key}`,
