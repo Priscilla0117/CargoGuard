@@ -64,6 +64,13 @@ function record(): FollowUp {
     created_at: "2026-09-23T00:00:00Z",
     updated_at: "2026-09-23T00:00:00Z",
     completed_at: null,
+    request: {
+      id: "external-request",
+      case_version: input.case_version,
+      at: "2026-09-23T00:00:00Z",
+      channel: "external",
+      note: "Requested issuer response externally.",
+    },
   };
 }
 async function fixture() {

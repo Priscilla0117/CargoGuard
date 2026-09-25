@@ -223,7 +223,7 @@ export function CompareTable({
           <div role="columnheader">Detail</div>
           <div role="columnheader">
             Shipping Instruction (SI)
-            <small>Your reference — the correct value</small>
+            <small>Selected reference — confirm the latest revision</small>
           </div>
           <div role="columnheader">
             Draft Bill of Lading (BL)
@@ -290,7 +290,7 @@ export function CompareTable({
                       )}
                     {edited && (
                       <span className="cg-edited">
-                        <UserCheck size={13} /> Corrected by a reviewer
+                        <UserCheck size={13} /> Reading updated by a reviewer
                       </span>
                     )}
                     <div className="cg-value-tools">
@@ -304,9 +304,9 @@ export function CompareTable({
                               value: value.raw,
                             });
                           }}
-                          aria-label={`Edit ${FIELD_LABELS[row.field]} in the ${side === "si" ? "SI" : "draft BL"}`}
+                          aria-label={`Correct reading of ${FIELD_LABELS[row.field]} in the ${side === "si" ? "SI" : "draft BL"}`}
                         >
-                          <Pencil size={14} /> Edit
+                          <Pencil size={14} /> Correct reading
                         </button>
                       )}
                       {value.source && (
@@ -381,7 +381,7 @@ export function CompareTable({
       )}
       <p className="cg-small cg-muted" style={{ marginTop: 10 }}>
         {problems
-          ? `${problems} of ${rows.length} details need attention. Edit a value only if the extracted text is wrong — if the BL itself is wrong, ask the sender to correct it (Reply tab).`
+          ? `${problems} of ${rows.length} details need attention. Correct reading fixes a reading error. If the document itself is wrong, request a revised document in Reply.`
           : `All ${rows.length} details match. Spaces, punctuation and units are compared sensibly; missing values never count as a match.`}
       </p>
     </section>

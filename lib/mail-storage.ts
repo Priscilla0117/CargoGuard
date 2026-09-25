@@ -23,7 +23,7 @@ import {
 } from "./mail-connector";
 import {
   exchangeGoogleToken,
-  gmailDeliver,
+  MailProviderError,
   gmailProfile,
   gmailUnseen,
   gmailRaw,
@@ -31,7 +31,6 @@ import {
   type Fetcher,
   type GoogleTokens,
 } from "./gmail";
-import { buildRawMessage } from "./mail-mime";
 import { requireMutation, storage } from "./storage";
 
 export interface MailContext {
@@ -53,6 +52,7 @@ interface ConnectionRow {
   last_sync_at: string | null;
   last_sync_note: string | null;
   updated_at: string;
+  sync_cursor: string | null;
 }
 const now = () => new Date().toISOString();
 const binding = (context: MailContext) =>
@@ -86,10 +86,10 @@ export async function mailRequest(
   };
 }
 
-async function connection(context: MailContext) {
+export async function connection(context: MailContext) {
   return context.db
     .prepare(
-      "SELECT provider,account,encrypted_secret,settings,version,last_sync_at,last_sync_note,updated_at FROM mail_connections WHERE workspace=? AND user_id=?",
+      "SELECT provider,account,encrypted_secret,settings,version,last_sync_at,last_sync_note,updated_at,sync_cursor FROM mail_connections WHERE workspace=? AND user_id=?",
     )
     .bind(context.workspace, context.userId)
     .first<ConnectionRow>();
@@ -144,7 +144,7 @@ async function saveConnection(
   const previous = await connection(context);
   await context.db
     .prepare(
-      "INSERT INTO mail_connections(workspace,user_id,provider,account,encrypted_secret,settings,version,updated_at) VALUES(?,?,?,?,?,?,1,?) ON CONFLICT(workspace,user_id) DO UPDATE SET provider=excluded.provider,account=excluded.account,encrypted_secret=excluded.encrypted_secret,settings=excluded.settings,version=mail_connections.version+1,last_sync_note=NULL,updated_at=excluded.updated_at",
+      "INSERT INTO mail_connections(workspace,user_id,provider,account,encrypted_secret,settings,version,updated_at) VALUES(?,?,?,?,?,?,1,?) ON CONFLICT(workspace,user_id) DO UPDATE SET provider=excluded.provider,account=excluded.account,encrypted_secret=excluded.encrypted_secret,settings=excluded.settings,version=mail_connections.version+1,last_sync_note=NULL,sync_cursor=NULL,sync_lease=NULL,sync_lease_until=NULL,updated_at=excluded.updated_at",
     )
     .bind(
       context.workspace,
@@ -317,7 +317,7 @@ export async function updateMailSettings(
 ) {
   const saved = await context.db
     .prepare(
-      "UPDATE mail_connections SET settings=?,version=version+1,updated_at=? WHERE workspace=? AND user_id=?",
+      "UPDATE mail_connections SET settings=?,version=version+1,updated_at=?,sync_cursor=NULL WHERE workspace=? AND user_id=?",
     )
     .bind(
       JSON.stringify(mailSettingsSchema.parse(settings)),
@@ -331,7 +331,7 @@ export async function updateMailSettings(
   return mailStatus(context);
 }
 
-async function googleAccess(context: MailContext, row: ConnectionRow) {
+export async function googleAccess(context: MailContext, row: ConnectionRow) {
   let tokens = JSON.parse(
     await openSecret(context.config, row.encrypted_secret, binding(context)),
   ) as GoogleTokens;
@@ -359,7 +359,7 @@ async function googleAccess(context: MailContext, row: ConnectionRow) {
     .run();
   return tokens.access_token;
 }
-async function imapSecret(context: MailContext, row: ConnectionRow) {
+export async function imapSecret(context: MailContext, row: ConnectionRow) {
   const value = JSON.parse(
     await openSecret(context.config, row.encrypted_secret, binding(context)),
   ) as { preset: ImapPreset; email: string; password: string };
@@ -371,7 +371,9 @@ async function importRaw(
   context: MailContext,
   raw: Uint8Array,
   source: "gmail" | "imap",
+  importKey: string,
   thread?: string,
+  receivedAt?: string,
 ) {
   const form = new FormData();
   form.set(
@@ -379,6 +381,8 @@ async function importRaw(
     new File([raw.slice().buffer], "message.eml", { type: "message/rfc822" }),
   );
   form.set("source", source);
+  form.set("import_key", importKey);
+  if (receivedAt) form.set("provider_received_at", receivedAt);
   if (thread && /^[A-Za-z0-9_.:=-]{1,200}$/.test(thread))
     form.set("thread_hint", `${source}:${thread}`.slice(0, 200));
   const origin =
@@ -386,7 +390,9 @@ async function importRaw(
   const headers: Record<string, string> = {
     cookie: context.request.headers.get("cookie") ?? "",
   };
-  if (origin) headers.origin = new URL(origin).origin;
+  headers.origin = origin
+    ? new URL(origin).origin
+    : new URL(context.request.url).origin;
   const { POST } = await import("@/app/api/upload/route");
   const response = await POST(
     new Request(new URL("/api/upload", context.request.url), {
@@ -410,33 +416,49 @@ async function importRaw(
 
 async function knownKeys(context: MailContext, keys: string[]) {
   if (!keys.length) return new Set<string>();
-  const rows = await context.db
-    .prepare(
-      `SELECT message_key FROM mail_imports WHERE workspace=? AND user_id=? AND status IN ('imported','skipped','importing') AND message_key IN (${keys.map(() => "?").join(",")})`,
-    )
-    .bind(context.workspace, context.userId, ...keys)
-    .all<{ message_key: string }>();
-  return new Set(rows.results.map((row) => row.message_key));
+  const known = new Set<string>();
+  // Cloudflare D1 accepts at most 100 bound parameters in one statement.
+  for (let start = 0; start < keys.length; start += 90) {
+    const page = keys.slice(start, start + 90);
+    const rows = await context.db
+      .prepare(
+        `SELECT message_key FROM mail_imports WHERE workspace=? AND user_id=? AND (status IN ('imported','skipped') OR (status='importing' AND lease_until>?)) AND message_key IN (${page.map(() => "?").join(",")})`,
+      )
+      .bind(context.workspace, context.userId, now(), ...page)
+      .all<{ message_key: string }>();
+    for (const row of rows.results) known.add(row.message_key);
+  }
+  return known;
 }
 async function reserve(context: MailContext, key: string) {
+  const lease = crypto.randomUUID();
   const result = await context.db
     .prepare(
-      "INSERT INTO mail_imports(workspace,user_id,message_key,status,created_at) VALUES(?,?,?,'importing',?) ON CONFLICT(workspace,user_id,message_key) DO UPDATE SET status='importing',created_at=excluded.created_at WHERE mail_imports.status='failed'",
+      "INSERT INTO mail_imports(workspace,user_id,message_key,status,created_at,lease_token,lease_until) VALUES(?,?,?,'importing',?,?,?) ON CONFLICT(workspace,user_id,message_key) DO UPDATE SET status='importing',created_at=excluded.created_at,lease_token=excluded.lease_token,lease_until=excluded.lease_until WHERE mail_imports.status='failed' OR (mail_imports.status='importing' AND (mail_imports.lease_until IS NULL OR mail_imports.lease_until<?))",
     )
-    .bind(context.workspace, context.userId, key, now())
+    .bind(
+      context.workspace,
+      context.userId,
+      key,
+      now(),
+      lease,
+      new Date(Date.now() + 600000).toISOString(),
+      now(),
+    )
     .run();
-  return result.meta.changes === 1;
+  return result.meta.changes === 1 ? lease : null;
 }
 async function settle(
   context: MailContext,
   key: string,
+  lease: string,
   status: "imported" | "skipped" | "failed",
   caseId: string | null,
   note: string,
 ) {
   await context.db
     .prepare(
-      "UPDATE mail_imports SET status=?,case_id=?,note=? WHERE workspace=? AND user_id=? AND message_key=?",
+      "UPDATE mail_imports SET status=?,case_id=?,note=?,lease_token=NULL,lease_until=NULL WHERE workspace=? AND user_id=? AND message_key=? AND lease_token=?",
     )
     .bind(
       status,
@@ -445,6 +467,7 @@ async function settle(
       context.workspace,
       context.userId,
       key,
+      lease,
     )
     .run();
 }
@@ -454,16 +477,48 @@ export async function syncMailbox(context: MailContext) {
   if (!row) throw new HttpError("Connect a mailbox first.", 409);
   const settings = settingsOf(row);
   const at = now();
-  // One sync at a time per mailbox; a stale lease expires after 3 minutes.
+  const leaseId = crypto.randomUUID();
+  const scope = await sha256(
+    `${row.provider}:${row.account.toLowerCase()}:${settings.mailbox}`,
+  );
+  const scanScope = await sha256(`${scope}:${JSON.stringify(settings)}`);
+  const scopedKnown = async (keys: string[]) => {
+    const seen = await knownKeys(
+      context,
+      keys.map((key) => `${scope}:${key}`),
+    );
+    return new Set(keys.filter((key) => seen.has(`${scope}:${key}`)));
+  };
+  const cursorSchema = z.object({
+    scope: z.string(),
+    gmail: z.string().optional(),
+    imap: z
+      .object({ beforeUid: z.number().int(), uidValidity: z.string() })
+      .optional(),
+  });
+  let cursor: z.infer<typeof cursorSchema> | null = null;
+  try {
+    const parsed = cursorSchema.safeParse(
+      JSON.parse(row.sync_cursor ?? "null"),
+    );
+    if (parsed.success && parsed.data.scope === scanScope) cursor = parsed.data;
+  } catch {
+    /* Restart a corrupt cursor safely using import identities. */
+  }
+  let nextCursor: typeof cursor = cursor;
+  // Fenced lease: a late worker cannot release or overwrite a newer worker.
   const lease = await context.db
     .prepare(
-      "UPDATE mail_connections SET last_sync_note='Checking for new email…',last_sync_at=? WHERE workspace=? AND user_id=? AND (last_sync_note IS NULL OR last_sync_note!='Checking for new email…' OR last_sync_at<?)",
+      "UPDATE mail_connections SET last_sync_note='Checking for new email…',last_sync_at=?,sync_lease=?,sync_lease_until=? WHERE workspace=? AND user_id=? AND account=? AND (sync_lease IS NULL OR sync_lease_until<?)",
     )
     .bind(
       at,
+      leaseId,
+      new Date(Date.now() + 600000).toISOString(),
       context.workspace,
       context.userId,
-      new Date(Date.now() - 180000).toISOString(),
+      row.account,
+      at,
     )
     .run();
   if (lease.meta.changes !== 1)
@@ -479,35 +534,78 @@ export async function syncMailbox(context: MailContext) {
     failed = 0;
   let note = "";
   let more = false;
+  const renew = async () => {
+    const changed = await context.db
+      .prepare(
+        "UPDATE mail_connections SET sync_lease_until=? WHERE workspace=? AND user_id=? AND sync_lease=?",
+      )
+      .bind(
+        new Date(Date.now() + 600000).toISOString(),
+        context.workspace,
+        context.userId,
+        leaseId,
+      )
+      .run();
+    if (changed.meta.changes !== 1)
+      throw new HttpError(
+        "Mailbox connection changed during import. Start another check.",
+        409,
+      );
+  };
   try {
     if (row.provider === "gmail") {
       const token = await googleAccess(context, row);
       const query =
         `in:inbox newer_than:${settings.days}d ${settings.gmail_query}`.trim();
-      const unseen = await gmailUnseen(
-        token,
-        query,
-        settings.max_per_sync,
-        (keys) => knownKeys(context, keys),
-        context.fetcher,
-      );
+      const scan = (page?: string) =>
+        gmailUnseen(
+          token,
+          query,
+          settings.max_per_sync,
+          scopedKnown,
+          context.fetcher,
+          10,
+          page,
+        );
+      let unseen;
+      try {
+        unseen = await scan(cursor?.gmail);
+      } catch (error) {
+        if (
+          !(
+            cursor?.gmail &&
+            error instanceof MailProviderError &&
+            error.providerStatus === 400
+          )
+        )
+          throw error;
+        unseen = await scan();
+      }
       more = unseen.more;
+      nextCursor = unseen.more
+        ? { scope: scanScope, gmail: unseen.nextPageToken ?? "" }
+        : null;
       for (const item of unseen.messages) {
-        const key = `gmail:${item.id}`;
-        if (!(await reserve(context, key))) continue;
+        await renew();
+        const key = `${scope}:gmail:${item.id}`;
+        const reservation = await reserve(context, key);
+        if (!reservation) continue;
         try {
           const message = await gmailRaw(token, item.id, context.fetcher);
           const result = await importRaw(
             context,
             message.bytes,
             "gmail",
+            `mail:${await sha256(key)}`,
             message.thread,
+            message.received_at,
           );
           if (result.duplicate) duplicates++;
           else imported.push(result.case_id);
           await settle(
             context,
             key,
+            reservation,
             "imported",
             result.case_id,
             result.duplicate ? "Already in CargoGuard" : "Imported",
@@ -517,6 +615,7 @@ export async function syncMailbox(context: MailContext) {
           await settle(
             context,
             key,
+            reservation,
             "failed",
             null,
             error instanceof HttpError ? error.message : "Import failed",
@@ -534,24 +633,34 @@ export async function syncMailbox(context: MailContext) {
           mailbox: settings.mailbox,
           days: settings.days,
           max: settings.max_per_sync,
+          cursor: cursor?.imap,
         },
-        (keys) => knownKeys(context, keys),
+        scopedKnown,
       );
       more = candidates.more;
+      nextCursor = candidates.cursor
+        ? { scope: scanScope, imap: candidates.cursor }
+        : null;
       for (const candidate of candidates) {
-        if (!(await reserve(context, candidate.key))) continue;
+        await renew();
+        const key = `${scope}:${candidate.key}`;
+        const reservation = await reserve(context, key);
+        if (!reservation) continue;
         try {
           const result = await importRaw(
             context,
             candidate.raw,
             "imap",
+            `mail:${await sha256(key)}`,
             candidate.thread,
+            candidate.received_at,
           );
           if (result.duplicate) duplicates++;
           else imported.push(result.case_id);
           await settle(
             context,
-            candidate.key,
+            key,
+            reservation,
             "imported",
             result.case_id,
             result.duplicate ? "Already in CargoGuard" : "Imported",
@@ -560,7 +669,8 @@ export async function syncMailbox(context: MailContext) {
           failed++;
           await settle(
             context,
-            candidate.key,
+            key,
+            reservation,
             "failed",
             null,
             error instanceof HttpError ? error.message : "Import failed",
@@ -571,7 +681,9 @@ export async function syncMailbox(context: MailContext) {
     }
     note = imported.length
       ? `${imported.length} new email${imported.length === 1 ? "" : "s"} imported`
-      : "No new email";
+      : more
+        ? "Mailbox scan continues"
+        : "No new email";
     if (failed) note += ` · ${failed} could not be imported`;
     if (more) note += " · more emails waiting — the next check continues";
     return { imported, duplicates, failed, busy: false, note, more };
@@ -584,97 +696,27 @@ export async function syncMailbox(context: MailContext) {
   } finally {
     await context.db
       .prepare(
-        "UPDATE mail_connections SET last_sync_note=?,last_sync_at=? WHERE workspace=? AND user_id=?",
+        "UPDATE mail_connections SET last_sync_note=?,last_sync_at=?,sync_cursor=?,sync_lease=NULL,sync_lease_until=NULL WHERE workspace=? AND user_id=? AND sync_lease=?",
       )
       .bind(
         note.slice(0, 300) || "Mailbox check failed.",
         now(),
+        nextCursor ? JSON.stringify(nextCursor) : null,
         context.workspace,
         context.userId,
+        leaseId,
       )
       .run()
       .catch(() => {});
   }
 }
 
-export const replyInput = z
-  .object({
-    case_id: z.string().min(1).max(120),
-    mode: z.enum(["draft", "send"]),
-    confirmed: z.literal(true),
-    to: z.array(z.string().trim().email().max(254)).min(1).max(20),
-    cc: z.array(z.string().trim().email().max(254)).max(20),
-    subject: z.string().trim().min(1).max(500),
-    body: z.string().min(1).max(20000),
-  })
-  .strict();
-
-export async function deliverReply(
-  context: MailContext,
-  input: z.infer<typeof replyInput>,
-  source: { message_id?: string; references?: string[]; thread_hint?: string },
-) {
-  const row = await connection(context);
-  if (!row) throw new HttpError("Connect Gmail or another mailbox first.", 409);
-  if (input.mode === "send" && !context.config.allowSend)
-    throw new HttpError(
-      "Sending is disabled on this server. Save a draft instead.",
-      403,
-    );
-  const { raw } = buildRawMessage({
-    from: row.account,
-    to: input.to,
-    cc: input.cc,
-    subject: input.subject,
-    body: input.body,
-    in_reply_to: source.message_id,
-    references: [
-      ...(source.references ?? []),
-      ...(source.message_id ? [source.message_id] : []),
-    ],
-  });
-  let where: string;
-  if (row.provider === "gmail") {
-    const token = await googleAccess(context, row);
-    const thread = source.thread_hint?.startsWith("gmail:")
-      ? source.thread_hint.slice(6)
-      : undefined;
-    await gmailDeliver(token, raw, input.mode, thread, context.fetcher);
-    where = input.mode === "draft" ? "Gmail Drafts" : "Gmail (sent)";
-  } else {
-    const secret = await imapSecret(context, row);
-    const { imapSaveDraft, imapServer, smtpSend } = await import(
-      "./imap-adapter"
-    );
-    const server = imapServer(context.config, secret.preset);
-    if (input.mode === "draft")
-      where = await imapSaveDraft(server, secret, raw);
-    else {
-      await smtpSend(server, secret, raw, {
-        from: row.account,
-        to: [...input.to, ...input.cc],
-      });
-      where = "Sent";
-    }
-  }
-  await context.db
-    .prepare(
-      "INSERT INTO events(id,workspace,email_id,action,actor,detail,created_at) VALUES(?,?,?,?,?,?,?)",
-    )
-    .bind(
-      crypto.randomUUID(),
-      context.workspace,
-      input.case_id,
-      input.mode === "send" ? "REPLY_SENT" : "REPLY_DRAFT_SAVED",
-      context.actor,
-      JSON.stringify({
-        summary: `${input.mode === "send" ? "Reply sent" : "Reply saved as draft"} to ${input.to.join(", ")} from ${row.account}: ${input.subject}`,
-        to: input.to,
-        cc: input.cc,
-        subject: input.subject,
-      }),
-      now(),
-    )
-    .run();
-  return { account: row.account, where };
-}
+export {
+  replyInput,
+  deliverReply,
+  checkMailOperation,
+  listMailOperations,
+  resolveMailOperation,
+  checkOperationInput,
+  resolveOperationInput,
+} from "./mail-delivery";

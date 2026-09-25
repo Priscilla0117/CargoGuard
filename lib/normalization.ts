@@ -13,6 +13,17 @@ const missing =
   /^(?:[\s?_\-–—.\/]+|t\.?\s*b\.?\s*[acd]\.?|n\.?\s*\/?\s*a\.?|nil|none|null|unknown|pending|unavailable|not\s+(?:available|provided|specified|stated|known|confirmed|applicable)|to\s+be\s+(?:advised|confirmed|determined|provided|decided)|awaiting\s+(?:confirmation|details|instructions)|same\s+as\s+above)$/i;
 const unitPlaceholder =
   /^(?:[?_\-–—.\s]+)\s*(?:kgs?|kilograms?|mt|metric tonnes?|tonnes?)$/i;
+/** Consume the entire placeholder expression; never reject a real name merely
+ * because it contains an acronym such as TBA. */
+function missingExpression(raw: string) {
+  if (missing.test(raw) || unitPlaceholder.test(raw)) return true;
+  const parts = raw
+    .replace(/\bn\s*\/\s*a\b/gi, "N.A.")
+    .split(/\s*(?:[\/,;|&()[\]{}]+|\band\b|\bor\b)\s*/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return parts.length > 0 && parts.every((part) => missing.test(part));
+}
 export const sameAsConsignee = (raw: string) =>
   /^(?:same as|as per)\s+(?:the\s+)?consignee\.?$/i.test(
     raw.normalize("NFKC").trim(),
@@ -90,11 +101,7 @@ export function normalizeValue(field: Field, raw: string): NormalizedValue {
     !/[\p{L}\p{N}]/u.test(value) ||
     value
       .split(/\r?\n/)
-      .some(
-        (line) =>
-          line.trim() &&
-          (missing.test(line.trim()) || unitPlaceholder.test(line.trim())),
-      )
+      .some((line) => line.trim() && missingExpression(line.trim()))
   ) {
     return {
       value: null,
@@ -234,6 +241,9 @@ export function resolveFields(fields: Extracted): Extracted {
   const resolved = structuredClone(fields);
   for (const field of FIELDS) {
     const n = normalizeValue(field, resolved[field].raw);
+    if (resolved[field].correction?.state === "unresolved")
+      resolved[field].extraction_issue ??=
+        "This reading correction still needs confirmation from the original source.";
     resolved[field].normalized = resolved[field].extraction_issue
       ? null
       : n.value;

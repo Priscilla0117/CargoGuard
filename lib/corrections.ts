@@ -3,6 +3,10 @@ import { normalizeValue } from "./normalization";
 import { HttpError } from "./http";
 import { requireCurrentEngine } from "./review-guard";
 import type { CaseResult, Field } from "./types";
+import {
+  retainSourceCorrections,
+  sourceBoundCorrection,
+} from "./source-corrections";
 
 export interface FieldCorrection {
   field: Field;
@@ -36,15 +40,26 @@ export function correctField(
       "The selected field is not available for correction.",
       422,
     );
-  row[edit.side] = {
+  const sources = previous.documents.filter(
+    (doc) =>
+      doc.name === row[edit.side].source &&
+      doc.type === (edit.side === "si" ? "SI" : "BL"),
+  );
+  if (sources.length !== 1 || !sources[0].sha256 || sources[0].error)
+    throw new HttpError(
+      "The original source is unavailable or ambiguous. Recheck the documents before correcting a reading.",
+      409,
+    );
+  row[edit.side] = sourceBoundCorrection(sources[0], edit.field, {
     ...row[edit.side],
     raw: value,
-    extraction_issue: undefined,
-    issue: undefined,
     method: `Human correction by ${actor}`,
-    evidence: `Reviewer confirmed; original source: ${row[edit.side].evidence}`,
-  };
-  return deriveResult({ ...previous, reviewed: true }, recomputeRows(rows));
+  });
+  const result = deriveResult(
+    { ...previous, reviewed: true },
+    recomputeRows(rows),
+  );
+  return retainSourceCorrections(result, result);
 }
 
 export function previewCorrection(previous: CaseResult, edit: FieldCorrection) {

@@ -720,7 +720,7 @@ test("editing original comparison fields cannot establish an approved instructio
     );
     await a.store(edited, 1);
     const sources = [edited, a.instruction];
-    assert.equal(edited.workflow, "verified");
+    assert.equal(edited.workflow, "review");
     assert.equal(
       amendmentOriginalSupported(
         f.shipment,
@@ -734,7 +734,7 @@ test("editing original comparison fields cannot establish an approved instructio
       approvedComparison(f.shipment, edited, sources).rows.every(
         (row) => row.result === "match",
       ),
-      true,
+      false,
     );
     await assert.rejects(
       () =>
@@ -747,7 +747,7 @@ test("editing original comparison fields cannot establish an approved instructio
           reason:
             "Attempt to treat a field correction as the revised instruction source",
         }),
-      /not established by the original SI/,
+      /Resolve every discrepancy and review blocker/,
     );
     assert.equal(f.shipment.state, "open");
     assert.equal(f.shipment.amendments[0].incorporation, undefined);

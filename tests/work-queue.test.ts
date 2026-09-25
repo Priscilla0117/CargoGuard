@@ -7,7 +7,12 @@ import {
   workQueue,
   caseDestination,
 } from "../lib/work-queue";
-import { PIPELINE_VERSION, summaryOf, type CaseSummary } from "../lib/types";
+import {
+  PIPELINE_VERSION,
+  summaryOf,
+  type CaseSummary,
+  type ParsedDocument,
+} from "../lib/types";
 import type { FollowUp } from "../lib/follow-up";
 
 function row(
@@ -28,7 +33,23 @@ function row(
     attachments: [],
   };
   if (workflow === "pending") return { email, result: null };
-  const base = analyze(email, []);
+  // A verified fixture needs actual seven-field evidence, not only a green
+  // workflow label. Completion now validates that evidence independently.
+  const lines =
+    "Shipper: Atlas Export\nConsignee: Buyer Two\nNotify party: SAME AS CONSIGNEE\nPort of loading: Port Klang\nPort of discharge: Singapore\nContainer count: 2\nGross weight (KG): 42000";
+  const documents: ParsedDocument[] = (["SI", "BL"] as const).map(
+    (type, index) => ({
+      name: `${type}.txt`,
+      type,
+      format: "txt",
+      method: "Plain text",
+      sha256: String(index + 1).repeat(64),
+      lines: lines
+        .split("\n")
+        .map((text, line) => ({ text, location: `line ${line + 1}` })),
+    }),
+  );
+  const base = analyze(email, workflow === "verified" ? documents : []);
   return summaryOf({
     ...base,
     workflow,
@@ -154,6 +175,13 @@ function followup(
     shipment_reference: "BOOK-204",
     due_at: "2026-09-23T02:00:00.000Z",
     state: "waiting",
+    request: {
+      id: "external-request",
+      case_version: current.result!.version,
+      at: "2026-09-22T02:00:00.000Z",
+      channel: "external",
+      note: "Requested the corrected port from issuer.",
+    },
     note: "Await corrected port from issuer",
     actor: "Amina",
     updated_at: "2026-09-22T02:00:00.000Z",

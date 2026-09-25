@@ -4684,3 +4684,14 @@ p.cg-copilot-ai {
 .assistant-panel .cg-copilot-welcome p {
   font-size: var(--fs-sm);
 }
+
+.cg-reading-source { border: 1px solid var(--cg-border, #d7e1e7); border-radius: 8px; padding: 10px 12px; background: var(--cg-bg, #f5f7fa); min-width: 0; }
+.cg-reading-source summary { cursor: pointer; font-weight: 600; overflow-wrap: anywhere; }
+.cg-reading-source blockquote { margin: 10px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.6; max-height: 160px; overflow: auto; }
+.cg-fix-form .cg-check { align-items: flex-start; line-height: 1.5; }
+.cg-fix-form .cg-check input { flex-shrink: 0; margin-top: 4px; }
+.cg-delivery-warning { border-left: 4px solid #b45309; background: #fffbeb; color: #78350f; }
+.cg-delivery-recovery { margin: 12px 18px; padding: 14px; border: 1px solid #e4bc74; border-radius: 8px; background: #fffbeb; }
+.cg-delivery-recovery p { margin: 0 0 10px; line-height: 1.5; }
+.cg-delivery-recovery .cg-composer-actions { padding: 8px 0 0; }
+.cg-value-tools button { min-height: 34px; }

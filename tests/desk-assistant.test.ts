@@ -156,7 +156,7 @@ test("the email view separates the signature from the message", () => {
   assert.equal(splitSignature("Thanks,\nAli").signature, "");
 });
 
-test("the correction preview shows the edited detail going from different to matching", async () => {
+test("the correction preview cannot clear a real difference with an unsupported typed value", async () => {
   const result = await check({}, "BUSAN");
   const preview = previewCorrection(result, {
     field: "port_of_discharge",
@@ -165,8 +165,8 @@ test("the correction preview shows the edited detail going from different to mat
   });
   const row = preview.changes.find((c) => c.field === "port_of_discharge");
   assert.equal(row?.before, "mismatch");
-  assert.equal(row?.after, "match");
-  assert.equal(preview.result?.status, "OK");
+  assert.equal(row?.after, "uncertain");
+  assert.equal(preview.result?.status, "NEEDS_REVIEW");
 });
 
 test("work questions that mention a term are not answered as definitions", async () => {

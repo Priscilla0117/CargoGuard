@@ -39,3 +39,37 @@ export function selectionStillMatches(
     return undefined;
   }
 }
+
+/** Resolve the same pair that automatic comparison accepts. Retained invoices
+ * are not a third member of that pair; ambiguous shipping drafts still block. */
+export function comparisonDocuments(
+  documents: ParsedDocument[],
+  selection?: DocumentSelection,
+) {
+  if (selection) return selectedDocuments(documents, selection);
+  const si = documents.filter((doc) => doc.type === "SI");
+  const bl = documents.filter((doc) => doc.type === "BL");
+  if (
+    si.length !== 1 ||
+    bl.length !== 1 ||
+    documents.some(
+      (doc) => doc.error || !["SI", "BL", "OTHER"].includes(doc.type),
+    )
+  )
+    throw new HttpError(
+      "Confirm the current readable SI and draft BL pair.",
+      409,
+    );
+  if (
+    si[0].name === bl[0].name ||
+    [si[0], bl[0]].some(
+      (source) =>
+        documents.filter((doc) => doc.name === source.name).length !== 1,
+    )
+  )
+    throw new HttpError(
+      "The SI and draft BL need distinct, unambiguous source names.",
+      409,
+    );
+  return [si[0], bl[0]];
+}

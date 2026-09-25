@@ -1,4 +1,5 @@
 import { checkDocumentIntegrity } from "./integrity-checks";
+import { completionBlocker } from "./follow-up";
 import { runtimeBindings } from "@/lib/runtime";
 import { NextResponse } from "next/server";
 import {
@@ -109,49 +110,48 @@ export async function listCaseSummaries(
 ): Promise<CaseSummary[]> {
   const rows = await db
     .prepare(
-      "SELECT json_remove(payload, '$.documents', '$.comparison') AS payload, version FROM cases WHERE workspace=? ORDER BY email_id",
+      "SELECT json_remove(payload, '$.documents', '$.comparison', '$.retained_corrections') AS payload, json_array_length(payload, '$.comparison') AS comparison_count, version FROM cases WHERE workspace=? ORDER BY email_id",
     )
     .bind(ws)
-    .all<{ payload: string; version: number }>();
+    .all<{ payload: string; version: number; comparison_count: number }>();
   // Matching document checks also carry the independent safety findings
   // (container check digits, weights), so the inbox never files one under
   // "Done" while a finding is still open. Only these rows need documents.
   const flagged = new Set<string>();
+  const completion = new Map<string, string | null>();
   const evidence = await db
     .prepare(
-      "SELECT email_id, json_extract(payload, '$.documents') AS documents, json_extract(payload, '$.comparison') AS comparison, json_extract(payload, '$.document_selection') AS selection FROM cases WHERE workspace=? AND json_extract(payload, '$.workflow')='verified' AND json_extract(payload, '$.category')='BL_COMPARISON'",
+      "SELECT email_id, payload, version FROM cases WHERE workspace=? AND json_extract(payload, '$.workflow')='verified' AND json_extract(payload, '$.category')='BL_COMPARISON'",
     )
     .bind(ws)
     .all<{
       email_id: string;
-      documents: string | null;
-      comparison: string | null;
-      selection: string | null;
+      payload: string;
+      version: number;
     }>();
   for (const row of evidence.results) {
     try {
-      if (
-        checkDocumentIntegrity({
-          documents: JSON.parse(row.documents ?? "[]"),
-          comparison: JSON.parse(row.comparison ?? "[]"),
-          document_selection: row.selection
-            ? JSON.parse(row.selection)
-            : undefined,
-        }).requires_attention
-      )
+      const result = { ...JSON.parse(row.payload), version: row.version } as CaseResult;
+      completion.set(row.email_id, completionBlocker(result));
+      if (checkDocumentIntegrity(result).requires_attention)
         flagged.add(row.email_id);
     } catch {
-      // Unreadable stored evidence is shown on the case page instead.
+      completion.set(row.email_id, "Open and recheck the stored source evidence before completing this work.");
     }
   }
   return rows.results.map((row) => {
     const { email, ...result } = JSON.parse(row.payload);
+    const blocker = completion.has(email.email_id) ? completion.get(email.email_id)! :
+      result.workflow === "verified" || row.comparison_count > 0
+        ? "Open and recheck the current source evidence before completing this work."
+        : completionBlocker({ ...result, email, version: row.version, documents: [], comparison: [] });
     return {
       email: emailSummaryOf(email),
       result: {
         ...result,
         version: row.version,
-        ...(flagged.has(email.email_id) ? { integrity_attention: true } : {}),
+        integrity_attention: flagged.has(email.email_id),
+        completion_blocker: blocker,
       },
     };
   });

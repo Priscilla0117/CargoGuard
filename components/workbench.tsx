@@ -135,6 +135,7 @@ function AuthoredOperationsChallenge({ report }: { report: unknown }) {
 }
 
 interface ApiPayload {
+  shipment_contexts?: Record<string, import("@/lib/priority").PlanContext>;
   workspace?: { mode: string; sample_data: boolean; upload_limit: number };
   loaded_at?: string;
   cases: CaseSummary[];
@@ -193,6 +194,9 @@ export default function Workbench({
   const [workspaceConfig, setWorkspaceConfig] =
     useState<ApiPayload["workspace"]>();
   const [followups, setFollowups] = useState<FollowUpMap>({});
+  const [shipmentContexts, setShipmentContexts] = useState<
+    Map<string, import("@/lib/priority").PlanContext>
+  >(new Map());
   const [followupsReady, setFollowupsReady] = useState(false);
   const [followupsLoading, setFollowupsLoading] = useState(false);
   const [followupsError, setFollowupsError] = useState("");
@@ -335,6 +339,7 @@ export default function Workbench({
   }
   const applyInbox = useCallback((d: ApiPayload) => {
     setCases(d.cases);
+    setShipmentContexts(new Map(Object.entries(d.shipment_contexts ?? {})));
     setWorkspaceConfig(d.workspace);
     setEvents(d.audit);
     setInboxReady(true);
@@ -516,8 +521,8 @@ export default function Workbench({
   // ----- Derived planning data -----
   const threads = useMemo(() => threadsFor(cases), [cases]);
   const plans = useMemo(
-    () => planAll(cases, followups, queueNow, threads),
-    [cases, followups, queueNow, threads],
+    () => planAll(cases, followups, queueNow, threads, shipmentContexts),
+    [cases, followups, queueNow, threads, shipmentContexts],
   );
   const planned = useMemo(
     () =>
@@ -658,7 +663,12 @@ export default function Workbench({
         return false;
       }
     }
-    const due = nextWorkingMorning(new Date());
+    const due =
+      current?.due_at &&
+      current.state !== "completed" &&
+      Number.isFinite(Date.parse(current.due_at))
+        ? new Date(current.due_at)
+        : nextWorkingMorning(new Date());
     const refs = emailInsight(result.email).refs;
     const note =
       outcome === "done"
@@ -690,6 +700,7 @@ export default function Workbench({
                 : outcome === "waiting"
                   ? "waiting"
                   : "open",
+            request_confirmed: outcome === "waiting",
             note,
             actor: person,
           }),
@@ -958,7 +969,15 @@ export default function Workbench({
       if (!activeRequest.current.isCurrent(request)) return false;
       setSelected(d.result);
       setCaseEvents(d.audit);
-      setNotice("Correction saved and the check was run again.");
+      const corrected = d.result.comparison.find(
+        (row) => row.field === edit.field,
+      )?.[edit.side];
+      setNotice(
+        corrected?.correction?.state === "unresolved"
+          ? "Reading saved for review. Source confirmation is still needed; the received document has not changed."
+          : "Reading correction saved and checked against the source. The received document has not changed.",
+      );
+      void load();
       return true;
     } catch (e) {
       if (activeRequest.current.isCurrent(request))

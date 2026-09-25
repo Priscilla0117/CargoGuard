@@ -229,7 +229,13 @@ export function extract(doc: ParsedDocument): Extracted {
       if (!current.raw && current.location !== line.location)
         current.location += `; value ${line.location}`;
       current.raw += (current.raw ? "\n" : "") + text;
-      if (!["shipper", "consignee", "notify_party"].includes(current.field))
+      // A wrapped count can contain several size groups. Keep the complete
+      // expression until the next field boundary; a valid prefix is not a total.
+      if (
+        !["shipper", "consignee", "notify_party", "container_count"].includes(
+          current.field,
+        )
+      )
         current = null;
     }
   }
@@ -278,26 +284,56 @@ export function extract(doc: ParsedDocument): Extracted {
   ) {
     for (let i = 0; i < doc.lines.length; i++) {
       const line = doc.lines[i];
-      if (!/^total\s+gross\s*(?:weight|wt)\b/i.test(line.text)) continue;
+      // Only an unfinished label can be joined. An explicit TBD/other value
+      // must not be replaced by a nearby net/tare/item weight.
+      if (
+        !/^total\s+gross\s*(?:weight|wt)(?:毛重)?(?:\s*\((?:kgs?|kilograms?|mt|tonnes?)\))?\s*[:：]?\s*$/i.test(
+          line.text,
+        )
+      )
+        continue;
+      const fragments: { raw: string; issue?: string }[] = [];
       for (const next of doc.lines.slice(i + 1, i + 4)) {
         if (next.location !== line.location) break;
         const m = next.text.match(
-          /[:：]\s*(\d[\d ,.]*\s*(?:kgs?|mt|tonnes?)?)\s*$/i,
+          /^(?:毛重)?\s*(?:\((?:kgs?|kilograms?|mt|tonnes?)\))?\s*[:：]\s*(\d[\d ,.]*\s*(?:kgs?|mt|tonnes?)?)\s*$/i,
         );
+        if (!m && /[:：]/.test(next.text)) break;
         if (m && normalize("gross_weight_kg", m[1]) !== null) {
           const recovered = weightWithLabel(
             m[1].trim(),
             `${line.text} ${next.text.split(/[:：]/)[0]}`,
           );
-          result.gross_weight_kg = {
-            raw: recovered.raw,
-            normalized: null,
-            evidence: line.location,
-            source: doc.name,
-            method: `${doc.method}; same-baseline total`,
-            ...(recovered.issue ? { extraction_issue: recovered.issue } : {}),
-          };
+          fragments.push(recovered);
         }
+      }
+      if (fragments.length) {
+        const recovered = fragments[0];
+        const conflicting = fragments.some(
+          (fragment) =>
+            fragment.issue ||
+            !equivalent(
+              "gross_weight_kg",
+              normalize("gross_weight_kg", recovered.raw),
+              normalize("gross_weight_kg", fragment.raw),
+            ),
+        );
+        result.gross_weight_kg = {
+          raw: conflicting
+            ? fragments.map((fragment) => fragment.raw).join("\n")
+            : recovered.raw,
+          normalized: null,
+          evidence: line.location,
+          source: doc.name,
+          method: `${doc.method}; same-baseline total`,
+          ...(conflicting || recovered.issue
+            ? {
+                extraction_issue:
+                  recovered.issue ??
+                  "Conflicting gross-total fragments. Confirm the authoritative source value.",
+              }
+            : {}),
+        };
       }
     }
   }

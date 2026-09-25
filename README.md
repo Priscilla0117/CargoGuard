@@ -2,7 +2,7 @@
 
 Shipping-document verification and follow-up for operations teams. CargoGuard classifies incoming email, compares Shipping Instructions (SI) with draft Bills of Lading (BL), and gives employees a source-backed route from a discrepancy to a corrected document. Decisions, originals, revisions, assignments and handovers are stored in a database.
 
-**Final-round branch:** `codex/final-round-employee-workflow`. Engine **3.3.1**. This repository contains the executable Next.js application, SQL migrations, local OCR assets, regression tests and deployment configuration. No paid AI API is needed for classification, comparison or OCR.
+**Employee workflow branch:** `codex/averis-workflow-hardening`, based on `cowork`. Engine **3.4.0**. This repository contains the executable Next.js application, SQL migrations, local OCR assets, regression tests and deployment configuration. No paid AI API is needed for classification, comparison or OCR. See the [3.4.0 workflow changes and acceptance record](docs/AVERIS_WORKFLOW_3_4.md).
 
 The existing URL, https://cargoguard-averis.onrender.com/, is an **older release**, not proof that this branch has been deployed. Its dated record is in [CLOUD_RELEASE.md](docs/CLOUD_RELEASE.md). Deploy the exact feature-branch commit and run acceptance checks against that host before sharing it as the final release.
 
@@ -112,7 +112,7 @@ Three fresh first-run seeds produced **1,560/1,560 exact outputs**, catching all
 
 The application works without Microsoft. Connecting Outlook requires an approved tenant registration, delegated permissions, redirect URI and encrypted token storage. Follow [MICROSOFT_SETUP.md](docs/MICROSOFT_SETUP.md). Sending and Outlook framing default to disabled. No tenant is available for live acceptance; mocked tests do not establish live mailbox compatibility.
 
-Gmail works in two ways, Google sign-in or an app password; see [GMAIL_SETUP.md](docs/GMAIL_SETUP.md). The Google sign-in, import and draft flow is covered by automated tests against a mocked Google API; the app-password (IMAP/SMTP) path uses the maintained ImapFlow and Nodemailer libraries but has no automated test. Neither has been exercised against a live mailbox in this environment, so connect a test mailbox before a demo. Automatic import runs while CargoGuard is open in a browser.
+Gmail works in two ways, Google sign-in or an app password; see [GMAIL_SETUP.md](docs/GMAIL_SETUP.md). Automated tests cover Google API behavior and IMAP/SMTP adapters using simulated providers, including import pagination, retries and uncertain send outcomes. Neither has been exercised against a live mailbox in this environment, so connect a test mailbox before a demo. Automatic import runs while CargoGuard is open in a browser.
 
 Chasers, acknowledgements, IT reports and handovers remain saved drafts unless explicitly dispatched through a configured channel. In-app reminders refresh while the workspace is open. Teams delivery, unattended mailbox/background monitoring and sanctions screening are not delivered features.
 

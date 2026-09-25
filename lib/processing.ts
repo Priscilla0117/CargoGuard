@@ -1,4 +1,4 @@
-import { analyze, deriveResult, recomputeRows } from "./compare";
+import { analyze } from "./compare";
 import { parseDocument } from "./parsers";
 import type { CaseResult, Email, ParsedDocument } from "./types";
 import { canTranscribe, transcribeDocument } from "./transcription";
@@ -6,6 +6,78 @@ import { DEFAULT_POLICY, type PolicySnapshot } from "./policy";
 import { recoverDocument } from "./recovery";
 import { selectionStillMatches } from "./document-selection";
 import { applyLabelRules, type LabelRule } from "./label-rules";
+import { classify } from "./classifier";
+import { currentRoutingMessage, routingReviewGate } from "./routing-features";
+import { retainSourceCorrections } from "./source-corrections";
+
+/** Route first, but retain parsing whenever attachment evidence may change the
+ * route. Filename hints only make deferral more conservative, never classify. */
+export function attachmentPlan(email: Email, previous?: CaseResult) {
+  const classification = classify(email);
+  const category = previous?.category_override ?? classification.category;
+  if (
+    category === "BL_COMPARISON" ||
+    previous?.document_selection ||
+    previous?.retained_corrections?.length ||
+    previous?.documents.some((doc) => doc.sha256)
+  )
+    return {
+      parse: true,
+      reason:
+        "Document comparison or existing source evidence requires parsing.",
+    };
+  if (previous?.category_override)
+    return {
+      parse: false,
+      reason: "A reviewer confirmed a route without document comparison.",
+    };
+  if (classification.needs_review || routingReviewGate(email))
+    return {
+      parse: true,
+      reason: "Uncertain or mixed requests need attachment evidence.",
+    };
+  if (category === "SPAM")
+    return {
+      parse: false,
+      reason: "Spam attachments are retained without being opened.",
+    };
+  const current = `${email.subject}\n${currentRoutingMessage(email.body)}`;
+  const shipping =
+    /\b(?:s\/?i|b\/?l|shipping instructions?|bill of lading|draft|container|consignee|shipper)\b/i;
+  if (
+    category === "INVOICE_QUERY" &&
+    !shipping.test(current) &&
+    email.attachments.every((path) => {
+      const name = (path.split("/").pop() ?? "").replace(/[_-]/g, " ");
+      return (
+        /\b(?:invoice|receipt|credit note)\b/i.test(name) &&
+        !shipping.test(name)
+      );
+    })
+  )
+    return {
+      parse: false,
+      reason:
+        "This confirmed invoice-only request needs billing follow-up, not an SI/BL comparison.",
+    };
+  return {
+    parse: true,
+    reason:
+      "Attachment roles are not established; inspect them conservatively.",
+  };
+}
+
+export function deferredDocument(path: string, reason: string): ParsedDocument {
+  const name = path.split("/").pop()!;
+  return {
+    name,
+    format: name.split(".").pop()?.toLowerCase() ?? "",
+    type: "UNKNOWN",
+    lines: [],
+    method: `Deferred — ${reason}`,
+    deferred: true,
+  };
+}
 
 export async function mapLimited<T, R>(
   items: T[],
@@ -37,6 +109,21 @@ export async function processEmail(
   labelRules: LabelRule[] = [],
 ) {
   const started = performance.now();
+  const plan = attachmentPlan(email, previous);
+  if (!plan.parse) {
+    const result = analyze(
+      email,
+      email.attachments.map((path) => deferredDocument(path, plan.reason)),
+      Math.round(performance.now() - started),
+      previous?.category_override,
+      policy,
+    );
+    if (email.attachments.length)
+      result.summary +=
+        " Attachments are retained but have not been read or verified. Confirm the document-comparison route to inspect them.";
+    result.source_replaced = previous?.source_replaced;
+    return result;
+  }
   let docs = await mapLimited(email.attachments, 2, async (path) => {
     const bytes = await read(path);
     const doc = bytes
@@ -83,30 +170,7 @@ export async function processEmail(
     result.document_selection
   )
     result.reviewed = true;
-  // An engine upgrade is not permission to erase a reviewed fact. Preserve
-  // corrections only when every source fingerprint is unchanged.
-  if (
-    preserveCorrections &&
-    previous?.reviewed &&
-    previous.documents.length === docs.length &&
-    docs.every(
-      (d) =>
-        d.sha256 &&
-        previous.documents.some(
-          (old) => old.name === d.name && old.sha256 === d.sha256,
-        ),
-    ) &&
-    result.comparison.length
-  ) {
-    const rows = structuredClone(result.comparison);
-    for (const row of rows)
-      for (const side of ["si", "bl"] as const) {
-        const old = previous.comparison.find((r) => r.field === row.field)?.[
-          side
-        ];
-        if (old?.method.startsWith("Human correction")) row[side] = old;
-      }
-    result = deriveResult({ ...result, reviewed: true }, recomputeRows(rows));
-  }
+  if (preserveCorrections && previous)
+    result = retainSourceCorrections(previous, result);
   return result;
 }

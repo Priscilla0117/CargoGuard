@@ -3,6 +3,7 @@ import { HttpError } from "./http";
 import {
   completionBlocker,
   integrityNeedsConfirmation,
+  hasRecordedRequest,
   followUpInput,
   type FollowUp,
   type FollowUpInput,
@@ -28,6 +29,15 @@ export async function saveFollowUp(
   ws: string,
   input: FollowUpInput,
   db = storage().DB,
+): Promise<FollowUp> {
+  return persistFollowUp(ws, input, db);
+}
+
+async function persistFollowUp(
+  ws: string,
+  input: FollowUpInput,
+  db: D1Database,
+  sentRequest?: NonNullable<FollowUp["request"]>,
 ): Promise<FollowUp> {
   input = followUpInput.parse(input);
   const source = await db
@@ -72,6 +82,29 @@ export async function saveFollowUp(
     );
   const previous = prior ? (JSON.parse(prior.payload) as FollowUp) : null;
   const now = new Date().toISOString();
+  let request = previous?.request;
+  if (input.state === "waiting") {
+    if (sentRequest) request = sentRequest;
+    else if (input.request_confirmed)
+      request = {
+        id: crypto.randomUUID(),
+        case_version: input.case_version,
+        at: now,
+        channel: "external",
+        note: input.note,
+      };
+    else if (
+      !request ||
+      !previous ||
+      !hasRecordedRequest(previous) ||
+      previous?.state !== "waiting" ||
+      request.case_version !== input.case_version
+    )
+      throw new HttpError(
+        "Record the request already sent before waiting for a reply. Saving a draft does not send it.",
+        409,
+      );
+  }
   const followup: FollowUp = {
     email_id: input.id,
     version: input.version + 1,
@@ -84,6 +117,7 @@ export async function saveFollowUp(
     actor: input.actor,
     created_at: previous?.created_at ?? now,
     updated_at: now,
+    ...(request ? { request } : {}),
     ...(input.state === "completed" && input.integrity_confirmed
       ? { integrity_confirmed: true }
       : {}),
@@ -157,4 +191,81 @@ export async function saveFollowUp(
       409,
     );
   return followup;
+}
+
+export interface SentFollowUpInput {
+  id: string;
+  case_version: number;
+  request_id: string;
+  provider_message_id: string;
+  requested_at: string;
+  actor: string;
+  purpose: string;
+  note: string;
+}
+
+/** Called only after a durable provider-confirmed send. Retry the follow-up
+ * independently of delivery; an older receipt must never overwrite newer work. */
+export async function recordSentFollowUp(
+  ws: string,
+  input: SentFollowUpInput,
+  db = storage().DB,
+): Promise<FollowUp> {
+  if (
+    !input.request_id ||
+    !input.provider_message_id ||
+    !Number.isFinite(Date.parse(input.requested_at))
+  )
+    throw new HttpError(
+      "A confirmed send receipt and timestamp are required.",
+      422,
+    );
+  const prior = await db
+    .prepare(
+      "SELECT payload FROM case_follow_ups WHERE workspace=? AND email_id=?",
+    )
+    .bind(ws, input.id)
+    .first<{ payload: string }>();
+  const previous = prior ? (JSON.parse(prior.payload) as FollowUp) : null;
+  // History makes delivery retries idempotent even after a reviewer has moved
+  // the follow-up on. Never turn their completed/open update back into waiting.
+  const recorded = await db
+    .prepare(
+      "SELECT payload FROM follow_up_revisions WHERE workspace=? AND email_id=? AND json_extract(payload,'$.request.id')=? LIMIT 1",
+    )
+    .bind(ws, input.id, input.request_id)
+    .first<{ payload: string }>();
+  if (recorded) return previous ?? (JSON.parse(recorded.payload) as FollowUp);
+  if (
+    previous &&
+    Date.parse(previous.updated_at) > Date.parse(input.requested_at)
+  )
+    throw new HttpError(
+      "The follow-up changed after this request was sent. Review it before recording another wait.",
+      409,
+    );
+  return persistFollowUp(
+    ws,
+    {
+      id: input.id,
+      case_version: input.case_version,
+      version: previous?.version ?? 0,
+      owner: previous?.owner ?? input.actor,
+      shipment_reference: previous?.shipment_reference ?? "",
+      due_at: previous?.due_at ?? null,
+      state: "waiting",
+      note: input.note,
+      actor: input.actor,
+    },
+    db,
+    {
+      id: input.request_id,
+      case_version: input.case_version,
+      at: new Date(input.requested_at).toISOString(),
+      channel: "mail",
+      provider_message_id: input.provider_message_id,
+      purpose: input.purpose,
+      note: input.note,
+    },
+  );
 }

@@ -7,6 +7,7 @@ import {
   completionBlocker,
   effectiveFollowUp,
   integrityNeedsConfirmation,
+  hasRecordedRequest,
   type FollowUp,
 } from "@/lib/follow-up";
 import type { CaseResult } from "@/lib/types";
@@ -76,6 +77,14 @@ export function FollowUpDesk({
   const blocker = completionBlocker(result);
   const needsIntegrity = integrityNeedsConfirmation(result);
   const [integrityChecked, setIntegrityChecked] = useState(false);
+  const [requestConfirmed, setRequestConfirmed] = useState(false);
+  const [requestNote, setRequestNote] = useState("");
+  const existingRequest =
+    followup?.state === "waiting" &&
+    followup.case_version === result.version &&
+    hasRecordedRequest(followup);
+  const canWait =
+    existingRequest || (requestConfirmed && requestNote.trim().length >= 5);
   const integrityBlocked = needsIntegrity && !integrityChecked;
 
   const who = (followup?.owner ?? person).trim() || "Document desk";
@@ -104,10 +113,16 @@ export function FollowUpDesk({
             shipment_reference: (
               followup?.shipment_reference ?? reference
             ).slice(0, 120),
-            due_at: dueAt?.toISOString() ?? null,
+            due_at: dueAt?.toISOString() ?? followup?.due_at ?? null,
             state: next,
-            note,
+            note:
+              next === "waiting" && requestConfirmed
+                ? `${requestNote.trim()} ${note}`
+                : note,
             actor: name,
+            ...(next === "waiting" && requestConfirmed
+              ? { request_confirmed: true }
+              : {}),
             ...(next === "completed" && needsIntegrity
               ? { integrity_confirmed: integrityChecked }
               : {}),
@@ -155,11 +170,12 @@ export function FollowUpDesk({
     event.preventDefault();
     if (saving || refreshing || !ready || loadError || changedElsewhere) return;
     const form = new FormData(event.currentTarget);
-    const dueDate = due ? new Date(due) : null;
+    const dueValue = String(form.get("due_at") ?? "");
+    const dueDate = dueValue ? new Date(dueValue) : null;
     if (
       dueDate &&
       (!Number.isFinite(dueDate.getTime()) ||
-        localInput(dueDate.toISOString()) !== due)
+        localInput(dueDate.toISOString()) !== dueValue)
     ) {
       setError(
         "Choose a valid local date and time. This time may fall within a clock change.",
@@ -185,6 +201,9 @@ export function FollowUpDesk({
             state,
             note: form.get("note"),
             actor: form.get("actor"),
+            ...(state === "waiting" && requestConfirmed
+              ? { request_confirmed: true }
+              : {}),
             ...(state === "completed" && needsIntegrity
               ? { integrity_confirmed: integrityChecked }
               : {}),
@@ -207,7 +226,10 @@ export function FollowUpDesk({
         <CalendarClock size={22} />
         <div>
           <h3>What happens next?</h3>
-          <p>Choose one. CargoGuard moves the email to the right list.</p>
+          <p>
+            Record the next action. Reminders appear in the inbox; no email is
+            sent here.
+          </p>
         </div>
         {followup && (
           <span className={`follow-up-badge ${effective}`}>
@@ -218,8 +240,9 @@ export function FollowUpDesk({
       {effective === "reopened" && (
         <p className="follow-up-reopened">
           <RefreshCw size={16} />
-          The saved follow-up no longer covers this case. Review revision{" "}
-          {result.version} and confirm the next action.
+          {followup?.state === "waiting" && !hasRecordedRequest(followup)
+            ? "This saved wait has no request record. Confirm whether a request was sent before waiting for a reply. The saved deadline is unchanged."
+            : `The saved follow-up no longer covers this case. Review revision ${result.version} and confirm the next action.`}
         </p>
       )}
       {(loadError || !ready) && (
@@ -253,14 +276,57 @@ export function FollowUpDesk({
       <div className="follow-up-quick" aria-label="Quick follow-up">
         <div>
           <strong>Waiting for the sender?</strong>
-          <span>Remind me if there is no answer:</span>
+          {existingRequest ? (
+            <p>
+              A request is recorded at{" "}
+              {new Date(followup!.request!.at).toLocaleString()} (
+              {followup!.request!.channel === "mail"
+                ? "provider-confirmed send"
+                : "recorded externally"}
+              ).
+            </p>
+          ) : (
+            <p>
+              Send a request from Reply, or record the request you already sent
+              elsewhere.
+            </p>
+          )}
+          <label className="cg-check">
+            <input
+              type="checkbox"
+              checked={requestConfirmed}
+              onChange={(event) => setRequestConfirmed(event.target.checked)}
+            />
+            I already sent a request outside CargoGuard
+          </label>
+          {requestConfirmed && (
+            <label>
+              What did you request?
+              <input
+                value={requestNote}
+                onChange={(event) => setRequestNote(event.target.value)}
+                maxLength={1000}
+                placeholder="For example: revised BL with the corrected discharge port"
+              />
+            </label>
+          )}
+          <span>
+            Choose when it should return to To do if there is no answer:
+          </span>
           <div className="follow-up-quick-row">
             {remind.map((option) => (
               <button
                 key={option.label}
                 type="button"
                 className="cg-btn"
-                disabled={saving || refreshing || !ready || !!loadError}
+                disabled={
+                  saving ||
+                  refreshing ||
+                  !ready ||
+                  !!loadError ||
+                  !canWait ||
+                  changedElsewhere
+                }
                 onClick={() =>
                   void quick(
                     "waiting",
@@ -284,7 +350,9 @@ export function FollowUpDesk({
         <div>
           <strong>Finished?</strong>
           <span>
-            {blocker ? notYet : "Nothing else is needed for this email."}
+            {blocker
+              ? notYet
+              : "This closes the recorded email follow-up. Linked shipment tasks are separate."}
           </span>
           {!blocker && needsIntegrity && (
             <label className="cg-check follow-up-integrity">
@@ -373,7 +441,9 @@ export function FollowUpDesk({
                 Follow-up due <span>{zone}</span>
                 <input
                   type="datetime-local"
+                  name="due_at"
                   value={due}
+                  onInput={(event) => setDue(event.currentTarget.value)}
                   onChange={(event) => setDue(event.target.value)}
                   aria-describedby="follow-up-time-note"
                 />
@@ -399,7 +469,7 @@ export function FollowUpDesk({
                 </select>
                 <small>
                   {state === "waiting"
-                    ? "Records a wait; no message is sent."
+                    ? "Requires a recorded request. No message is sent here."
                     : "Separate from the seven-field comparison result."}
                 </small>
               </label>
@@ -446,7 +516,8 @@ export function FollowUpDesk({
                 type="submit"
                 className="button primary"
                 disabled={
-                  state === "completed" && (!!blocker || integrityBlocked)
+                  (state === "completed" && (!!blocker || integrityBlocked)) ||
+                  (state === "waiting" && !existingRequest && !requestConfirmed)
                 }
               >
                 {saving ? (

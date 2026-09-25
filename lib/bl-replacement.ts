@@ -1,9 +1,10 @@
-import { analyze, deriveResult, recomputeRows } from "./compare";
+import { analyze } from "./compare";
 import { HttpError } from "./http";
 import { processEmail } from "./processing";
 import { requireCurrentEngine } from "./review-guard";
 import type { CaseResult, ParsedDocument } from "./types";
 import type { LabelRule } from "./label-rules";
+import { retainSourceCorrections } from "./source-corrections";
 
 /** Derive the reference from the saved case, never from a client-supplied path. */
 export function blReplacementSources(previous: CaseResult) {
@@ -127,32 +128,12 @@ export async function replaceDraftBl(
     previous.policy,
     selection,
   );
-  // Reuse only corrections explicitly tied to the unchanged SI. No old BL
-  // values, extraction corrections or confirmations cross to the new source.
-  const retainedCorrections: string[] = [];
-  if (result.comparison.length) {
-    const rows = structuredClone(result.comparison);
-    for (const row of rows) {
-      const original = previous.comparison.find(
-        (old) => old.field === row.field,
-      )?.si;
-      if (
-        original?.source === si.name &&
-        row.si.source === si.name &&
-        original.method.startsWith("Human correction")
-      ) {
-        row.si = structuredClone(original);
-        retainedCorrections.push(row.field);
-      }
-    }
-    if (retainedCorrections.length) {
-      result = deriveResult(result, recomputeRows(rows));
-      if (selection) {
-        const excluded = result.documents.length - 2;
-        result.summary += ` Human-selected pair only; ${excluded} other attachment${excluded === 1 ? " is" : "s are"} retained but not verified.`;
-      }
-    }
-  }
+  // Retain the unchanged SI's reading corrections even while a wrong/unreadable
+  // replacement leaves comparison empty. Never transfer corrections to a new BL.
+  result = retainSourceCorrections(previous, result, { sides: ["si"] });
+  const retainedCorrections = (result.retained_corrections ?? []).map(
+    (entry) => entry.field,
+  );
   return {
     result: { ...result, reviewed: true, source_replaced: true },
     retainedSi: { name: si.name, sha256: si.sha256 },

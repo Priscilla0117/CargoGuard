@@ -148,7 +148,7 @@ test("preview is non-mutating and exposes the notify-party dependency", async ()
   } as const;
   const preview = previewCorrection(result, edit);
   assert.deepEqual(result, before);
-  assert.equal(preview.result?.status, "MISMATCH");
+  assert.equal(preview.result?.status, "NEEDS_REVIEW");
   assert.deepEqual(
     preview.changes.filter((r) => r.changed).map((r) => r.field),
     ["consignee", "notify_party"],
@@ -199,7 +199,7 @@ test("preview and saving reject ambiguity, missing values and unsupported weight
     assert.throws(() => correctField(result, edit, "Test"), { status: 422 });
   }
 });
-test("a policy exception never changes strict preview differences into a match", async () => {
+test("a policy exception never clears an unsupported reading correction", async () => {
   const { result } = await fixture();
   result.policy!.rules.weightToleranceKg = 100;
   const preview = previewCorrection(result, {
@@ -207,8 +207,12 @@ test("a policy exception never changes strict preview differences into a match",
     side: "bl",
     value: "42001 KG",
   });
-  assert.equal(preview.result?.status, "MISMATCH");
-  assert.equal(preview.result?.policy_assessment?.covered, true);
+  assert.equal(preview.result?.status, "NEEDS_REVIEW");
+  assert.equal(preview.result?.policy_assessment?.covered, false);
+  assert.equal(
+    preview.result?.comparison.at(-1)?.bl.correction?.state,
+    "unresolved",
+  );
 });
 test("multi-attachment email stays in review until a human selects a known, readable pair", async () => {
   const { documents, selection } = await fixture();
@@ -269,7 +273,9 @@ test("reprocessing retains selection and manual corrections only for unchanged s
   );
   const next = await processEmail(mail, async (p) => bytes.get(p)!, r, true);
   assert.deepEqual(next.document_selection, selection);
-  assert.equal(next.comparison.at(-1)?.bl.normalized, 43000);
+  assert.equal(next.comparison.at(-1)?.bl.raw, "43000");
+  assert.equal(next.comparison.at(-1)?.bl.normalized, null);
+  assert.equal(next.comparison.at(-1)?.bl.correction?.state, "unresolved");
   bytes.set("bl.txt", new TextEncoder().encode(text("BL", "OTHER IMPORT LTD")));
   const changed = await processEmail(mail, async (p) => bytes.get(p)!, r, true);
   assert.equal(changed.document_selection, undefined);

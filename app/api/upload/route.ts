@@ -22,6 +22,7 @@ import { bundleBytes } from "@/lib/bundle";
 import { blReplacementSources, replaceDraftBl } from "@/lib/bl-replacement";
 import type { Email, ParsedDocument } from "@/lib/types";
 import { parseEml, type ParsedEmail } from "@/lib/eml";
+import { attachmentPlan, deferredDocument } from "@/lib/processing";
 
 const messageId = z
   .string()
@@ -47,7 +48,15 @@ const metadataSchema = z
       .datetime({ offset: true })
       .transform((value) => new Date(value).toISOString())
       .optional(),
+    sent_at: z.string().datetime({ offset: true }).optional(),
     message_id: messageId.optional(),
+    import_key: z
+      .string()
+      .trim()
+      .min(1)
+      .max(200)
+      .regex(/^[A-Za-z0-9_.:=-]+$/)
+      .optional(),
     in_reply_to: messageId.optional(),
     references: z
       .string()
@@ -74,7 +83,9 @@ const metadataSchema = z
   .strict();
 const METADATA_FIELDS = [
   "received_at",
+  "sent_at",
   "message_id",
+  "import_key",
   "in_reply_to",
   "references",
   "to",
@@ -99,6 +110,7 @@ export async function POST(request: Request) {
   let s = errorSession(request);
   const keys: string[] = [];
   let persistAttempted = false;
+  let importIdentity: string | undefined;
   try {
     s = await requireCapability(request, "operate");
     requireMutation(request);
@@ -116,6 +128,7 @@ export async function POST(request: Request) {
       "mode",
       "bl",
       "eml",
+      "provider_received_at",
       ...METADATA_FIELDS,
     ])
       if (form.getAll(field).length > 1)
@@ -128,7 +141,14 @@ export async function POST(request: Request) {
         throw new HttpError("Choose a nonempty .eml email file.");
       if (
         [...form.keys()].some(
-          (key) => !["eml", "source", "thread_hint"].includes(key),
+          (key) =>
+            ![
+              "eml",
+              "source",
+              "thread_hint",
+              "import_key",
+              "provider_received_at",
+            ].includes(key),
         )
       )
         throw new HttpError(
@@ -139,6 +159,18 @@ export async function POST(request: Request) {
         throw new HttpError(
           "This email has more than 10 supported attachments. Import the needed documents manually.",
         );
+    }
+    let providerReceivedAt: string | undefined;
+    if (form.has("provider_received_at")) {
+      if (!parsedEml || !["gmail", "imap"].includes(String(form.get("source"))))
+        throw new HttpError(
+          "A provider receipt date is only valid for a Gmail or IMAP message import.",
+        );
+      providerReceivedAt = z
+        .string()
+        .datetime({ offset: true })
+        .transform((value) => new Date(value).toISOString())
+        .parse(form.get("provider_received_at"));
     }
     const mode = form.get("mode");
     if (mode !== null && mode !== "replace_bl")
@@ -231,19 +263,24 @@ export async function POST(request: Request) {
       ? metadataFrom(previous.email)
       : parsedEml
         ? metadataFrom({
-            received_at: parsedEml.received_at,
+            received_at: providerReceivedAt ?? parsedEml.received_at,
+            sent_at: parsedEml.received_at,
             message_id: parsedEml.message_id,
             in_reply_to: parsedEml.in_reply_to,
             references: parsedEml.references,
             to: parsedEml.to,
             cc: parsedEml.cc,
-            ...metadataSchema.pick({ source: true, thread_hint: true }).parse({
-              source:
-                form.get("source") === "gmail" || form.get("source") === "imap"
-                  ? form.get("source")
-                  : "eml",
-              thread_hint: form.get("thread_hint") || undefined,
-            }),
+            ...metadataSchema
+              .pick({ source: true, thread_hint: true, import_key: true })
+              .parse({
+                source:
+                  form.get("source") === "gmail" ||
+                  form.get("source") === "imap"
+                    ? form.get("source")
+                    : "eml",
+                thread_hint: form.get("thread_hint") || undefined,
+                import_key: form.get("import_key") || undefined,
+              }),
           })
         : metadataFrom(
             metadataSchema.parse(
@@ -257,13 +294,14 @@ export async function POST(request: Request) {
               ),
             ),
           );
-    if (!previous && metadata.message_id) {
+    importIdentity = previous ? undefined : metadata.import_key;
+    if (!previous && (metadata.message_id || importIdentity)) {
       // The same message imported twice (file, Gmail or Outlook) opens the saved case.
       const existing = await storage()
         .DB.prepare(
-          "SELECT email_id FROM cases WHERE workspace=? AND json_extract(payload,'$.email.message_id')=? LIMIT 1",
+          "SELECT email_id FROM cases WHERE workspace=? AND (json_extract(payload,'$.email.message_id')=? OR json_extract(payload,'$.email.import_key')=?) LIMIT 1",
         )
-        .bind(s.id, metadata.message_id)
+        .bind(s.id, metadata.message_id ?? null, importIdentity ?? null)
         .first<{ email_id: string }>();
       if (existing) {
         const saved = await getCase(s.id, existing.email_id);
@@ -299,11 +337,26 @@ export async function POST(request: Request) {
       docs: ParsedDocument[] = [],
       paths: string[] = [];
     const started = performance.now();
+    const intakePlan = attachmentPlan(
+      {
+        ...metadata,
+        email_id: id,
+        from,
+        subject,
+        body,
+        attachments: files.map((file) => file.name),
+      },
+      previous ?? undefined,
+    );
     for (let i = 0; i < files.length; i++) {
       const f = files[i],
         safe = `${crypto.randomUUID().slice(0, 8)}_${i + 1}_${f.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-150)}`,
         bytes = new Uint8Array(await f.arrayBuffer());
-      docs.push(await parseDocument(safe, bytes));
+      docs.push(
+        intakePlan.parse
+          ? await parseDocument(safe, bytes)
+          : deferredDocument(safe, intakePlan.reason),
+      );
       paths.push(`uploads/${safe}`);
       const key = `${s.id}/${id}/${safe}`;
       await storage().BUCKET.put(key, bytes, {
@@ -357,6 +410,9 @@ export async function POST(request: Request) {
       r.source_replaced = true;
     }
     if (r.documents.some((doc) => doc.label_rules)) r.reviewed = true;
+    if (!intakePlan.parse && files.length)
+      r.summary +=
+        " Attachments are retained but have not been read or verified. Confirm the document-comparison route to inspect them.";
     r.duration_ms = Math.round(performance.now() - started);
     const detail = JSON.stringify({
       summary: r.summary,
@@ -389,6 +445,23 @@ export async function POST(request: Request) {
     );
     return respond({ result, skipped: parsedEml?.skipped ?? [] }, s);
   } catch (e) {
+    if (persistAttempted && importIdentity) {
+      // A worker may retry after the case was committed but before its import
+      // receipt was stored. The durable import identity returns that same case.
+      try {
+        const existing = await storage()
+          .DB.prepare(
+            "SELECT email_id FROM cases WHERE workspace=? AND json_extract(payload,'$.email.import_key')=? LIMIT 1",
+          )
+          .bind(s.id, importIdentity)
+          .first<{ email_id: string }>();
+        const saved = existing ? await getCase(s.id, existing.email_id) : null;
+        if (saved)
+          return respond({ result: saved, duplicate: true, skipped: [] }, s);
+      } catch {
+        /* Keep the original error and retain uncertain source bytes. */
+      }
+    }
     if (keys.length) {
       // A lost database response is not proof of rollback. Never delete bytes
       // that a committed case might reference; retain uncertain orphans for cleanup.
