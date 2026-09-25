@@ -1,108 +1,142 @@
 "use client";
-import { PolicyDesk } from "./policy-desk";
-import { DecisionHistory } from "./decision-history";
-import type { PolicySnapshot } from "@/lib/policy";
+import "@/app/follow-up.css";
+import "@/app/integrity-checks.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { requestJson, requestInbox, latencySummary } from "@/lib/client-api";
-import { previewCorrection } from "@/lib/corrections";
-import { CorrectionPreview } from "./correction-preview";
-import { DocumentPairSelector } from "./document-pair-selector";
-import { createRequestGate } from "@/lib/request-gate";
-import { mergeCaseSummaries } from "@/lib/case-state";
-import { ScanAssist } from "@/components/scan-assist";
-import { ResolutionDesk } from "@/components/resolution-desk";
-import { GlobalAssistant } from "@/components/global-assistant";
-import type { AssistantMemory } from "@/components/case-assistant";
-import { EvidenceRecovery } from "@/components/evidence-recovery";
-import { WorkloadInsights } from "@/components/workload-insights";
-import { AiAvailability } from "@/components/ai-availability";
 import {
-  QUEUE_FILTERS,
-  caseDestination,
-  matchesQueue,
-  nextQueueCase,
-  workQueue,
-  type WorkspaceView,
-} from "@/lib/work-queue";
-import { laneFor, LANE_DETAILS, shiftBrief } from "@/lib/operations";
-import { canTranscribe } from "@/lib/transcription";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { Sidebar, SidebarProvider } from "@/components/ui/sidebar";
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from "@/components/ui/table";
-import { useCargoTools } from "@/components/cargo-tools";
-import {
-  Anchor,
   ArrowDownToLine,
-  ArrowRight,
-  ArrowUpRight,
   Check,
-  CheckCheck,
+  CheckCircle2,
   ChevronDown,
-  ChevronRight,
-  FileCheck2,
-  FileText,
-  Inbox,
-  Layers3,
+  Info,
+  ListChecks,
   Loader2,
+  Mail,
+  MessageSquareText,
   Play,
   Plus,
   RefreshCw,
   Search,
   ShieldCheck,
-  SlidersHorizontal,
   Sparkles,
+  Square,
   TriangleAlert,
   X,
-  BarChart3,
-  History,
-  Eye,
-  Paperclip,
-  ExternalLink,
-  CheckCircle2,
-  Square,
-  Printer,
-  Info,
-  Settings2,
-  MessageSquareText,
 } from "lucide-react";
+import { AppShell } from "./app-shell";
+import { useTeamAccess } from "./team-access";
+import { PolicyDesk } from "./policy-desk";
+import { BatchReview } from "./batch-review";
+import { GlobalAssistant } from "./global-assistant";
+import type { AssistantMemory } from "./case-assistant";
+import { ReportsOverview } from "./reports-overview";
+import { AiAvailability } from "./ai-availability";
+import { DEFAULT_FILTERS, InboxView, type InboxFilters } from "./inbox-view";
+import { AuditDetail, CaseView, tabFor, type CaseTab } from "./case-view";
+import type { FieldEdit } from "./compare-table";
+import type { MailboxState, ReplyOutcome } from "./reply-composer";
+import { ImportDialog, type ImportOutcome } from "./import-dialog";
+import { PlanDialog } from "./plan-dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { useCargoTools } from "./cargo-tools";
+import { requestJson, requestInbox, latencySummary } from "@/lib/client-api";
+import { createRequestGate } from "@/lib/request-gate";
+import { mergeCaseSummaries } from "@/lib/case-state";
+import { finishBlocker, type FollowUp } from "@/lib/follow-up";
+import { emailInsight } from "@/lib/mail-intel";
+import { checkDocumentIntegrity } from "@/lib/integrity-checks";
+import type { PolicySnapshot } from "@/lib/policy";
+import type { FollowUpMap, WorkspaceView } from "@/lib/work-queue";
+import { shiftBrief } from "@/lib/operations";
+import { planAll, threadsFor } from "@/lib/conversation";
+import { categoryWords } from "@/lib/case-status";
 import {
   CATEGORIES,
-  FIELD_LABELS,
   PIPELINE_VERSION,
   summaryOf,
-  type CaseSummary,
-  type CaseResult,
   type AuditEvent,
-  type Field,
+  type CaseResult,
+  type CaseSummary,
   type ParsedDocument,
 } from "@/lib/types";
 
-const categoryNames: Record<string, string> = {
-  BL_COMPARISON: "Document verification",
-  SI_REQUEST: "Shipping instructions",
-  INVOICE_QUERY: "Invoice query",
-  GENERAL: "General operations",
-  SPAM: "Spam",
+type AuthoredChallenge = {
+  cases: number;
+  strict_passed: number;
+  integrity_passed: number;
+  combined_passed: number;
+  expected_mismatches: number;
+  expected_reviews: number;
+  expected_independent_attention: number;
+  dataset_sha256: string;
+  measured_at: string;
+  limitations: string;
 };
-const statuses: Record<string, string> = {
-  verified: "Verified",
-  discrepancy: "Discrepancy",
-  review: "Needs review",
-  awaiting_documents: "Awaiting documents",
-  routed: "Routed",
-  pending: "Not processed",
-};
-type View = WorkspaceView;
+function AuthoredOperationsChallenge({ report }: { report: unknown }) {
+  if (!report || typeof report !== "object" || Array.isArray(report))
+    return null;
+  const data = report as AuthoredChallenge;
+  const counts = [
+    data.cases,
+    data.strict_passed,
+    data.integrity_passed,
+    data.combined_passed,
+    data.expected_mismatches,
+    data.expected_reviews,
+    data.expected_independent_attention,
+  ];
+  if (
+    counts.some((count) => !Number.isSafeInteger(count) || count < 0) ||
+    !data.cases ||
+    counts.slice(1).some((count) => count > data.cases)
+  )
+    return null;
+  return (
+    <section className="validation-extra policy-preview">
+      <h3>Authored operations challenge</h3>
+      <p>
+        Synthetic, self-authored cases; not a blinded real-world evaluation.
+        These {data.cases} cases are separate from the organiser benchmark.
+      </p>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Check</th>
+              <th>Expected outcomes reproduced</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Strict document verification</td>
+              <td>
+                {data.strict_passed} / {data.cases}
+              </td>
+            </tr>
+            <tr>
+              <td>Independent document checks</td>
+              <td>
+                {data.integrity_passed} / {data.cases}
+              </td>
+            </tr>
+            <tr>
+              <td>Both checks together</td>
+              <td>
+                {data.combined_passed} / {data.cases}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {typeof data.limitations === "string" && <p>{data.limitations}</p>}
+    </section>
+  );
+}
+
 interface ApiPayload {
+  shipment_contexts?: Record<string, import("@/lib/priority").PlanContext>;
+  workspace?: { mode: string; sample_data: boolean; upload_limit: number };
   loaded_at?: string;
   cases: CaseSummary[];
   audit: AuditEvent[];
@@ -111,48 +145,14 @@ interface ApiPayload {
   error?: string;
   errors?: { id: string; error: string }[];
 }
-function Status({ value }: { value: string }) {
-  return (
-    <span className={`status ${value}`}>
-      <span />
-      {statuses[value] ?? value}
-    </span>
-  );
-}
-function shortSubject(s: string) {
-  return s.replace(/^(?:RE[:_]\s*|FW:\s*)+/i, "");
-}
-function AuditDetail({ detail }: { detail: string }) {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(detail);
-  } catch {
-    parsed = null;
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
-    return <p>{detail}</p>;
-  const data = parsed as Record<string, unknown>;
-  const summary = data.summary
-    ? String(data.summary)
-    : data.transcript && typeof data.transcript === "object"
-      ? `Seven scan fields confirmed for ${String(data.document ?? "document")}. Source fingerprint retained.`
-      : data.field
-        ? `${FIELD_LABELS[data.field as Field] ?? String(data.field)} (${String(data.side ?? "").toUpperCase()}): ${String(data.before ?? "")} → ${String(data.after ?? "")}`
-        : data.before !== undefined
-          ? `Category: ${categoryNames[String(data.before)] ?? String(data.before)} → ${categoryNames[String(data.after)] ?? String(data.after)}`
-          : "Decision recorded.";
-  return (
-    <div className="audit-detail">
-      <p>
-        {summary}
-        {data.reason ? ` Reason: ${String(data.reason)}` : ""}
-      </p>
-      <details>
-        <summary>Recorded evidence</summary>
-        <pre>{JSON.stringify(data, null, 2)}</pre>
-      </details>
-    </div>
-  );
+interface MailStatus extends MailboxState {
+  configured: boolean;
+  settings?: { auto_sync: boolean; interval_minutes: number };
+  last_sync_at?: string | null;
+  last_sync_note?: string | null;
+  last_success_at?: string | null;
+  last_sync_error?: string | null;
+  worker?: { enabled: boolean; running: boolean; state: string };
 }
 function download(name: string, data: string, type = "application/json") {
   const url = URL.createObjectURL(new Blob([data], { type }));
@@ -162,8 +162,82 @@ function download(name: string, data: string, type = "application/json") {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+const REVIEWER_KEY = "cg-reviewer-name";
+/** 09:00 on the next working day (Mon–Fri), local time. */
+function nextWorkingMorning(from: Date) {
+  const date = new Date(from);
+  date.setDate(date.getDate() + 1);
+  while (date.getDay() === 0 || date.getDay() === 6)
+    date.setDate(date.getDate() + 1);
+  date.setHours(9, 0, 0, 0);
+  return date;
+}
+function readLocal(key: string) {
+  try {
+    return localStorage.getItem(key) ?? "";
+  } catch {
+    return "";
+  }
+}
+function writeLocal(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Private windows may block storage; the value still applies to this page.
+  }
+}
 
-export default function Workbench() {
+export default function Workbench({
+  initialView = "inbox",
+}: {
+  initialView?: WorkspaceView;
+}) {
+  const access = useTeamAccess();
+  const employeeName = access?.user?.display_name ?? "";
+  const [workspaceConfig, setWorkspaceConfig] =
+    useState<ApiPayload["workspace"]>();
+  const [followups, setFollowups] = useState<FollowUpMap>({});
+  const [shipmentContexts, setShipmentContexts] = useState<
+    Map<string, import("@/lib/priority").PlanContext>
+  >(new Map());
+  const [followupsReady, setFollowupsReady] = useState(false);
+  const [followupsLoading, setFollowupsLoading] = useState(false);
+  const [followupsError, setFollowupsError] = useState("");
+  const [followupFormKey, setFollowupFormKey] = useState(0);
+  const [queueNow, setQueueNow] = useState(() => Date.now());
+  const followupRequests = useRef(createRequestGate());
+  const followupController = useRef<AbortController | null>(null);
+  const loadFollowups = useCallback(async () => {
+    const ticket = followupRequests.current.next();
+    followupController.current?.abort();
+    const controller = new AbortController();
+    followupController.current = controller;
+    setFollowupsLoading(true);
+    try {
+      const data = await requestJson<{ followups: FollowUp[] }>(
+        "/api/follow-ups",
+        { signal: controller.signal, cache: "no-store" },
+      );
+      if (followupRequests.current.isCurrent(ticket)) {
+        setFollowups(
+          Object.fromEntries(data.followups.map((v) => [v.email_id, v])),
+        );
+        setFollowupsReady(true);
+        setFollowupsError("");
+        setQueueNow(Date.now());
+        return true;
+      }
+    } catch (e) {
+      if (followupRequests.current.isCurrent(ticket))
+        setFollowupsError(
+          `Follow-ups could not be refreshed. ${e instanceof Error ? e.message : "Please retry."}`,
+        );
+    } finally {
+      if (followupRequests.current.isCurrent(ticket))
+        setFollowupsLoading(false);
+    }
+    return false;
+  }, []);
   const [assistantMemories, setAssistantMemories] = useState<
     Record<string, AssistantMemory>
   >({});
@@ -173,22 +247,43 @@ export default function Workbench() {
     [inboxReady, setInboxReady] = useState(false),
     [lastSync, setLastSync] = useState<string | null>(null),
     [refreshFailed, setRefreshFailed] = useState(false),
-    [intakeFiles, setIntakeFiles] = useState<File[]>([]),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
-  const [view, setView] = useState<View>("inbox"),
-    [search, setSearch] = useState(""),
-    [filter, setFilter] = useState("all"),
-    [category, setCategory] = useState("all"),
-    [limit, setLimit] = useState(30);
+  const [view, setView] = useState<WorkspaceView>(initialView);
+  const [downloadOpen, setDownloadOpen] = useState(false);
+  const downloadRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!downloadOpen) return;
+    const close = (event: MouseEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent) {
+        if (event.key === "Escape") setDownloadOpen(false);
+        return;
+      }
+      if (!downloadRef.current?.contains(event.target as Node))
+        setDownloadOpen(false);
+    };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", close);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", close);
+    };
+  }, [downloadOpen]);
+  const [filters, setFiltersState] = useState<InboxFilters>(DEFAULT_FILTERS);
+  const setFilters = useCallback(
+    (update: Partial<InboxFilters>) =>
+      setFiltersState((current) => ({ ...current, ...update })),
+    [],
+  );
   const [selected, setSelected] = useState<CaseResult | null>(null),
     [caseEvents, setCaseEvents] = useState<AuditEvent[]>([]),
-    [detailTab, setDetailTab] = useState("comparison"),
-    [document, setDocument] = useState<ParsedDocument | null>(null);
-  const [resolutionOpen, setResolutionOpen] = useState(false);
-  const [emailOpen, setEmailOpen] = useState(false);
+    [caseTab, setCaseTab] = useState<CaseTab>("compare"),
+    [caseError, setCaseError] = useState(""),
+    [document, setDocument] = useState<ParsedDocument | null>(null),
+    [sourceLocation, setSourceLocation] = useState("");
+  const selectedCaseId = useRef<string | null>(null);
+  const [queueOrder, setQueueOrder] = useState<string[]>([]);
   const [auditSearch, setAuditSearch] = useState("");
-  const [queueSession, setQueueSession] = useState<string[]>([]);
   const [assistant, setAssistant] = useState<{
     id: string | null;
     sequence: number;
@@ -197,32 +292,33 @@ export default function Workbench() {
     [progress, setProgress] = useState({ done: 0, total: 0 }),
     [busyId, setBusyId] = useState(""),
     cancel = useRef(false);
-  const [replacement, setReplacement] = useState<CaseResult | null>(null);
-  const [upload, setUpload] = useState(false),
-    [uploading, setUploading] = useState(false),
-    [edit, setEdit] = useState<{
-      field: Field;
-      side: "si" | "bl";
-      value: string;
-    } | null>(null),
+  const [importState, setImportState] = useState<{
+    open: boolean;
+    replacement: { result: CaseResult; mode: "bl" | "all" } | null;
+  }>({ open: false, replacement: null });
+  const [routeEdit, setRouteEdit] = useState(false),
     [saving, setSaving] = useState(false);
   const [validation, setValidation] = useState<Record<string, unknown> | null>(
     null,
   );
-  const [routeEdit, setRouteEdit] = useState(false),
-    [sourceLocation, setSourceLocation] = useState("");
+  const [fieldTest, setFieldTest] = useState<unknown>(null);
   const [latencies, setLatencies] = useState<number[]>([]),
     [batchMs, setBatchMs] = useState<number | null>(null);
-  const [pagination, setPagination] = useState("");
-  const [attentionOnly, setAttentionOnly] = useState(false);
-  const highlighted = useRef<HTMLDivElement | null>(null);
-  const drawerBody = useRef<HTMLDivElement | null>(null);
+  const [reviewerName, setReviewerNameState] = useState("");
+  const [mail, setMail] = useState<MailStatus | null>(null);
+  const [mailBusy, setMailBusy] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
   useEffect(() => {
-    highlighted.current?.scrollIntoView({
-      block: "center",
-      behavior: "smooth",
-    });
-  }, [sourceLocation, document, detailTab]);
+    // Read browser-only preferences after hydration.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setReviewerNameState(readLocal(REVIEWER_KEY));
+  }, []);
+  const effectiveReviewer = reviewerName || employeeName;
+  const setReviewerName = useCallback((value: string) => {
+    setReviewerNameState(value);
+    writeLocal(REVIEWER_KEY, value);
+  }, []);
+
   const api = useCallback(async (url: string, options?: RequestInit) => {
     const t = performance.now();
     const result = await requestJson<ApiPayload>(url, options);
@@ -230,17 +326,29 @@ export default function Workbench() {
     return result;
   }, []);
   const activeRequest = useRef(createRequestGate());
+  const deepLinkHandled = useRef(false);
   const inboxRequests = useRef(createRequestGate());
   const inboxController = useRef<AbortController | null>(null);
+
   function closeCase() {
     activeRequest.current.cancel();
+    selectedCaseId.current = null;
     setSelected(null);
     setDocument(null);
     setCaseEvents([]);
-    setEdit(null);
     setRouteEdit(false);
     setBusyId("");
+    setCaseError("");
   }
+  const applyInbox = useCallback((d: ApiPayload) => {
+    setCases(d.cases);
+    setShipmentContexts(new Map(Object.entries(d.shipment_contexts ?? {})));
+    setWorkspaceConfig(d.workspace);
+    setEvents(d.audit);
+    setInboxReady(true);
+    setLastSync(d.loaded_at ?? new Date().toISOString());
+    setRefreshFailed(false);
+  }, []);
   const load = useCallback(async () => {
     const request = inboxRequests.current.next();
     inboxController.current?.abort();
@@ -250,11 +358,8 @@ export default function Workbench() {
       const started = performance.now();
       const d = await requestInbox<ApiPayload>(controller.signal);
       if (inboxRequests.current.isCurrent(request)) {
-        setCases(d.cases);
-        setEvents(d.audit);
-        setInboxReady(true);
-        setLastSync(d.loaded_at ?? new Date().toISOString());
-        setRefreshFailed(false);
+        applyInbox(d);
+        void loadFollowups();
         setLatencies((prev) => [
           ...prev.slice(-199),
           performance.now() - started,
@@ -268,7 +373,7 @@ export default function Workbench() {
     } finally {
       if (inboxRequests.current.isCurrent(request)) setLoading(false);
     }
-  }, []);
+  }, [loadFollowups, applyInbox]);
   function refreshWorkspace() {
     setLoading(true);
     setError("");
@@ -277,24 +382,48 @@ export default function Workbench() {
   useEffect(() => {
     let active = true;
     const gate = inboxRequests.current;
+    const followupGate = followupRequests.current;
     const request = gate.next();
     const controller = new AbortController();
     inboxController.current?.abort();
     inboxController.current = controller;
-    const started = performance.now();
     requestInbox<ApiPayload>(controller.signal)
       .then((d) => {
-        if (active && gate.isCurrent(request)) {
-          setCases(d.cases);
-          setEvents(d.audit);
-          setInboxReady(true);
-          setLastSync(d.loaded_at ?? new Date().toISOString());
-          setRefreshFailed(false);
-          setLatencies((prev) => [
-            ...prev.slice(-199),
-            performance.now() - started,
-          ]);
+        if (!active || !gate.isCurrent(request)) return;
+        applyInbox(d);
+        // Source citations open saved evidence; visiting a link never processes mail.
+        if (!deepLinkHandled.current) {
+          deepLinkHandled.current = true;
+          const params = new URLSearchParams(window.location.search);
+          const id = params.get("case");
+          if (id && d.cases.some((c) => c.email.email_id === id && c.result)) {
+            const ticket = activeRequest.current.next();
+            requestJson<ApiPayload>(`/api/cases?id=${encodeURIComponent(id)}`, {
+              signal: controller.signal,
+            })
+              .then((data) => {
+                if (active && activeRequest.current.isCurrent(ticket)) {
+                  selectedCaseId.current = id;
+                  setSelected(data.result);
+                  setCaseEvents(data.audit);
+                  const wanted = tabFor(params.get("tab") ?? "compare");
+                  setCaseTab(
+                    wanted === "compare" && !data.result.comparison.length
+                      ? "conversation"
+                      : wanted,
+                  );
+                }
+              })
+              .catch((e) => {
+                if (active && activeRequest.current.isCurrent(ticket))
+                  setError(e.message);
+              });
+          } else if (id)
+            setError(
+              "The linked email has not been checked yet or is not in this workspace.",
+            );
         }
+        void loadFollowups();
       })
       .catch((e) => {
         if (active && gate.isCurrent(request)) {
@@ -311,18 +440,110 @@ export default function Workbench() {
         if (active) setValidation(v as Record<string, unknown> | null);
       })
       .catch(() => {});
+    fetch("/field-test.json")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((v) => {
+        if (active) setFieldTest(v);
+      })
+      .catch(() => {});
     return () => {
       active = false;
       gate.cancel();
       inboxController.current?.abort();
+      followupGate.cancel();
+      followupController.current?.abort();
       cancel.current = true;
     };
+  }, [loadFollowups, applyInbox]);
+  useEffect(() => {
+    const timer = setInterval(() => setQueueNow(Date.now()), 60000);
+    return () => clearInterval(timer);
   }, []);
   useEffect(() => {
     if (!notice) return;
-    const t = setTimeout(() => setNotice(""), 5000);
+    const t = setTimeout(() => setNotice(""), 6000);
     return () => clearTimeout(t);
   }, [notice]);
+
+  // ----- Mailbox connection and automatic import -----
+  const loadMail = useCallback(async () => {
+    try {
+      const value = await requestJson<MailStatus>("/api/mail", {
+        cache: "no-store",
+      });
+      setMail(value);
+      return value;
+    } catch {
+      setMail(null);
+      return null;
+    }
+  }, []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadMail();
+  }, [loadMail]);
+  const syncMail = useCallback(
+    async (manual: boolean) => {
+      setMailBusy(true);
+      try {
+        const value = await requestJson<{
+          imported: string[];
+          failed: number;
+          busy: boolean;
+          note: string;
+        }>("/api/mail/sync", { method: "POST" });
+        if (value.imported.length) {
+          await load();
+          setNotice(
+            `${value.imported.length} new email${value.imported.length === 1 ? "" : "s"} imported from your mailbox and checked.`,
+          );
+        } else if (manual) setNotice(value.note || "Mailbox check completed.");
+        if (value.failed) setError(value.note);
+      } catch (e) {
+        if (manual) setError((e as Error).message);
+      } finally {
+        setMailBusy(false);
+        void loadMail();
+      }
+    },
+    [load, loadMail],
+  );
+  const autoSync =
+    mail?.connected && mail.settings?.auto_sync && !mail.worker?.enabled
+      ? Math.max(2, mail.settings.interval_minutes)
+      : 0;
+  useEffect(() => {
+    if (!autoSync || !inboxReady) return;
+    const first = setTimeout(() => void syncMail(false), 4000);
+    const timer = setInterval(() => void syncMail(false), autoSync * 60000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(timer);
+    };
+  }, [autoSync, inboxReady, syncMail]);
+  useEffect(() => {
+    if (!mail?.worker?.enabled || !inboxReady) return;
+    const timer = setInterval(() => {
+      void loadMail();
+      void load();
+    }, 60000);
+    return () => clearInterval(timer);
+  }, [mail?.worker?.enabled, inboxReady, loadMail, load]);
+
+  // ----- Derived planning data -----
+  const threads = useMemo(() => threadsFor(cases), [cases]);
+  const plans = useMemo(
+    () => planAll(cases, followups, queueNow, threads, shipmentContexts),
+    [cases, followups, queueNow, threads, shipmentContexts],
+  );
+  const planned = useMemo(
+    () =>
+      cases.map((row) => ({
+        row,
+        plan: plans.get(row.email.email_id)!,
+      })),
+    [cases, plans],
+  );
   const counts = useMemo(() => {
     const c = {
       processed: 0,
@@ -332,60 +553,225 @@ export default function Workbench() {
       awaiting_documents: 0,
       routed: 0,
       comparisons: 0,
-      ms: 0,
     };
     for (const row of cases)
       if (row.result) {
         c.processed++;
         c[row.result.workflow]++;
-        c.ms += row.result.duration_ms;
-        if (
-          row.result.workflow === "verified" ||
-          row.result.workflow === "discrepancy"
-        )
+        if (["verified", "discrepancy"].includes(row.result.workflow))
           c.comparisons++;
       }
     return c;
   }, [cases]);
-  const pageKey = JSON.stringify([search, filter, category, view]),
-    shownLimit = pagination === pageKey ? limit : 30;
-  const timing = latencySummary(latencies),
-    outdated = cases.filter(
-      (c) => c.result && c.result.pipeline_version !== PIPELINE_VERSION,
-    ).length;
-  const visible = useMemo(
-    () => workQueue(cases, filter, category, search),
-    [cases, search, filter, category],
+  const todoCount = useMemo(
+    () => [...plans.values()].filter((plan) => plan.bucket === "todo").length,
+    [plans],
   );
-  const queueCounts = useMemo(
-    () =>
-      Object.fromEntries(
-        [...QUEUE_FILTERS.map(([key]) => key), "pending", "routed"].map(
-          (key) => [key, cases.filter((row) => matchesQueue(row, key)).length],
-        ),
-      ),
-    [cases],
-  );
-  const nextId = selected
-    ? nextQueueCase(
-        queueSession,
-        selected.email.email_id,
-        cases.map((row) => row.email.email_id),
-      )
-    : null;
-  function navigateDetail(target: string) {
-    drawerBody.current?.scrollTo({ top: 0, behavior: "instant" });
-    const destination = caseDestination(target);
-    setDetailTab(destination.tab);
-    setEmailOpen(destination.email);
-    setResolutionOpen(destination.resolution);
-  }
+  const outdated = cases.filter(
+    (c) => !c.result || c.result.pipeline_version !== PIPELINE_VERSION,
+  ).length;
+  const timing = latencySummary(latencies);
+  // New emails are checked automatically — nobody has to press a button to
+  // find out what is in the inbox. Runs once per page load.
+  const autoChecked = useRef(false);
+  useEffect(() => {
+    if (!inboxReady || loading || running || autoChecked.current || !outdated)
+      return;
+    autoChecked.current = true;
+    const timer = setTimeout(() => void processAll(), 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inboxReady, loading, running, outdated]);
+  const position = selected ? queueOrder.indexOf(selected.email.email_id) : -1;
+  const available = new Set(cases.map((row) => row.email.email_id));
+  const nextId =
+    position >= 0
+      ? (queueOrder.slice(position + 1).find((id) => available.has(id)) ?? null)
+      : null;
+  const prevId =
+    position > 0
+      ? ([...queueOrder.slice(0, position)]
+          .reverse()
+          .find((id) => available.has(id)) ?? null)
+      : null;
+
   const update = (results: CaseResult[]) => {
     inboxRequests.current.cancel();
     inboxController.current?.abort();
     setLoading(false);
-    setCases((prev) => mergeCaseSummaries(prev, results.map(summaryOf)));
+    setCases((prev) =>
+      mergeCaseSummaries(
+        prev,
+        results.map((result) => {
+          const summary = summaryOf(result);
+          // Same flag the server adds to inbox summaries.
+          return result.workflow === "verified" &&
+            result.category === "BL_COMPARISON" &&
+            checkDocumentIntegrity(result).requires_attention
+            ? {
+                ...summary,
+                result: { ...summary.result!, integrity_attention: true },
+              }
+            : summary;
+        }),
+      ),
+    );
   };
+  function applyCase(
+    data: { result: CaseResult; audit: AuditEvent[] },
+    message: string,
+  ) {
+    setSelected(data.result);
+    setCaseEvents(data.audit);
+    setDocument(null);
+    update([data.result]);
+    setNotice(message);
+  }
+  async function followupSaved(value: FollowUp) {
+    followupRequests.current.cancel();
+    followupController.current?.abort();
+    setFollowupsLoading(false);
+    setFollowups((current) => ({ ...current, [value.email_id]: value }));
+    setNotice("Follow-up saved.");
+    void load();
+    if (selectedCaseId.current !== value.email_id) return;
+    const ticket = activeRequest.current.next();
+    try {
+      const data = await api(
+        `/api/cases?id=${encodeURIComponent(value.email_id)}`,
+      );
+      if (
+        activeRequest.current.isCurrent(ticket) &&
+        selectedCaseId.current === value.email_id
+      ) {
+        setSelected((current) =>
+          current?.email.email_id === value.email_id ? data.result : current,
+        );
+        setCaseEvents(data.audit);
+      }
+    } catch (e) {
+      if (activeRequest.current.isCurrent(ticket))
+        setCaseError(
+          `Follow-up saved; the email could not be refreshed. ${(e as Error).message}`,
+        );
+    }
+  }
+  /** A reply went out: record what the employee says happens next. */
+  async function recordReply(
+    result: CaseResult,
+    how: string,
+    outcome: ReplyOutcome,
+  ) {
+    const id = result.email.email_id;
+    const current = followups[id];
+    const name = (effectiveReviewer || employeeName || "Document desk")
+      .trim()
+      .slice(0, 80);
+    const person = name.length >= 2 ? name : "Document desk";
+    if (outcome === "done") {
+      const blocked = finishBlocker(result);
+      if (blocked) {
+        setCaseError(blocked);
+        return false;
+      }
+    }
+    const due =
+      current?.due_at &&
+      current.state !== "completed" &&
+      Number.isFinite(Date.parse(current.due_at))
+        ? new Date(current.due_at)
+        : nextWorkingMorning(new Date());
+    const refs = emailInsight(result.email).refs;
+    const note =
+      outcome === "done"
+        ? `Reply ${how}. Finished — nothing else is needed.`
+        : outcome === "waiting"
+          ? `Reply ${how}. Waiting for the sender to answer.`
+          : `Reply ${how}. Still working on it.`;
+    try {
+      const data = await requestJson<{ followup: FollowUp }>(
+        "/api/follow-ups",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id,
+            case_version: result.version,
+            version: current?.version ?? 0,
+            owner: current?.owner || person,
+            shipment_reference: (
+              current?.shipment_reference ||
+              refs.shipment[0] ||
+              refs.po[0] ||
+              ""
+            ).slice(0, 120),
+            due_at: outcome === "done" ? null : due.toISOString(),
+            state:
+              outcome === "done"
+                ? "completed"
+                : outcome === "waiting"
+                  ? "waiting"
+                  : "open",
+            request_confirmed: outcome === "waiting",
+            note,
+            actor: person,
+          }),
+        },
+      );
+      setFollowups((all) => ({ ...all, [id]: data.followup }));
+      setFollowupFormKey((value) => value + 1);
+      const when = `${due.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} at ${due.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+      setNotice(
+        outcome === "done"
+          ? "Recorded. This email is now in “Done”."
+          : outcome === "waiting"
+            ? `Moved to “Waiting for reply”. It comes back to To do as soon as the sender answers, or on ${when} if there is no answer.`
+            : `Recorded. It stays in To do with a reminder on ${when}.`,
+      );
+      return true;
+    } catch (e) {
+      setCaseError(
+        `The reply was not recorded: ${(e as Error).message} Use the Follow-up tab instead.`,
+      );
+      void loadFollowups();
+      return false;
+    }
+  }
+  async function reloadFollowupCase(id: string) {
+    if (selectedCaseId.current !== id) return;
+    const ticket = activeRequest.current.next();
+    setBusyId(id);
+    setCaseError("");
+    try {
+      const [data, loaded] = await Promise.all([
+        api(`/api/cases?id=${encodeURIComponent(id)}`),
+        loadFollowups(),
+      ]);
+      if (
+        !loaded ||
+        !activeRequest.current.isCurrent(ticket) ||
+        selectedCaseId.current !== id
+      )
+        return;
+      update([data.result]);
+      setSelected(data.result);
+      setCaseEvents(data.audit);
+      setFollowupFormKey((value) => value + 1);
+      setNotice(
+        `Latest version (${data.result.version}) and follow-up loaded.`,
+      );
+    } catch (e) {
+      if (
+        activeRequest.current.isCurrent(ticket) &&
+        selectedCaseId.current === id
+      )
+        setCaseError(
+          `Could not load the latest version; your edits are kept. ${(e as Error).message}`,
+        );
+    } finally {
+      if (activeRequest.current.isCurrent(ticket)) setBusyId("");
+    }
+  }
   function launchAssistant(id: string | null = null) {
     closeCase();
     setAssistant((previous) => ({
@@ -395,19 +781,22 @@ export default function Workbench() {
   }
   async function openCase(
     id: string,
-    tab = "comparison",
-    continueQueue = false,
+    tab: CaseTab = "compare",
+    order?: string[],
   ) {
-    if (!continueQueue)
-      setQueueSession(visible.map((row) => row.email.email_id));
-    closeCase();
+    if (order) setQueueOrder(order);
     const request = activeRequest.current.next();
     setBusyId(id);
+    setCaseError("");
     setError("");
     try {
       let result: CaseResult;
       let history: AuditEvent[] = [];
-      if (!cases.find((c) => c.email.email_id === id)?.result) {
+      const summary = cases.find((c) => c.email.email_id === id);
+      if (
+        !summary?.result ||
+        summary.result.pipeline_version !== PIPELINE_VERSION
+      ) {
         const d = await api("/api/cases", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -417,25 +806,34 @@ export default function Workbench() {
         if (!result)
           throw new Error(
             d.errors?.[0]?.error ??
-              "Case could not be processed. Please retry.",
+              "This email could not be checked. Please retry.",
           );
         update(d.results);
+        if (summary?.result) {
+          const detail = await api(`/api/cases?id=${encodeURIComponent(id)}`);
+          history = detail.audit;
+        }
       } else {
         const d = await api(`/api/cases?id=${encodeURIComponent(id)}`);
         result = d.result;
         history = d.audit;
       }
       if (activeRequest.current.isCurrent(request)) {
+        selectedCaseId.current = result.email.email_id;
         setSelected(result);
         setDocument(null);
         setSourceLocation("");
         setCaseEvents(history);
-        navigateDetail(tab);
-        setAttentionOnly(false);
+        // Nothing to compare (SI request, invoice question…): show the email.
+        setCaseTab(
+          tab === "compare" && !result.comparison.length ? "conversation" : tab,
+        );
       }
     } catch (e) {
-      if (activeRequest.current.isCurrent(request))
-        setError((e as Error).message);
+      if (activeRequest.current.isCurrent(request)) {
+        if (selectedCaseId.current) setCaseError((e as Error).message);
+        else setError((e as Error).message);
+      }
     } finally {
       if (activeRequest.current.isCurrent(request)) setBusyId("");
     }
@@ -452,13 +850,10 @@ export default function Workbench() {
       )
       .map((c) => c.email.email_id);
     if (!ids.length) {
-      setNotice(
-        "All emails use the current engine. Open a case to reprocess its sources.",
-      );
+      setNotice("Every email has already been checked.");
       return;
     }
-    // This function is invoked only by the Run inbox click handler, never render.
-    // eslint-disable-next-line react-hooks/purity -- Measure elapsed time in the event handler.
+    // Invoked only by the click handler, never during render.
     const t = performance.now();
     let next = 0,
       done = 0,
@@ -506,40 +901,36 @@ export default function Workbench() {
       }
     };
     await Promise.all([worker(), worker()]);
-    // eslint-disable-next-line react-hooks/purity -- Completion of the same click-triggered async operation.
     setBatchMs(Math.round(performance.now() - t));
     await load();
     setRunning(false);
     if (problem)
       setError(
-        problem + " Completed cases are saved. Run the inbox to safely resume.",
+        `${problem} Checked emails are saved. Press “Check emails” again to continue.`,
       );
     else
       setNotice(
         cancel.current
-          ? "Paused after in-flight batches finished. Saved progress is retained."
-          : "Inbox processed. Every email has an outcome.",
+          ? "Paused. Emails checked so far are saved."
+          : "All emails checked. Start with the email at the top of “To do”.",
       );
   }
   async function reprocess() {
     if (!selected) return;
     const request = activeRequest.current.next();
     const id = selected.email.email_id;
-    setBusyId(selected.email.email_id);
-    setError("");
+    setBusyId(id);
+    setCaseError("");
     try {
       const d = await api("/api/cases", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "process",
-          ids: [selected.email.email_id],
-        }),
+        body: JSON.stringify({ action: "process", ids: [id] }),
       });
       if (!d.results[0])
         throw new Error(
           d.errors?.[0]?.error ??
-            "Reprocessing failed. The prior result is retained.",
+            "Reading failed. The previous result is kept.",
         );
       update(d.results);
       if (!activeRequest.current.isCurrent(request)) return;
@@ -548,12 +939,10 @@ export default function Workbench() {
       const history = await api(`/api/cases?id=${encodeURIComponent(id)}`);
       if (!activeRequest.current.isCurrent(request)) return;
       setCaseEvents(history.audit);
-      setNotice(
-        "Reprocessed from current sources and confirmed scan transcripts. Field edits reset; prior corrections remain in the audit trail.",
-      );
+      setNotice("Documents read again. Earlier corrections remain in History.");
     } catch (e) {
       if (activeRequest.current.isCurrent(request))
-        setError((e as Error).message);
+        setCaseError((e as Error).message);
     } finally {
       if (activeRequest.current.isCurrent(request)) setBusyId("");
     }
@@ -564,61 +953,17 @@ export default function Workbench() {
       download(`cargoguard-${mode}.json`, JSON.stringify(d, null, 2));
       setNotice(
         mode === "baseline"
-          ? "Untouched automatic baseline downloaded. Human corrections are excluded."
-          : "Reviewed evidence downloaded with source, policy and human-review labels.",
+          ? "Automatic results downloaded (human corrections excluded)."
+          : "Reviewed results downloaded with source and review labels.",
       );
     } catch (e) {
       setError((e as Error).message);
     }
   }
-  async function uploadCase(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function saveEdit(edit: FieldEdit, actor: string, reason: string) {
+    if (!selected) return false;
     const request = activeRequest.current.next();
-    setUploading(true);
-    setError("");
-    try {
-      const d = await api("/api/upload", {
-        method: "POST",
-        body: (() => {
-          const fd = new FormData(event.currentTarget);
-          if (replacement) {
-            fd.set("id", replacement.email.email_id);
-            fd.set("version", String(replacement.version));
-          }
-          return fd;
-        })(),
-      });
-      update([d.result]);
-      if (!activeRequest.current.isCurrent(request)) return;
-      setSelected(d.result);
-      navigateDetail(
-        d.result.documents.length > 2 ? "documents" : "comparison",
-      );
-      setCaseEvents([]);
-      setUpload(false);
-      setReplacement(null);
-      setDocument(null);
-      setNotice(
-        "Email and attachments saved. Inspect the results before taking action.",
-      );
-    } catch (e) {
-      if (activeRequest.current.isCurrent(request))
-        setError((e as Error).message);
-    } finally {
-      setUploading(false);
-    }
-  }
-  async function saveEdit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selected || !edit) return;
-    const request = activeRequest.current.next();
-    setSaving(true);
-    setError("");
-    const fd = new FormData(event.currentTarget);
-    const advance =
-      (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value") ===
-      "next";
-    const following = nextId;
+    setCaseError("");
     try {
       const d = await api("/api/cases", {
         method: "POST",
@@ -628,24 +973,28 @@ export default function Workbench() {
           id: selected.email.email_id,
           version: selected.version,
           ...edit,
-          actor: fd.get("actor"),
-          reason: fd.get("reason"),
+          actor,
+          reason,
         }),
       });
       update([d.result]);
-      if (!activeRequest.current.isCurrent(request)) return;
+      if (!activeRequest.current.isCurrent(request)) return false;
       setSelected(d.result);
       setCaseEvents(d.audit);
-      setEdit(null);
+      const corrected = d.result.comparison.find(
+        (row) => row.field === edit.field,
+      )?.[edit.side];
       setNotice(
-        "Correction saved. The comparison and audit trail have been updated.",
+        corrected?.correction?.state === "unresolved"
+          ? "Reading saved for review. Source confirmation is still needed; the received document has not changed."
+          : "Reading correction saved and checked against the source. The received document has not changed.",
       );
-      if (advance && following) await openCase(following, "comparison", true);
+      void load();
+      return true;
     } catch (e) {
       if (activeRequest.current.isCurrent(request))
-        setError((e as Error).message);
-    } finally {
-      setSaving(false);
+        setCaseError((e as Error).message);
+      return false;
     }
   }
   async function saveRoute(event: React.FormEvent<HTMLFormElement>) {
@@ -653,7 +1002,7 @@ export default function Workbench() {
     if (!selected) return;
     const request = activeRequest.current.next();
     setSaving(true);
-    setError("");
+    setCaseError("");
     const fd = new FormData(event.currentTarget);
     try {
       const d = await api("/api/cases", {
@@ -673,1865 +1022,754 @@ export default function Workbench() {
       setSelected(d.result);
       setCaseEvents(d.audit);
       setRouteEdit(false);
-      setNotice(
-        "Category confirmed. Documents were checked using the confirmed routing.",
-      );
+      setNotice("Email type confirmed. The documents were checked again.");
     } catch (e) {
       if (activeRequest.current.isCurrent(request))
-        setError((e as Error).message);
+        setCaseError((e as Error).message);
     } finally {
       setSaving(false);
     }
   }
-  const nav = (v: View) => {
-    setView(v);
-    closeCase();
-    window.scrollTo({ top: 0, behavior: "instant" });
-  };
-  function openQueue(outcome: string) {
-    setFilter(outcome);
-    setCategory("all");
-    setSearch("");
-    nav("inbox");
+  function importFinished(outcomes: ImportOutcome[]) {
+    const results = outcomes
+      .map((item) => item.result)
+      .filter((item): item is CaseResult => !!item);
+    if (!results.length) return;
+    update(results);
+    const replaced = importState.replacement;
+    if (replaced) {
+      const result = results[0];
+      selectedCaseId.current = result.email.email_id;
+      setSelected(result);
+      setDocument(null);
+      setCaseTab("compare");
+      setImportState({ open: false, replacement: null });
+      setNotice(
+        "New documents saved and all seven details checked again. Earlier versions are in History.",
+      );
+      void api(`/api/cases?id=${encodeURIComponent(result.email.email_id)}`)
+        .then((d) => {
+          if (selectedCaseId.current === result.email.email_id)
+            setCaseEvents(d.audit);
+        })
+        .catch(() => {});
+    } else {
+      setNotice(
+        `${results.length} email${results.length === 1 ? "" : "s"} imported and checked.`,
+      );
+      void load();
+    }
   }
-  useCargoTools({ cases, setSearch, setView, setFilter, setCategory });
+  function openImport() {
+    setImportState({ open: true, replacement: null });
+  }
+  function navigate(next: WorkspaceView) {
+    setView(next);
+    closeCase();
+  }
+  useCargoTools({
+    cases,
+    setSearch: (value) =>
+      setFiltersState((current) => ({
+        ...current,
+        search: typeof value === "function" ? value(current.search) : value,
+      })),
+    setView: (value) => setView(value),
+    setFilter: (value) =>
+      setFiltersState((current) => ({
+        ...current,
+        bucket:
+          (typeof value === "function" ? value("all") : value) === "all"
+            ? "all"
+            : current.bucket,
+        reason: "all",
+      })),
+    setCategory: (value) =>
+      setFiltersState((current) => ({
+        ...current,
+        category: typeof value === "function" ? value(current.category) : value,
+      })),
+  });
+
+  const activeRoute =
+    view === "inbox" ? "/" : view === "policies" ? "/settings" : "/reports";
+  const heading =
+    view === "inbox"
+      ? { title: "Inbox", text: "" }
+      : view === "policies"
+        ? {
+            title: "Settings",
+            text: "Your name, comparison rules and tools.",
+          }
+        : {
+            title: "Reports",
+            text: "Which emails were checked and what needs attention.",
+          };
+  const unprocessed = outdated;
+
   return (
-    <SidebarProvider className="app-shell">
-      <Sidebar collapsible="none" className="sidebar">
-        <Link className="brand" href="/" aria-label="CargoGuard home">
-          <span className="brand-symbol">
-            <ShieldCheck size={25} />
-          </span>
-          <span>
-            CargoGuard<span className="brand-sub">SHIPPING INTELLIGENCE</span>
-          </span>
-        </Link>
-        <div className="workspace-label">
-          WORKSPACE <span>01</span>
-        </div>
-        <nav aria-label="Workspace navigation">
-          <button
-            className={view === "inbox" ? "active" : ""}
-            aria-current={view === "inbox" ? "page" : undefined}
-            onClick={() => nav("inbox")}
-          >
-            <Inbox size={19} />
-            Work queue<span>{cases.length || "—"}</span>
-          </button>
-          <button
-            className={
-              view === "performance" || view === "activity" ? "active" : ""
-            }
-            aria-current={
-              view === "performance" || view === "activity" ? "page" : undefined
-            }
-            onClick={() => nav("performance")}
-          >
-            <BarChart3 size={19} />
-            Reports
-          </button>
-          <button
-            className={`settings-nav ${view === "policies" ? "active" : ""}`}
-            aria-current={view === "policies" ? "page" : undefined}
-            onClick={() => nav("policies")}
-          >
-            <Settings2 size={19} />
-            Settings
-          </button>
-        </nav>
-        <div className="sidebar-info">
-          <span className="eyebrow">DEMO WORKSPACE</span>
+    <AppShell active={activeRoute} inboxCount={todoCount}>
+      <main id="main-content" tabIndex={-1} className="cg-page">
+        <div className="cg-page-head">
           <div>
-            <Layers3 size={16} /> Organiser sample data
-          </div>
-          <p>
-            520 emails · 250 documents
-            <br />
-            TXT, PDF, Word & Excel
-          </p>
-          <div className="sidebar-progress">
-            <i
-              style={{
-                width: `${(counts.processed / Math.max(cases.length, 1)) * 100}%`,
-              }}
-            />
-          </div>
-          <small>
-            {counts.processed} of {cases.length || 520} processed
-          </small>
-        </div>
-        <div className="sidebar-bottom">
-          <div className="averis-word">
-            averis
-            <span />
-          </div>
-          <p>
-            Built for Averis × Monash
-            <br />
-            Hackathon 2026
-          </p>
-          <div className="avatar-line">
-            <span className="avatar">OP</span>
-            <span>
-              Operations workspace<small>Private working session</small>
-            </span>
-          </div>
-        </div>
-      </Sidebar>
-      <div className="main-shell">
-        <header className="topbar">
-          <div className="breadcrumb">
-            Operations <ChevronRight size={14} />
-            <strong>
+            <h1>{heading.title}</h1>
+            <p>
               {view === "inbox"
-                ? "Work queue"
-                : view === "policies"
-                  ? "Settings"
-                  : "Reports"}
-            </strong>
+                ? loading && !inboxReady
+                  ? "Loading your emails…"
+                  : todoCount
+                    ? `${todoCount.toLocaleString()} email${todoCount === 1 ? " needs" : "s need"} action · most urgent first`
+                    : "You are all caught up."
+                : heading.text}
+            </p>
           </div>
-          <div className="topbar-right">
-            <span
-              className={`environment ${refreshFailed ? "sync-failed" : ""}`}
-              title={
-                lastSync
-                  ? `Last complete inbox read: ${new Date(lastSync).toLocaleString()}. This is not a continuous health check.`
-                  : "Loading cloud workspace"
-              }
-            >
-              <span />
-              {loading
-                ? "Syncing workspace…"
-                : refreshFailed
-                  ? "Refresh unavailable"
-                  : lastSync
-                    ? `Synced ${new Date(lastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                    : "Not yet synced"}
-            </span>
-            <button
-              className="icon-button"
-              onClick={refreshWorkspace}
-              title="Refresh workspace"
-              aria-label="Refresh workspace"
-              disabled={loading}
-            >
-              <RefreshCw size={17} />
-            </button>
-            <span className="avatar small">OP</span>
-          </div>
-        </header>
-        <main data-workspace-view={view}>
-          {error && (
-            <div className="alert error" role="alert">
-              <TriangleAlert size={18} />
-              <span>{error}</span>
-              <button onClick={() => setError("")} aria-label="Dismiss error">
-                <X size={17} />
-              </button>
-            </div>
-          )}
-          {notice && (
-            <div className="toast" role="status">
-              <CheckCircle2 size={18} />
-              {notice}
+          {(view === "performance" ||
+            view === "accuracy" ||
+            view === "activity") && (
+            <div className="cg-page-actions">
               <button
-                onClick={() => setNotice("")}
-                aria-label="Dismiss notification"
+                className="cg-btn primary"
+                disabled={!inboxReady}
+                onClick={() => setPlanOpen(true)}
               >
-                <X size={16} />
+                <ListChecks size={18} /> Today&apos;s plan
               </button>
-            </div>
-          )}
-          <div className="page-heading">
-            <div>
-              <h1>
-                {view === "inbox"
-                  ? "Work queue"
-                  : view === "policies"
-                    ? "Workspace settings"
-                    : "Reports & evidence"}
-              </h1>
-              <p>
-                {view === "inbox"
-                  ? "Inspect the evidence. Resolve the next case."
-                  : view === "policies"
-                    ? "Versioned policies and cloud AI availability."
-                    : "Workspace results, validation and recorded decisions."}
-              </p>
-            </div>
-            {view === "inbox" && (
-              <div className="heading-actions">
+              <div className="cg-menu" ref={downloadRef}>
                 <button
-                  className="button secondary"
-                  disabled={loading || !inboxReady}
-                  onClick={() => {
-                    setReplacement(null);
-                    setIntakeFiles([]);
-                    setUpload(true);
-                  }}
+                  className="cg-btn"
+                  aria-haspopup="menu"
+                  aria-expanded={downloadOpen}
+                  onClick={() => setDownloadOpen(!downloadOpen)}
                 >
-                  <Plus size={17} />
-                  Import email
+                  <ArrowDownToLine size={18} /> Download
+                  <ChevronDown size={16} />
                 </button>
-                <button
-                  className="button primary"
-                  onClick={processAll}
-                  disabled={
-                    loading ||
-                    !inboxReady ||
-                    (!running && counts.processed === cases.length && !outdated)
-                  }
-                >
-                  {running ? <Square size={14} /> : <Play size={16} />}{" "}
-                  {running
-                    ? "Pause processing"
-                    : counts.processed === cases.length &&
-                        !outdated &&
-                        inboxReady
-                      ? "Inbox up to date"
-                      : "Run inbox"}
-                </button>
-              </div>
-            )}
-          </div>
-          {!inboxReady && !loading && (
-            <div className="alert warning" role="status">
-              Load the workspace before creating or processing cases. Use
-              Refresh to retry.
-            </div>
-          )}
-          {inboxReady && refreshFailed && (
-            <div className="alert warning" role="status">
-              Showing previously loaded results. Refresh is unavailable; saved
-              changes are not discarded. Retry when the cloud service is ready.
-            </div>
-          )}
-          {!!outdated && (
-            <div className="alert warning">
-              <Info size={18} />
-              <p>
-                {outdated} saved cases use an older engine. Run inbox to upgrade
-                them safely. Human field corrections are retained when source
-                fingerprints match.
-              </p>
-            </div>
-          )}
-          {running && (
-            <div className="run-progress" role="status">
-              <Loader2 size={17} className="spin" />
-              <span>Processing emails and reading documents</span>
-              <strong>
-                {progress.done} / {progress.total}
-              </strong>
-              <div>
-                <i
-                  style={{
-                    width: `${(progress.done / Math.max(1, progress.total)) * 100}%`,
-                  }}
-                />
-              </div>
-            </div>
-          )}
-          {(view === "performance" || view === "activity") && (
-            <div className="report-switch" aria-label="Report sections">
-              <button
-                className={view === "performance" ? "active" : ""}
-                aria-pressed={view === "performance"}
-                onClick={() => nav("performance")}
-              >
-                <BarChart3 size={16} /> Performance
-              </button>
-              <button
-                className={view === "activity" ? "active" : ""}
-                aria-pressed={view === "activity"}
-                onClick={() => {
-                  nav("activity");
-                  refreshWorkspace();
-                }}
-              >
-                <History size={16} /> Audit trail
-              </button>
-            </div>
-          )}
-          {view === "performance" && (
-            <div className="metric-grid">
-              <button className="metric" onClick={() => openQueue("all")}>
-                <span>
-                  Emails processed
-                  <Inbox size={18} />
-                </span>
-                <strong>
-                  {counts.processed.toLocaleString()}
-                  <small>/ {cases.length || 520}</small>
-                </strong>
-                <div>
-                  <span className="neutral-dot" />
-                  {counts.processed === cases.length && cases.length
-                    ? "Inbox is up to date"
-                    : "Ready for verification"}
-                </div>
-              </button>
-              <button
-                className="metric"
-                onClick={() => openQueue("discrepancy")}
-              >
-                <span>
-                  Discrepancies
-                  <TriangleAlert size={18} />
-                </span>
-                <strong>
-                  {queueCounts.discrepancy.toLocaleString()}
-                  <small>cases</small>
-                </strong>
-                <div className="orange-text">
-                  {cases.reduce(
-                    (s, c) => s + (c.result?.defect_fields.length ?? 0),
-                    0,
-                  )}{" "}
-                  fields need attention
-                </div>
-              </button>
-              <button className="metric" onClick={() => openQueue("verified")}>
-                <span>
-                  Verified documents
-                  <FileCheck2 size={18} />
-                </span>
-                <strong>
-                  {queueCounts.verified.toLocaleString()}
-                  <small>pairs</small>
-                </strong>
-                <div className="green-text">
-                  <CheckCheck size={14} /> All seven fields matched
-                </div>
-              </button>
-              <button className="metric" onClick={() => openQueue("review")}>
-                <span>
-                  Recover evidence
-                  <Eye size={18} />
-                </span>
-                <strong>
-                  {queueCounts.review.toLocaleString()}
-                  <small>cases</small>
-                </strong>
-                <div>
-                  {queueCounts.awaiting_documents} need documents separately
-                </div>
-              </button>
-            </div>
-          )}
-          {view === "inbox" && (
-            <>
-              <section className="inbox-panel">
-                <div className="table-toolbar">
-                  <div className="filter-tabs" aria-label="Filter by outcome">
-                    {QUEUE_FILTERS.map(([key, label]) => (
-                      <button
-                        key={key}
-                        className={`queue-card queue-${key} ${filter === key ? "selected" : ""}`}
-                        aria-pressed={filter === key}
-                        onClick={() => setFilter(key)}
-                      >
-                        <span className="queue-card-label">
-                          {key === "all" ? (
-                            <Inbox size={15} />
-                          ) : key === "action" ? (
-                            <Layers3 size={15} />
-                          ) : key === "discrepancy" ? (
-                            <TriangleAlert size={15} />
-                          ) : key === "review" ? (
-                            <Eye size={15} />
-                          ) : key === "awaiting_documents" ? (
-                            <Paperclip size={15} />
-                          ) : (
-                            <ShieldCheck size={15} />
-                          )}
-                          {label}
-                        </span>
-                        <strong>
-                          {loading && !inboxReady ? "—" : queueCounts[key]}
-                        </strong>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="table-tools">
-                    <label className="search-input">
-                      <Search size={16} />
-                      <input
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search email, sender, field…"
-                        aria-label="Search emails"
-                      />
-                      {search && (
-                        <button
-                          onClick={() => setSearch("")}
-                          aria-label="Clear search"
-                        >
-                          <X size={14} />
-                        </button>
-                      )}
-                    </label>
-                    <label className="category-filter">
-                      <SlidersHorizontal size={16} />
-                      <select
-                        aria-label="Email category"
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                      >
-                        <option value="all">All categories</option>
-                        {CATEGORIES.map((c) => (
-                          <option key={c} value={c}>
-                            {categoryNames[c]}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <select
-                      className="other-queues"
-                      aria-label="Additional queues"
-                      value={
-                        filter === "pending" || filter === "routed"
-                          ? filter
-                          : ""
-                      }
-                      onChange={(event) =>
-                        setFilter(event.target.value || "all")
-                      }
+                {downloadOpen && (
+                  <div className="cg-menu-list" role="menu">
+                    <a
+                      role="menuitem"
+                      href="/api/follow-ups?export=1"
+                      download
+                      onClick={() => setDownloadOpen(false)}
                     >
-                      <option value="">Other queues</option>
-                      <option value="pending">
-                        Process / recheck ({queueCounts.pending})
-                      </option>
-                      <option value="routed">
-                        Other desks ({queueCounts.routed})
-                      </option>
-                    </select>
-                  </div>
-                </div>
-                <div className="queue-caption">
-                  <span>
-                    {visible.length} matching cases · action cases first
-                  </span>
-                  <span>
-                    Counts above cover this workspace · checked ≠ cargo release
-                  </span>
-                </div>
-                <div className="table-scroll">
-                  <Table className="email-table">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>EMAIL / SHIPMENT</TableHead>
-                        <TableHead>CATEGORY</TableHead>
-                        <TableHead>STATUS</TableHead>
-                        <TableHead>NEXT ACTION</TableHead>
-                        <TableHead aria-label="Open case" />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {visible.slice(0, shownLimit).map((c) => (
-                        <TableRow
-                          key={c.email.email_id}
-                          className={
-                            c.result?.workflow === "discrepancy"
-                              ? "attention-row"
-                              : ""
-                          }
-                          onClick={() => void openCase(c.email.email_id)}
-                        >
-                          <TableCell>
-                            <button
-                              className="email-title"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void openCase(c.email.email_id);
-                              }}
-                            >
-                              <span
-                                className={`mail-icon ${c.result?.workflow ?? ""}`}
-                              >
-                                <FileText size={19} />
-                              </span>
-                              <span>
-                                <strong title={c.email.subject}>
-                                  {shortSubject(c.email.subject)}
-                                </strong>
-                                <small>
-                                  <span className="mono">
-                                    {c.email.email_id.replace("email_", "#")}
-                                  </span>
-                                  <span className="separator-dot">·</span>
-                                  {c.email.from}
-                                </small>
-                              </span>
-                            </button>
-                          </TableCell>
-                          <TableCell>
-                            <span className="category-label">
-                              {c.result
-                                ? categoryNames[c.result.category]
-                                : "—"}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <Status value={c.result?.workflow ?? "pending"} />
-                            {!!c.result?.defect_fields.length && (
-                              <small className="field-count">
-                                {c.result.defect_fields.length}{" "}
-                                {c.result.defect_fields.length === 1
-                                  ? "field differs"
-                                  : "fields differ"}
-                              </small>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <span className="queue-next-action">
-                              {LANE_DETAILS[laneFor(c)].action}
-                            </span>
-                            <small className="queue-document-count">
-                              {c.email.attachments.length} documents
-                              {c.result ? ` · v${c.result.version}` : ""}
-                            </small>
-                          </TableCell>
-                          <TableCell>
-                            {busyId === c.email.email_id ? (
-                              <Loader2 size={18} className="spin" />
-                            ) : (
-                              <ChevronRight size={18} />
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-                {loading ? (
-                  <div className="empty-state">
-                    <Loader2 className="spin" />
-                    <h3>Loading your workspace</h3>
-                    <p>Connecting to the inbox and saved results.</p>
-                  </div>
-                ) : (
-                  !visible.length && (
-                    <div className="empty-state">
-                      <CheckCircle2 size={32} />
-                      <h3>No matching cases</h3>
-                      <p>
-                        {counts.processed < cases.length
-                          ? "Run the inbox to create results, or clear filters to see unprocessed cases."
-                          : "Try another search or clear the filters."}
-                      </p>
-                      <button
-                        className="button secondary"
-                        onClick={() => {
-                          setSearch("");
-                          setFilter("all");
-                          setCategory("all");
-                        }}
-                      >
-                        Clear filters
-                      </button>
-                    </div>
-                  )
-                )}
-                <div className="table-footer">
-                  <span>
-                    Showing {Math.min(shownLimit, visible.length)} of{" "}
-                    {visible.length} emails
-                  </span>
-                  <div>
-                    {shownLimit > 30 && (
-                      <button
-                        onClick={() => {
-                          setPagination(pageKey);
-                          setLimit(30);
-                        }}
-                      >
-                        Show fewer
-                      </button>
-                    )}
-                    {visible.length > shownLimit && (
-                      <button
-                        onClick={() => {
-                          setPagination(pageKey);
-                          setLimit(shownLimit + 30);
-                        }}
-                      >
-                        Load next 30 <ChevronDown size={14} />
-                      </button>
-                    )}
-                  </div>
-                  <span className="evidence-note">
-                    <ShieldCheck size={14} /> Every comparison is linked to
-                    source evidence
-                  </span>
-                </div>
-              </section>
-              <details className="queue-help">
-                <summary>Help & exports</summary>
-                <div>
-                  <p>
-                    Run the inbox to classify five email categories and compare
-                    all seven SI / draft BL fields. Open a case to check
-                    sources, recover unreadable evidence or prepare an
-                    amendment. Use History → What changed? after replacing
-                    corrected documents. Nothing is sent or released
-                    automatically.
-                  </p>
-                  <div className="case-actions">
+                      Follow-up handover
+                    </a>
                     <button
-                      className="text-button"
-                      disabled={loading || !inboxReady}
-                      onClick={() =>
+                      role="menuitem"
+                      disabled={!inboxReady}
+                      onClick={() => {
+                        setDownloadOpen(false);
                         download(
                           "cargoguard-shift-brief.txt",
                           shiftBrief(cases, new Date().toISOString()),
                           "text/plain;charset=utf-8",
-                        )
-                      }
+                        );
+                      }}
                     >
-                      Export shift brief
+                      Shift brief
                     </button>
                     <button
-                      className="text-button"
-                      onClick={() => void exportAll("reviewed")}
+                      role="menuitem"
+                      onClick={() => {
+                        setDownloadOpen(false);
+                        void exportAll("reviewed");
+                      }}
                     >
-                      Export reviewed evidence
+                      All results (with reviewer corrections)
                     </button>
-                    <button
-                      className="text-button"
-                      onClick={() => void exportAll()}
-                    >
-                      Export automatic baseline
-                    </button>
-                  </div>
-                </div>
-              </details>
-            </>
-          )}
-          {view === "policies" && (
-            <>
-              <PolicyDesk />
-              <details className="settings-ai">
-                <summary>Cloud AI availability & allowance</summary>
-                {inboxReady && !loading && <AiAvailability />}
-              </details>
-            </>
-          )}
-          {view === "performance" && (
-            <div className="performance-grid">
-              <WorkloadInsights cases={cases} />
-              <section className="content-card">
-                <div className="card-title">
-                  <BarChart3 size={19} />
-                  <h2>Saved workflow outcomes</h2>
-                </div>
-                <div className="big-rate">
-                  {counts.comparisons ? (
-                    <>
-                      {Math.round((counts.verified / counts.comparisons) * 100)}
-                      <span>%</span>
-                    </>
-                  ) : (
-                    "—"
-                  )}
-                </div>
-                <p>
-                  Compared pairs with no mismatch detected.
-                  <br />
-                  This is a clean-pair rate, not an accuracy score. Task queues
-                  group missing-attachment reviews under Missing documents.
-                </p>
-                <div className="distribution">
-                  {[
-                    "verified",
-                    "discrepancy",
-                    "review",
-                    "awaiting_documents",
-                    "routed",
-                  ].map((k) => {
-                    const n = counts[k as keyof typeof counts];
-                    return (
-                      <div key={k}>
-                        <label>
-                          {statuses[k]}
-                          <strong>{n}</strong>
-                        </label>
-                        <div>
-                          <i
-                            className={k}
-                            style={{
-                              width: `${(n / Math.max(counts.processed, 1)) * 100}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-              <section className="content-card">
-                <div className="card-title">
-                  <Sparkles size={19} />
-                  <h2>Model & processing</h2>
-                </div>
-                <dl className="facts">
-                  <div>
-                    <dt>Classifier</dt>
-                    <dd>Learned TF-IDF linear router + safety review</dd>
-                  </div>
-                  <div>
-                    <dt>Training source</dt>
-                    <dd>
-                      875 authored-data training rows; 175 grouped validation
-                      rows
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Comparison</dt>
-                    <dd>Typed, deterministic seven-field checks</dd>
-                  </div>
-                  <div>
-                    <dt>Request latency</dt>
-                    <dd>
-                      {timing
-                        ? `Median ${timing.median} ms · p95 ${timing.p95} ms (${timing.count} successful requests in this tab)`
-                        : "No measured requests yet"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Last batch elapsed</dt>
-                    <dd>
-                      {batchMs === null
-                        ? "Run the inbox to measure"
-                        : `${(batchMs / 1000).toFixed(1)} seconds, including network and persistence`}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Engine version</dt>
-                    <dd>
-                      {PIPELINE_VERSION} · conservative uncertainty checks
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Storage</dt>
-                    <dd>Persistent decision & source storage</dd>
-                  </div>
-                  <div>
-                    <dt>Scans</dt>
-                    <dd>
-                      Browser-local OCR suggestions + seven-field human
-                      confirmation; replacement fallback
-                    </dd>
-                  </div>
-                </dl>
-                <div className="info-box">
-                  <Info size={17} />
-                  <p>
-                    Model scores are routing signals, not calibrated
-                    probabilities. Document correctness is established by source
-                    evidence and field checks.
-                  </p>
-                </div>
-              </section>
-              <section className="content-card wide">
-                <div className="card-title">
-                  <ShieldCheck size={19} />
-                  <h2>Reproducible organiser evaluation</h2>
-                  <span className="count-pill">520 emails</span>
-                </div>
-                {validation ? (
-                  <>
-                    <div className="validation-metrics">
-                      {Object.entries(
-                        (validation.metrics ?? {}) as Record<string, number>,
-                      ).map(([key, value]) => (
-                        <div key={key}>
-                          <strong>
-                            {(value * 100).toFixed(1)}
-                            <span>%</span>
-                          </strong>
-                          <small>{key.replaceAll("_", " ")}</small>
-                        </div>
-                      ))}
-                    </div>
-                    <p>{String(validation.note ?? "")}</p>
-                    {Array.isArray(validation.challenge_sets) && (
-                      <details className="validation-extra">
-                        <summary>
-                          Extended synthetic development checks (not a held-out
-                          benchmark)
-                        </summary>
-                        <div className="table-scroll">
-                          <table>
-                            <thead>
-                              <tr>
-                                <th>Dataset</th>
-                                <th>Emails</th>
-                                <th>Output differences</th>
-                                <th>False clearances</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(
-                                validation.challenge_sets as {
-                                  name: string;
-                                  emails: number;
-                                  output_differences: number;
-                                  false_clearances: number;
-                                }[]
-                              ).map((d) => (
-                                <tr key={d.name}>
-                                  <td>{d.name}</td>
-                                  <td>{d.emails}</td>
-                                  <td>{d.output_differences}</td>
-                                  <td>{d.false_clearances}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        <p>{String(validation.challenge_limitations ?? "")}</p>
-                      </details>
+                    {workspaceConfig?.sample_data && (
+                      <button
+                        role="menuitem"
+                        onClick={() => {
+                          setDownloadOpen(false);
+                          void exportAll();
+                        }}
+                      >
+                        Automatic results only
+                      </button>
                     )}
-                    <p className="muted">
-                      Measured {String(validation.generated_at ?? "")} ·{" "}
-                      {String(validation.version ?? "development corpus")}
-                    </p>
-                  </>
-                ) : (
-                  <p>
-                    Evaluation report is not available in this build. Workspace
-                    statistics above show actual processed results.
-                  </p>
+                  </div>
                 )}
-                <a href="/validation.json" className="text-button" download>
-                  <ArrowDownToLine size={16} />
-                  Download validation report
-                </a>
-              </section>
+              </div>
             </div>
           )}
-          {view === "activity" && (
-            <section className="content-card">
-              <div className="card-title">
-                <History size={19} />
-                <h2>Recent activity</h2>
-                <span className="count-pill">Latest 100 events</span>
+          {view === "inbox" && (
+            <div className="cg-page-actions">
+              <button
+                className="cg-btn"
+                onClick={refreshWorkspace}
+                disabled={loading}
+                title={
+                  lastSync
+                    ? `Last refreshed ${new Date(lastSync).toLocaleTimeString()}`
+                    : undefined
+                }
+              >
+                <RefreshCw size={18} className={loading ? "cg-spin" : ""} />{" "}
+                Refresh
+              </button>
+              <button
+                className="cg-btn"
+                disabled={!inboxReady}
+                onClick={openImport}
+              >
+                <Plus size={18} /> Import email
+              </button>
+              {(unprocessed > 0 || running) && (
+                <button
+                  className="cg-btn primary"
+                  onClick={() => void processAll()}
+                  disabled={loading || !inboxReady}
+                >
+                  {running ? <Square size={16} /> : <Play size={18} />}
+                  {running
+                    ? "Pause"
+                    : `Check ${unprocessed} new email${unprocessed === 1 ? "" : "s"}`}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        {error && (
+          <div className="cg-notice error" role="alert">
+            <TriangleAlert size={20} />
+            <p>{error}</p>
+            <button
+              className="cg-icon-btn"
+              onClick={() => setError("")}
+              aria-label="Dismiss"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        )}
+        {inboxReady && refreshFailed && (
+          <div className="cg-notice warn" role="status">
+            <Info size={20} />
+            <p>
+              Showing the last loaded emails. Refresh when the connection is
+              back — nothing is lost.
+            </p>
+          </div>
+        )}
+        {running && (
+          <div className="cg-progress" role="status">
+            <Loader2 size={20} className="cg-spin" />
+            <span>Reading emails and checking documents…</span>
+            <strong>
+              {progress.done} / {progress.total}
+            </strong>
+            <div className="cg-progress-bar">
+              <i
+                style={{
+                  width: `${(progress.done / Math.max(1, progress.total)) * 100}%`,
+                }}
+              />
+            </div>
+          </div>
+        )}
+        {view === "inbox" && (
+          <>
+            {mail?.connected && (
+              <div className="cg-mailbar">
+                <Mail size={16} />
+                <span>
+                  <strong>
+                    {mail.provider === "gmail" ? "Gmail" : "Mailbox"}
+                  </strong>{" "}
+                  {mail.account} ·{" "}
+                  {mail.settings?.auto_sync
+                    ? mail.worker?.enabled
+                      ? mail.worker.running
+                        ? `background checks every ${mail.settings.interval_minutes} min`
+                        : "background import needs attention"
+                      : `checks every ${mail.settings.interval_minutes} min while Inbox is open`
+                    : "automatic import is off"}
+                  {mail.last_success_at
+                    ? ` · last successful check ${new Date(mail.last_success_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                    : " · no successful check yet"}
+                  {mail.last_sync_note ? ` (${mail.last_sync_note})` : ""}
+                  {mail.last_sync_error && (
+                    <span role="alert">
+                      {" "}
+                      · Needs attention: {mail.last_sync_error}
+                    </span>
+                  )}
+                </span>
+                <button
+                  className="cg-btn small"
+                  disabled={mailBusy || !inboxReady}
+                  onClick={() => void syncMail(true)}
+                >
+                  {mailBusy ? (
+                    <Loader2 size={15} className="cg-spin" />
+                  ) : (
+                    <RefreshCw size={15} />
+                  )}
+                  Check for new email
+                </button>
               </div>
-              <label className="audit-search search-input">
-                <Search size={16} />
+            )}
+            <InboxView
+              cases={cases}
+              plans={plans}
+              threads={threads}
+              filters={filters}
+              setFilters={setFilters}
+              loading={loading && !inboxReady}
+              busyId={busyId}
+              now={queueNow}
+              onOpen={(id, order) => void openCase(id, "compare", order)}
+              onImport={openImport}
+              onPlan={() => setPlanOpen(true)}
+              checking={running}
+              doneTools={
+                inboxReady && counts.verified > 0 ? (
+                  <BatchReview
+                    onCompleted={() => {
+                      void load();
+                      void loadFollowups();
+                    }}
+                  />
+                ) : undefined
+              }
+            />
+          </>
+        )}
+        {view === "policies" && (
+          <div className="cg-panel">
+            <section className="cg-card cg-card-pad">
+              <h2>Your name</h2>
+              <label className="cg-field" style={{ maxWidth: 420 }}>
+                Shown on corrections and used to sign replies
                 <input
-                  aria-label="Search audit trail"
-                  placeholder="Search case, reviewer or action…"
-                  value={auditSearch}
-                  onChange={(event) => setAuditSearch(event.target.value)}
+                  value={reviewerName}
+                  placeholder={employeeName || "e.g. Najiha"}
+                  maxLength={80}
+                  onChange={(e) => setReviewerName(e.target.value)}
                 />
               </label>
-              <p>
-                Search covers the latest 100 workspace events. Open a case’s
-                History for its saved revisions.
-              </p>
-              {!events.length ? (
-                <div className="empty-state">
-                  <History size={28} />
-                  <h3>Your audit trail starts here</h3>
-                  <p>
-                    Processing and reviewer corrections are recorded
-                    automatically.
-                  </p>
-                </div>
-              ) : (
-                <div className="timeline">
-                  {events
-                    .filter((e) =>
-                      `${e.email_id} ${e.actor} ${e.action} ${e.detail}`
-                        .toLowerCase()
-                        .includes(auditSearch.trim().toLowerCase()),
-                    )
-                    .map((e) => (
-                      <div key={e.id}>
-                        <span className="timeline-icon">
-                          {e.action === "FIELD_CORRECTED" ? (
-                            <Eye size={16} />
-                          ) : (
-                            <Check size={16} />
-                          )}
-                        </span>
-                        <div>
-                          <strong>
-                            {e.action.replaceAll("_", " ").toLowerCase()}{" "}
-                            <span className="mono">{e.email_id}</span>
-                          </strong>
-                          <AuditDetail detail={e.detail} />
-                          <small>
-                            {e.actor} ·{" "}
-                            {new Date(e.created_at).toLocaleString()}
-                          </small>
-                        </div>
+            </section>
+            <PolicyDesk />
+            <section className="cg-card cg-card-pad">
+              <h2>Tools</h2>
+              <ul className="cg-tool-list">
+                <li>
+                  <Link href="/rules">
+                    <strong>Label rules</strong>
+                    <span>Teach CargoGuard a new document heading</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/templates">
+                    <strong>SI templates</strong>
+                    <span>Saved customer party details</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/insights">
+                    <strong>Search saved results</strong>
+                    <span>Find checked emails by status, port or customer</span>
+                  </Link>
+                </li>
+              </ul>
+            </section>
+            <details className="cg-details">
+              <summary>AI services (optional)</summary>
+              <div>{inboxReady && !loading && <AiAvailability />}</div>
+            </details>
+          </div>
+        )}
+        {(view === "performance" ||
+          view === "accuracy" ||
+          view === "activity") && (
+          <div className="cg-tabs" role="tablist" style={{ marginBottom: 20 }}>
+            <button
+              role="tab"
+              className="cg-tab"
+              aria-selected={view === "performance"}
+              onClick={() => navigate("performance")}
+            >
+              Overview
+            </button>
+            <button
+              role="tab"
+              className="cg-tab"
+              aria-selected={view === "activity"}
+              onClick={() => {
+                navigate("activity");
+                refreshWorkspace();
+              }}
+            >
+              Activity log
+            </button>
+            <button
+              role="tab"
+              className="cg-tab"
+              aria-selected={view === "accuracy"}
+              onClick={() => navigate("accuracy")}
+            >
+              Accuracy
+            </button>
+          </div>
+        )}
+        {view === "performance" && (
+          <ReportsOverview
+            cases={cases}
+            loading={loading}
+            onOpen={(id, order) => void openCase(id, "compare", order)}
+          />
+        )}
+        {view === "accuracy" && (
+          <div className="cg-panel">
+            <section className="cg-card cg-card-pad">
+              <h2>
+                <Sparkles size={18} /> How CargoGuard decides
+              </h2>
+              <dl className="cg-kv">
+                <dt>Email type</dt>
+                <dd>
+                  Trained classifier (TF-IDF linear model) plus safety review
+                  rules
+                </dd>
+                <dt>Document check</dt>
+                <dd>Exact, typed comparison of 7 details — no guessing</dd>
+                <dt>Conversations</dt>
+                <dd>Grouped by order number, reply chain and subject</dd>
+                <dt>Priority</dt>
+                <dd>
+                  Transparent points: problem type, deadlines in the email, age,
+                  follow-ups
+                </dd>
+                <dt>Replies</dt>
+                <dd>
+                  Written from checked values; optional AI may only change the
+                  wording
+                </dd>
+                <dt>Speed</dt>
+                <dd>
+                  {timing
+                    ? `Median ${timing.median} ms per request (${timing.count} requests)`
+                    : "No requests measured yet"}
+                  {batchMs !== null
+                    ? ` · last full check ${(batchMs / 1000).toFixed(1)} s`
+                    : ""}
+                </dd>
+                <dt>Engine</dt>
+                <dd>Version {PIPELINE_VERSION}</dd>
+              </dl>
+            </section>
+            <section className="cg-card cg-card-pad">
+              <h2>
+                <ShieldCheck size={18} /> Accuracy tests
+              </h2>
+              {validation ? (
+                <>
+                  <div className="cg-facts">
+                    {Object.entries(
+                      (validation.metrics ?? {}) as Record<string, number>,
+                    ).map(([key, value]) => (
+                      <div className="cg-fact" key={key}>
+                        <span>{key.replaceAll("_", " ")}</span>
+                        <strong>{(value * 100).toFixed(1)}%</strong>
                       </div>
                     ))}
-                </div>
-              )}
-              {!!events.length &&
-                !events.some((e) =>
-                  `${e.email_id} ${e.actor} ${e.action} ${e.detail}`
-                    .toLowerCase()
-                    .includes(auditSearch.trim().toLowerCase()),
-                ) && (
-                  <p role="status">
-                    No matching event in the latest 100. Try a shorter search.
+                  </div>
+                  <p className="cg-small cg-muted">
+                    {String(validation.note ?? "")}
                   </p>
-                )}
+                  <AuthoredOperationsChallenge
+                    report={validation.authored_operations_challenge}
+                  />
+                </>
+              ) : (
+                <p className="cg-muted">
+                  The accuracy report is not included in this build.
+                </p>
+              )}
+              <FieldTestReport report={fieldTest} />
+              <a href="/validation.json" className="cg-btn small" download>
+                <ArrowDownToLine size={16} /> Download full report
+              </a>
             </section>
-          )}
-          <footer className="page-footer">
-            <span>
-              CargoGuard <span className="footer-divider">/</span> Shipping
-              document verification
-            </span>
-            <span>SI is the reference. Uncertainty is always visible.</span>
-          </footer>
-        </main>
-      </div>
-      <Sheet
-        open={!!selected}
-        onOpenChange={(v) => {
-          if (!v) closeCase();
-        }}
-      >
+          </div>
+        )}
+        {view === "activity" && (
+          <section className="cg-card cg-card-pad">
+            <h2>Latest 100 actions</h2>
+            <label
+              className="cg-search"
+              style={{ margin: "8px 0 16px", maxWidth: 480 }}
+            >
+              <Search size={18} />
+              <input
+                aria-label="Search activity"
+                placeholder="Search email, person or action…"
+                value={auditSearch}
+                onChange={(e) => setAuditSearch(e.target.value)}
+              />
+            </label>
+            {!events.length ? (
+              <p className="cg-muted">Nothing recorded yet.</p>
+            ) : (
+              <ol
+                style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 14 }}
+              >
+                {events
+                  .filter((e) =>
+                    `${e.email_id} ${e.actor} ${e.action} ${e.detail}`
+                      .toLowerCase()
+                      .includes(auditSearch.trim().toLowerCase()),
+                  )
+                  .map((e) => (
+                    <li key={e.id}>
+                      <strong>
+                        {e.action
+                          .replaceAll("_", " ")
+                          .toLowerCase()
+                          .replace(/^\w/, (c) => c.toUpperCase())}
+                      </strong>{" "}
+                      <button
+                        className="cg-link cg-small"
+                        onClick={() => {
+                          setView("inbox");
+                          void openCase(e.email_id, "history");
+                        }}
+                      >
+                        open email
+                      </button>
+                      <AuditDetail detail={e.detail} />
+                      <span className="cg-small cg-muted">
+                        {e.actor} · {new Date(e.created_at).toLocaleString()}
+                      </span>
+                    </li>
+                  ))}
+              </ol>
+            )}
+          </section>
+        )}
+      </main>
+      {notice && (
+        <div className="cg-toast" role="status">
+          <CheckCircle2 size={20} />
+          <span>{notice}</span>
+          <button
+            className="cg-icon-btn"
+            onClick={() => setNotice("")}
+            aria-label="Dismiss"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
+      <Sheet open={!!selected} onOpenChange={(open) => !open && closeCase()}>
         {selected && (
           <SheetContent
             showCloseButton={false}
             aria-describedby={undefined}
-            className="case-drawer"
+            className="cg-sheet"
           >
-            <SheetTitle className="sr-only">Verification details</SheetTitle>
-            <div className="drawer-top">
-              <div>
-                <span className="eyebrow">VERIFICATION DETAILS</span>
-                <h2>
-                  {selected.email.email_id.replace("email_", "Shipment #")}
-                </h2>
-              </div>
-              <div className="drawer-tools">
-                <button
-                  className="button secondary"
-                  onClick={() => launchAssistant(selected.email.email_id)}
-                >
-                  <MessageSquareText size={16} /> Ask CargoGuard
-                </button>
-                <button
-                  className="button primary"
-                  onClick={() => navigateDetail("resolution")}
-                >
-                  {selected.comparison.some((row) => row.result === "mismatch")
-                    ? "Request correction"
-                    : selected.workflow === "awaiting_documents"
-                      ? "Request documents"
-                      : selected.workflow === "verified"
-                        ? "Prepare handoff"
-                        : "Resolve case"}
-                </button>
-                <button
-                  className="icon-button"
-                  onClick={() => window.print()}
-                  title="Print report"
-                  aria-label="Print report"
-                >
-                  <Printer size={18} />
-                </button>
-                <button
-                  className="icon-button"
-                  aria-label="Close details"
-                  onClick={closeCase}
-                >
-                  <X size={21} />
-                </button>
-              </div>
-            </div>
-            <div className="drawer-content" ref={drawerBody}>
-              {error && (
-                <div className="alert error" role="alert">
-                  {error}
-                </div>
-              )}
-              <div className="case-summary">
-                <Status value={selected.workflow} />
-                {selected.reviewed && (
-                  <span className="reviewed-tag">
-                    <Eye size={13} />
-                    Human reviewed
-                  </span>
-                )}
-                <h3>{selected.email.subject}</h3>
-                <p>{selected.summary}</p>
-                <div className="case-meta">
-                  <span>{selected.email.from}</span>
-                  <span>Revision {selected.version}</span>
-                </div>
-                <details className="case-advanced">
-                  <summary>Category & processing details</summary>
-                  <p>
-                    {categoryNames[selected.category]} · Engine{" "}
-                    {selected.pipeline_version ?? "legacy"}
-                  </p>
-                  <p>{selected.classification.method}</p>
-                  <div className="signal-list">
-                    {selected.classification.signals.map((s, i) => (
-                      <span key={i}>{s}</span>
-                    ))}
-                  </div>
-                  <div className="case-actions">
-                    <button
-                      className="button secondary"
-                      disabled={running || saving}
-                      onClick={() => {
-                        setError("");
-                        setRouteEdit(true);
-                      }}
-                    >
-                      Confirm category
-                    </button>
-                    <button
-                      className="text-button"
-                      disabled={!!busyId}
-                      onClick={() => void openCase(selected.email.email_id)}
-                    >
-                      Reload case
-                    </button>
-                  </div>
-                </details>
-              </div>
-              <div className="detail-tabs">
-                {[
-                  ["comparison", "Check"],
-                  ["documents", "Sources"],
-                  ["history", "History"],
-                ].map(([t, label]) => (
-                  <button
-                    key={t}
-                    className={detailTab === t ? "active" : ""}
-                    aria-pressed={detailTab === t}
-                    onClick={() => navigateDetail(t)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              {detailTab === "comparison" && resolutionOpen && (
-                <div className="case-resolution">
-                  <div className="case-resolution-heading">
-                    <h3>Next action</h3>
-                    <button
-                      className="text-button"
-                      onClick={() => setResolutionOpen(false)}
-                    >
-                      Back to field checks
-                    </button>
-                  </div>
-                  <ResolutionDesk
-                    result={selected}
-                    onNavigate={navigateDetail}
-                    onSource={(name, location) => {
-                      const source = selected.documents.find(
-                        (doc) => doc.name === name,
-                      );
-                      if (source) {
-                        setDocument(source);
-                        setSourceLocation(location);
-                        setDetailTab("documents");
-                      }
-                    }}
-                  />
-                </div>
-              )}
-              {detailTab === "comparison" && !resolutionOpen && (
-                <>
-                  {selected.document_selection && (
-                    <div className="selected-pair-notice">
-                      <ShieldCheck size={17} />
-                      <p>
-                        <strong>Selected pair only.</strong>{" "}
-                        {selected.documents.length - 2} other attachments are
-                        retained, not verified.
-                      </p>
-                      <button
-                        className="text-button"
-                        onClick={() => setDetailTab("documents")}
-                      >
-                        View selection <ArrowRight size={14} />
-                      </button>
-                    </div>
-                  )}
-                  {selected.comparison.length ? (
-                    <>
-                      <div className="policy-case-note">
-                        <strong>
-                          Exact seven-field verdict: {selected.status}
-                        </strong>
-                        <p>
-                          Policy v{selected.policy?.version ?? 0}:{" "}
-                          {selected.policy_assessment?.note ??
-                            "Exact comparison; no business exception recorded."}
-                        </p>
-                      </div>
-                      <div className="comparison-head">
-                        <span>SHIPMENT FIELD</span>
-                        <span>
-                          SI <small>Reference</small>
-                        </span>
-                        <span>DRAFT BL</span>
-                      </div>
-                      <div className="comparison-focus">
-                        <label>
-                          <input
-                            type="checkbox"
-                            checked={attentionOnly}
-                            onChange={(e) => setAttentionOnly(e.target.checked)}
-                          />{" "}
-                          Focus on differences & uncertain values
-                        </label>
-                        <span>
-                          {
-                            selected.comparison.filter(
-                              (row) => !attentionOnly || row.result !== "match",
-                            ).length
-                          }{" "}
-                          of {selected.comparison.length} fields shown
-                        </span>
-                      </div>
-                      {attentionOnly &&
-                        selected.comparison.every(
-                          (row) => row.result === "match",
-                        ) && (
-                          <p className="focus-empty">
-                            No differences or uncertain fields in this
-                            comparison. Uncheck the filter to inspect all seven
-                            fields.
-                          </p>
-                        )}
-                      <div className="comparison-rows">
-                        {[...selected.comparison]
-                          .filter(
-                            (row) => !attentionOnly || row.result !== "match",
-                          )
-                          .sort(
-                            (a, b) =>
-                              ({ uncertain: 0, mismatch: 1, match: 2 })[
-                                a.result
-                              ] -
-                              { uncertain: 0, mismatch: 1, match: 2 }[b.result],
-                          )
-                          .map((row) => (
-                            <div
-                              key={row.field}
-                              className={`compare-row ${row.result}`}
-                            >
-                              <div className="row-label">
-                                {row.result === "match" ? (
-                                  <CheckCircle2 size={16} />
-                                ) : (
-                                  <TriangleAlert size={16} />
-                                )}
-                                <strong>{FIELD_LABELS[row.field]}</strong>
-                                <span>
-                                  {row.result === "match"
-                                    ? "Match"
-                                    : row.result === "uncertain"
-                                      ? "Needs confirmation"
-                                      : "Mismatch"}
-                                </span>
-                              </div>
-                              {(["si", "bl"] as const).map((side) => (
-                                <div className="comparison-value" key={side}>
-                                  <p>{row[side].raw || "Missing value"}</p>
-                                  {row[side].issue && (
-                                    <small className="field-issue">
-                                      {row[side].issue}
-                                    </small>
-                                  )}
-                                  <button
-                                    className="source-link"
-                                    onClick={() => {
-                                      setDocument(
-                                        selected.documents.find(
-                                          (d) => d.name === row[side].source,
-                                        ) ?? null,
-                                      );
-                                      setSourceLocation(row[side].evidence);
-                                      setDetailTab("documents");
-                                    }}
-                                  >
-                                    <FileText size={12} />
-                                    {row[side].evidence}
-                                  </button>
-                                  <details className="value-details">
-                                    <summary>Details / correct value</summary>
-                                    <small className="normalized-value">
-                                      Compared as:{" "}
-                                      {row[side].normalized ??
-                                        "Needs confirmation"}
-                                    </small>
-                                    <button
-                                      className="edit-value"
-                                      onClick={() =>
-                                        setEdit({
-                                          field: row.field,
-                                          side,
-                                          value: row[side].raw,
-                                        })
-                                      }
-                                    >
-                                      Correct value
-                                    </button>
-                                  </details>
-                                </div>
-                              ))}
-                            </div>
-                          ))}
-                      </div>
-                      <details className="comparison-explainer">
-                        <summary>How these fields are compared</summary>
-                        <p>
-                          Whitespace and punctuation are normalized. Container
-                          counts and weight are compared as numbers. Compound
-                          counts are summed only when the whole expression is
-                          valid. Missing, conflicting and ambiguous values are
-                          never assumed to match.
-                        </p>
-                      </details>
-                    </>
-                  ) : (
-                    <div className="review-context">
-                      <Eye size={32} />
-                      <h3>
-                        {selected.workflow === "awaiting_documents"
-                          ? "Waiting for the source documents"
-                          : selected.category !== "BL_COMPARISON"
-                            ? categoryNames[selected.category]
-                            : "Human review required"}
-                      </h3>
-                      <p>{selected.summary}</p>
-                      {selected.review_reason && (
-                        <span className="reason-tag">
-                          {selected.review_reason.replaceAll("_", " ")}
-                        </span>
-                      )}
-                      <button
-                        className="button secondary"
-                        onClick={() => setDetailTab("documents")}
-                      >
-                        Inspect attachments <ArrowRight size={16} />
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-              {detailTab === "documents" && (
-                <div className="document-view">
-                  <DocumentPairSelector
-                    key={`pair-${selected.email.email_id}-${selected.version}`}
-                    result={selected}
-                    onSaved={(data) => {
-                      setSelected(data.result);
-                      setDocument(null);
-                      update([data.result]);
-                      setCaseEvents(data.audit);
-                      setNotice(
-                        "Comparison pair saved. Other attachments remain available but are not verified.",
-                      );
-                      navigateDetail("comparison");
-                    }}
-                  />
-                  <details
-                    className="source-email"
-                    open={emailOpen}
-                    onToggle={(event) => setEmailOpen(event.currentTarget.open)}
-                  >
-                    <summary>Original email · {selected.email.subject}</summary>
-                    <div className="email-source">
-                      <dl className="facts">
-                        <div>
-                          <dt>From</dt>
-                          <dd>{selected.email.from}</dd>
-                        </div>
-                        <div>
-                          <dt>Subject</dt>
-                          <dd>{selected.email.subject}</dd>
-                        </div>
-                      </dl>
-                      <pre>{selected.email.body}</pre>
-                    </div>
-                  </details>
-                  <div className="document-select">
-                    {selected.documents.map((d) => (
-                      <button
-                        key={d.name}
-                        className={document?.name === d.name ? "selected" : ""}
-                        onClick={() => setDocument(d)}
-                      >
-                        <FileText size={17} />
-                        <span>
-                          {d.name}
-                          <small>
-                            {d.type} · {d.method}
-                          </small>
-                        </span>
-                        <span className="format-pill">
-                          {d.format.toUpperCase()}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                  {!selected.documents.length ? (
-                    <div className="empty-state">
-                      <Paperclip size={28} />
-                      <h3>No attachments available</h3>
-                      <p>
-                        Request both the SI and draft BL before verifying this
-                        shipment.
-                      </p>
-                    </div>
-                  ) : (
-                    (() => {
-                      const d =
-                        document &&
-                        selected.documents.some((x) => x.name === document.name)
-                          ? document
-                          : selected.documents[0];
-                      return (
-                        <>
-                          <div className="source-toolbar">
-                            <strong
-                              title={
-                                d.sha256 ? `SHA-256: ${d.sha256}` : undefined
-                              }
-                            >
-                              {d.name}
-                            </strong>
-                            <a
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-button"
-                              href={`/api/document?id=${encodeURIComponent(selected.email.email_id)}&name=${encodeURIComponent(d.name)}&revision=${selected.version}`}
-                            >
-                              Open original <ExternalLink size={14} />
-                            </a>
-                          </div>
-                          {canTranscribe(d) && (
-                            <ScanAssist
-                              key={`${selected.email.email_id}-${d.name}-${selected.version}`}
-                              doc={d}
-                              result={selected}
-                              onSaved={(data) => {
-                                setSelected(data.result);
-                                setDocument(null);
-                                update([data.result]);
-                                setCaseEvents(data.audit);
-                                setNotice(
-                                  "Human-confirmed scan transcription saved with source fingerprint and audit history.",
-                                );
-                              }}
-                            />
-                          )}
-                          {!d.error &&
-                            !!d.sha256 &&
-                            d.lines.length > 0 &&
-                            d.type !== "OTHER" &&
-                            !d.transcription && (
-                              <details
-                                className="source-recovery"
-                                key={`source-recovery-${selected.email.email_id}-${d.name}-${selected.version}`}
-                              >
-                                <summary>
-                                  Need help extracting these fields? Open AI
-                                  recovery
-                                </summary>
-                                <EvidenceRecovery
-                                  key={`recovery-${selected.email.email_id}-${d.name}-${selected.version}`}
-                                  doc={d}
-                                  result={selected}
-                                  onEvidence={setSourceLocation}
-                                  onSaved={(data) => {
-                                    setSelected(data.result);
-                                    setDocument(null);
-                                    update([data.result]);
-                                    setCaseEvents(data.audit);
-                                    setNotice(
-                                      "Source-linked recovery confirmed. Strict checks rerun; AI provenance and human review retained.",
-                                    );
-                                  }}
-                                />
-                              </details>
-                            )}
-                          {d.error ? (
-                            <div className="alert warning">
-                              <TriangleAlert size={18} />
-                              <p>{d.error}</p>
-                            </div>
-                          ) : (
-                            <div className="source-paper">
-                              <div className="paper-heading">
-                                <Anchor size={20} />
-                                <span>
-                                  {d.type === "SI"
-                                    ? "SHIPPING INSTRUCTION"
-                                    : d.type === "BL"
-                                      ? "BILL OF LADING"
-                                      : "SOURCE DOCUMENT"}
-                                </span>
-                              </div>
-                              {d.lines
-                                .filter((l) => l.text.trim())
-                                .map((l, i) => (
-                                  <div
-                                    className={`source-line ${sourceLocation && sourceLocation.includes(l.location) ? "highlighted-source" : ""}`}
-                                    ref={
-                                      sourceLocation &&
-                                      sourceLocation.includes(l.location)
-                                        ? highlighted
-                                        : undefined
-                                    }
-                                    key={i}
-                                  >
-                                    <span>{l.location}</span>
-                                    <p>{l.text}</p>
-                                  </div>
-                                ))}
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()
-                  )}
-                </div>
-              )}
-              {detailTab === "history" && (
-                <div className="case-history">
-                  <DecisionHistory
-                    key={`${selected.email.email_id}-${selected.version}`}
-                    result={selected}
-                  />
-                  <details className="case-event-log">
-                    <summary>Case activity log</summary>
-                    <div className="timeline">
-                      {caseEvents.length ? (
-                        caseEvents.map((e) => (
-                          <div key={e.id}>
-                            <span className="timeline-icon">
-                              <History size={15} />
-                            </span>
-                            <div>
-                              <strong>{e.action.replaceAll("_", " ")}</strong>
-                              <AuditDetail detail={e.detail} />
-                              <small>
-                                {e.actor} ·{" "}
-                                {new Date(e.created_at).toLocaleString()}
-                              </small>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <p>
-                          Processing was recorded. Reopen this case to refresh
-                          its full audit trail.
-                        </p>
-                      )}
-                    </div>
-                  </details>
-                </div>
-              )}
-            </div>
-            <div className="drawer-footer">
-              <button
-                className="button secondary"
-                disabled={running}
-                onClick={() => {
-                  setReplacement(selected);
-                  setIntakeFiles([]);
-                  setUpload(true);
-                }}
-              >
-                Replace documents
-              </button>
-              <button
-                className="button secondary"
-                disabled={!!busyId || running}
-                onClick={reprocess}
-                title="Re-read current bytes; retain confirmed scan transcripts and category; reset individual field edits."
-              >
-                {busyId ? (
-                  <Loader2 size={15} className="spin" />
-                ) : (
-                  <RefreshCw size={15} />
-                )}
-                Reprocess sources
-              </button>
-              <button
-                className="button primary next-case"
-                disabled={!nextId || !!busyId || saving || running || uploading}
-                title={
-                  nextId
-                    ? "Continue in the queue order captured when this case was opened. No approval is recorded."
-                    : "End of this queue"
-                }
-                onClick={() => {
-                  if (nextId) void openCase(nextId, "comparison", true);
-                }}
-              >
-                {nextId ? "Next case" : "End of queue"}
-                <ArrowRight size={16} />
-              </button>
-            </div>
+            <SheetTitle className="cg-sr">{selected.email.subject}</SheetTitle>
+            <CaseView
+              result={selected}
+              events={caseEvents}
+              cases={cases}
+              plans={plans}
+              thread={threads.get(selected.email.email_id)}
+              tab={caseTab}
+              onTab={setCaseTab}
+              document={document}
+              sourceLocation={sourceLocation}
+              onSource={(name, location) => {
+                const source = selected.documents.find(
+                  (doc) => doc.name === name,
+                );
+                if (source) setDocument(source);
+                setSourceLocation(location);
+                setCaseTab("documents");
+              }}
+              onDocument={(doc) => {
+                setDocument(doc);
+                setSourceLocation("");
+              }}
+              mailbox={mail}
+              reviewerName={effectiveReviewer}
+              onReviewerName={setReviewerName}
+              defaultSignature={employeeName}
+              busy={!!busyId}
+              running={running}
+              position={
+                position >= 0
+                  ? { index: position, total: queueOrder.length }
+                  : null
+              }
+              prevId={prevId}
+              nextId={nextId}
+              onOpenCase={(id) =>
+                void openCase(id, caseTab === "reply" ? "compare" : caseTab)
+              }
+              onClose={closeCase}
+              onSaveEdit={saveEdit}
+              onReprocess={() => void reprocess()}
+              onReplace={(mode) =>
+                setImportState({
+                  open: true,
+                  replacement: { result: selected, mode },
+                })
+              }
+              onConfirmCategory={() => {
+                setCaseError("");
+                setRouteEdit(true);
+              }}
+              onAsk={() => launchAssistant(selected.email.email_id)}
+              onUpdated={applyCase}
+              onReplied={(how, outcome) => recordReply(selected, how, outcome)}
+              onNotice={setNotice}
+              onError={setCaseError}
+              error={caseError}
+              followup={{
+                value: followups[selected.email.email_id],
+                ready: followupsReady,
+                loading: followupsLoading,
+                error: followupsError,
+                formKey: followupFormKey,
+                onRefresh: () => void loadFollowups(),
+                onReloadCase: () =>
+                  void reloadFollowupCase(selected.email.email_id),
+                onReloadValues: () => setFollowupFormKey((v) => v + 1),
+                onSaved: (value) => void followupSaved(value),
+              }}
+            />
           </SheetContent>
         )}
       </Sheet>
-      <Dialog
-        open={upload}
-        onOpenChange={(v) => {
-          if (!uploading) {
-            setUpload(v);
-            if (!v) setReplacement(null);
-          }
-        }}
-      >
-        <DialogContent
-          showCloseButton={false}
-          aria-describedby={undefined}
-          className="modal intake-modal"
-        >
-          <div className="modal-heading">
-            <div>
-              <span className="eyebrow">NEW VERIFICATION</span>
-              <DialogTitle>
-                {replacement
-                  ? "Replace source documents."
-                  : "Bring an email into the queue."}
-              </DialogTitle>
-            </div>
-            <button
-              className="icon-button"
-              aria-label="Close upload"
-              disabled={uploading}
-              onClick={() => setUpload(false)}
-            >
-              <X size={20} />
-            </button>
-          </div>
-          <p>
-            Paste the message and attach its files. CargoGuard routes the email,
-            checks the documents and keeps every attachment as evidence.
-          </p>
-          <p className="info-box">
-            Hackathon demo: use organiser or synthetic files only, never
-            confidential shipments. Reviewer names are self-declared. Keep this
-            browser’s cookies to retain access to your workspace.
-          </p>
-          <form onSubmit={uploadCase}>
-            {error && (
-              <p className="alert error" role="alert">
-                {error}
-              </p>
-            )}
-            {replacement && (
-              <>
-                <div className="info-box">
-                  Replacing documents for {replacement.email.email_id}. Earlier
-                  decisions remain in the audit trail.
-                </div>
-                <label>
-                  Reviewer name
-                  <input required name="actor" minLength={2} maxLength={80} />
-                </label>
-                <label>
-                  Reason for replacement
-                  <textarea
-                    required
-                    name="reason"
-                    minLength={5}
-                    maxLength={2000}
-                  />
-                </label>
-              </>
-            )}
-            {!replacement && (
-              <label>
-                Sender email
-                <input
-                  type="email"
-                  name="from"
-                  maxLength={254}
-                  placeholder="shipping@example.test"
-                  defaultValue="demo@example.test"
-                  required
-                />
-              </label>
-            )}
-            <label hidden={!!replacement}>
-              Email subject
-              <input
-                required={!replacement}
-                defaultValue={replacement?.email.subject ?? ""}
-                name="subject"
-                placeholder="Please verify the draft BL against the SI"
-                maxLength={500}
-              />
-            </label>
-            <label hidden={!!replacement}>
-              Email message
-              <textarea
-                required={!replacement}
-                name="body"
-                rows={3}
-                defaultValue="Please compare the attached Shipping Instruction and draft Bill of Lading. Report any discrepancies."
-                maxLength={20000}
-              />
-            </label>
-            <label className="upload-zone">
-              <ArrowUpRight size={24} />
-              <strong>Choose email attachments</strong>
-              <span>
-                TXT, PDF, DOCX or XLSX · Up to 10 files · 5 MB each · 20 MB
-                total
-              </span>
-              <input
-                type="file"
-                name="files"
-                multiple
-                accept=".txt,.pdf,.docx,.xlsx"
-                onChange={(event) =>
-                  setIntakeFiles(Array.from(event.target.files ?? []))
-                }
-              />
-            </label>
-            {intakeFiles.length > 0 && (
-              <div className="intake-file-list">
-                <b>
-                  {intakeFiles.length} attachment
-                  {intakeFiles.length === 1 ? "" : "s"} selected
-                </b>
-                <ul>
-                  {intakeFiles.map((file, index) => (
-                    <li key={`${file.name}-${index}`}>
-                      <FileText size={14} />
-                      <span>{file.name}</span>
-                      <small>{Math.ceil(file.size / 1024)} KB</small>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {intakeFiles.length > 2 && (
-              <p className="info-box">
-                After import, choose the exact SI and draft BL in Sources. Extra
-                attachments are retained, never silently included or discarded.
-              </p>
-            )}
-            {(intakeFiles.length > 10 ||
-              intakeFiles.some((file) => file.size > 5 * 1024 * 1024) ||
-              intakeFiles.reduce((sum, file) => sum + file.size, 0) >
-                20 * 1024 * 1024) && (
-              <p className="alert error" role="alert">
-                Choose at most 10 files, no larger than 5 MB each or 20 MB
-                combined.
-              </p>
-            )}
-            <div className="info-box">
-              <ShieldCheck size={16} />
-              <p>
-                Files stay in this workspace. Missing or unreadable data is
-                escalated for review.
-              </p>
-            </div>
-            <button
-              className="button primary full"
-              disabled={
-                uploading ||
-                intakeFiles.length > 10 ||
-                intakeFiles.some((file) => file.size > 5 * 1024 * 1024) ||
-                intakeFiles.reduce((sum, file) => sum + file.size, 0) >
-                  20 * 1024 * 1024
+      <PlanDialog
+        open={planOpen}
+        onClose={() => setPlanOpen(false)}
+        rows={planned}
+        now={queueNow}
+        onOpenCase={(id, order) => void openCase(id, "compare", order)}
+      />
+      <ImportDialog
+        open={importState.open}
+        replacement={importState.replacement}
+        reviewerName={effectiveReviewer}
+        onReviewerName={setReviewerName}
+        onClose={() => setImportState({ open: false, replacement: null })}
+        onFinished={importFinished}
+        practice={
+          workspaceConfig?.sample_data
+            ? async () => {
+                const value = await requestJson<{
+                  imported: number;
+                  skipped: number;
+                }>("/api/practice-mailbox", { method: "POST" });
+                await load();
+                setFilters({ ...DEFAULT_FILTERS });
+                setNotice(
+                  value.imported
+                    ? `${value.imported} practice emails loaded with today's dates. Start with the email at the top.`
+                    : "The practice emails are already in your inbox.",
+                );
               }
-            >
-              {uploading ? (
-                <Loader2 size={17} className="spin" />
-              ) : (
-                <Sparkles size={17} />
-              )}{" "}
-              {uploading
-                ? "Reading documents…"
-                : replacement
-                  ? "Replace documents & recheck"
-                  : "Import & check email"}
-            </button>
-          </form>
-        </DialogContent>
-      </Dialog>
+            : undefined
+        }
+      />
       <Dialog
         open={routeEdit && !!selected}
-        onOpenChange={(v) => {
-          if (!saving) setRouteEdit(v);
-        }}
+        onOpenChange={(v) => !saving && setRouteEdit(v)}
       >
         {selected && (
           <DialogContent
             showCloseButton={false}
             aria-describedby={undefined}
-            className="modal"
+            className="cg-dialog"
           >
-            <div className="modal-heading">
-              <DialogTitle>Confirm email category</DialogTitle>
+            <div className="cg-dialog-head">
+              <div>
+                <DialogTitle asChild>
+                  <h2>What is this email about?</h2>
+                </DialogTitle>
+                <p>
+                  Choosing a type runs the checks again. It does not approve any
+                  uncertain detail.
+                </p>
+              </div>
               <button
                 disabled={saving}
-                className="icon-button"
-                aria-label="Close category review"
+                className="cg-icon-btn"
+                aria-label="Close"
                 onClick={() => setRouteEdit(false)}
               >
-                <X size={20} />
+                <X size={22} />
               </button>
             </div>
-            <p>
-              Read the current email request and attachments. A category change
-              reruns document checks; it is not permission to approve uncertain
-              shipment fields. Changing away from document verification removes
-              its comparison from the active decision.
-            </p>
             <form onSubmit={saveRoute}>
-              {error && (
-                <p className="alert error" role="alert">
-                  {error}
-                </p>
-              )}
-              <label>
-                Confirmed category
-                <select
-                  name="category"
-                  defaultValue={selected.category}
-                  required
-                >
-                  {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {categoryNames[c]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Reviewer name
-                <input name="actor" required minLength={2} maxLength={80} />
-              </label>
-              <label>
-                Reason
-                <textarea
-                  name="reason"
-                  required
-                  minLength={5}
-                  maxLength={2000}
-                  rows={3}
-                />
-              </label>
-              <button disabled={saving} className="button primary full">
-                {saving ? "Saving…" : "Confirm category & rerun checks"}
-              </button>
-            </form>
-          </DialogContent>
-        )}
-      </Dialog>
-      <Dialog
-        open={!!edit && !!selected}
-        onOpenChange={(v) => {
-          if (!v && !saving) setEdit(null);
-        }}
-      >
-        {edit && selected && (
-          <DialogContent
-            showCloseButton={false}
-            aria-describedby={undefined}
-            className="modal correction-modal"
-          >
-            <div className="modal-heading">
-              <DialogTitle>
-                Confirm {FIELD_LABELS[edit.field].toLowerCase()}
-              </DialogTitle>
-              <button
-                className="icon-button"
-                aria-label="Close correction"
-                disabled={saving}
-                onClick={() => setEdit(null)}
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <p>
-              Update the extracted {edit.side.toUpperCase()} value after
-              checking the original source. This does not edit the original
-              document.
-            </p>
-            <form onSubmit={saveEdit}>
-              {error && (
-                <p className="alert error" role="alert">
-                  {error}
-                </p>
-              )}
-              <label>
-                Confirmed value
-                <textarea
-                  required
-                  rows={3}
-                  value={edit.value}
-                  onChange={(e) => setEdit({ ...edit, value: e.target.value })}
-                  maxLength={2000}
-                  disabled={saving}
-                />
-              </label>
-              <CorrectionPreview
-                previous={selected}
-                edit={edit}
-                preview={previewCorrection(selected, edit)}
-              />
-              <label>
-                Reviewer name
-                <input
-                  required
-                  name="actor"
-                  minLength={2}
-                  maxLength={80}
-                  placeholder="Your name"
-                />
-              </label>
-              <label>
-                Reason for correction
-                <textarea
-                  required
-                  name="reason"
-                  minLength={5}
-                  maxLength={2000}
-                  placeholder="What did you confirm in the source?"
-                  rows={2}
-                />
-              </label>
-              <button
-                disabled={saving || !!previewCorrection(selected, edit).error}
-                className="button primary full"
-              >
-                {saving ? (
-                  <Loader2 size={17} className="spin" />
-                ) : (
-                  <CheckCheck size={17} />
+              <div className="cg-dialog-body">
+                {caseError && (
+                  <p
+                    className="cg-notice error"
+                    role="alert"
+                    style={{ margin: 0 }}
+                  >
+                    <TriangleAlert size={18} />
+                    <span>{caseError}</span>
+                  </p>
                 )}
-                Save correction & recompute
-              </button>
-              {nextId && (
+                <label className="cg-field">
+                  Email type
+                  <select
+                    name="category"
+                    defaultValue={selected.category}
+                    required
+                  >
+                    {CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {categoryWords(c)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="cg-field">
+                  Your name
+                  <input
+                    name="actor"
+                    required
+                    minLength={2}
+                    maxLength={80}
+                    defaultValue={effectiveReviewer}
+                  />
+                </label>
+                <label className="cg-field">
+                  Reason
+                  <textarea
+                    name="reason"
+                    required
+                    minLength={5}
+                    maxLength={2000}
+                    rows={3}
+                    defaultValue="Read the email and confirmed its type"
+                  />
+                </label>
+              </div>
+              <div className="cg-dialog-foot">
                 <button
-                  type="submit"
-                  name="afterSave"
-                  value="next"
-                  disabled={saving || !!previewCorrection(selected, edit).error}
-                  className="button secondary full"
+                  type="button"
+                  className="cg-btn"
+                  disabled={saving}
+                  onClick={() => setRouteEdit(false)}
                 >
-                  Save correction & next case <ArrowRight size={16} />
+                  Cancel
                 </button>
-              )}
+                <button disabled={saving} className="cg-btn primary">
+                  {saving ? (
+                    <Loader2 size={18} className="cg-spin" />
+                  ) : (
+                    <Check size={18} />
+                  )}
+                  Save and check again
+                </button>
+              </div>
             </form>
           </DialogContent>
         )}
@@ -2540,23 +1778,83 @@ export default function Workbench() {
         <GlobalAssistant
           key={assistant.sequence}
           cases={cases}
+          planned={planned}
+          now={queueNow}
           initialCaseId={assistant.id}
           workspaceReady={inboxReady && !loading}
           onUpdated={update}
           memories={assistantMemories}
           setMemories={setAssistantMemories}
-          onOpenCase={(id, tab) => void openCase(id, tab)}
+          onOpenCase={(id, tab) => void openCase(id, tabFor(tab))}
         />
       ) : (
         <button
           className="assistant-fab"
-          aria-label="Open Ask CargoGuard"
+          aria-label="Open the assistant"
           onClick={() => launchAssistant()}
         >
           <MessageSquareText size={23} />
           <span>Ask CargoGuard</span>
         </button>
       )}
-    </SidebarProvider>
+    </AppShell>
+  );
+}
+
+function FieldTestReport({ report }: { report: unknown }) {
+  if (!report || typeof report !== "object") return null;
+  const data = report as {
+    emails?: number;
+    measured_at?: string;
+    metrics?: Record<string, { correct: number; total: number }>;
+    failures?: {
+      id: string;
+      check: string;
+      expected: string;
+      actual: string;
+    }[];
+    note?: string;
+  };
+  if (!data.metrics) return null;
+  return (
+    <section style={{ marginTop: 18 }}>
+      <h3 className="cg-section-title">
+        Our own field-test mailbox ({data.emails} emails)
+      </h3>
+      <p className="cg-small cg-muted" style={{ marginTop: 0 }}>
+        {data.note}
+      </p>
+      <div className="cg-facts">
+        {Object.entries(data.metrics).map(([key, value]) => (
+          <div className="cg-fact" key={key}>
+            <span>{key.replaceAll("_", " ")}</span>
+            <strong>
+              {value.correct} / {value.total} (
+              {value.total
+                ? ((value.correct / value.total) * 100).toFixed(1)
+                : "0"}
+              %)
+            </strong>
+          </div>
+        ))}
+      </div>
+      {!!data.failures?.length && (
+        <details className="cg-details">
+          <summary>
+            {data.failures.length} known mistakes (shown honestly)
+          </summary>
+          <div>
+            <ul className="cg-small">
+              {data.failures.map((failure) => (
+                <li key={`${failure.id}-${failure.check}`}>
+                  <strong>{failure.id}</strong> · {failure.check}: expected “
+                  {failure.expected}”, got “{failure.actual}”
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
+      )}
+    </section>
   );
 }

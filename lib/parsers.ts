@@ -1,6 +1,7 @@
 import { unzipSync, strFromU8 } from "fflate";
 import { XMLParser } from "fast-xml-parser";
 import type { ParsedDocument, SourceLine } from "./types";
+import { pdfCoverageIssue } from "./pdf-coverage";
 const MAX_BYTES = 5 * 1024 * 1024;
 const xml = new XMLParser({
   ignoreAttributes: false,
@@ -73,7 +74,8 @@ export async function parseDocument(
   let lines: SourceLine[] = [];
   let method = "",
     sha256: string | undefined,
-    page_count: number | undefined;
+    page_count: number | undefined,
+    pdf_coverage: ParsedDocument["pdf_coverage"];
   try {
     if (bytes.length > MAX_BYTES)
       throw new Error("File exceeds the 5 MB upload limit.");
@@ -96,31 +98,114 @@ export async function parseDocument(
       method = "PDF text and layout";
       if (new TextDecoder().decode(bytes.slice(0, 5)) !== "%PDF-")
         throw new Error("Invalid PDF header. Request a readable copy.");
-      const { getDocumentProxy } = await import("unpdf");
+      const { getDocumentProxy, getResolvedPDFJS } = await import("unpdf");
       const { pdfResourceOptions } = await import("./pdf-resources");
       const pdf = await getDocumentProxy(bytes.slice(), pdfResourceOptions());
       page_count = pdf.numPages;
+      pdf_coverage = { version: 1, pages: [] };
       try {
         if (pdf.numPages > 30)
           throw new Error("PDF exceeds the 30-page limit.");
+        const { OPS } = await getResolvedPDFJS();
+        const imageOps = new Set(
+          Object.entries(OPS)
+            .filter(([key]) => /^paint.*Image|^beginInlineImage$/.test(key))
+            .map(([, value]) => value),
+        );
+        const textOps = new Set([
+          OPS.showText,
+          OPS.showSpacedText,
+          OPS.nextLineShowText,
+          OPS.nextLineSetSpacingShowText,
+        ]);
+        const pathPaintOps = new Set([
+          OPS.stroke,
+          OPS.closeStroke,
+          OPS.fill,
+          OPS.eoFill,
+          OPS.fillStroke,
+          OPS.eoFillStroke,
+          OPS.closeFillStroke,
+          OPS.closeEOFillStroke,
+          OPS.shadingFill,
+          OPS.rawFillPath,
+        ]);
         for (let p = 1; p <= pdf.numPages; p++) {
-          const page = await pdf.getPage(p);
-          const content = await page.getTextContent();
-          for (const item of content.items) {
-            if ("str" in item && item.str.trim())
-              lines.push({
-                text: item.str,
-                location: `Page ${p}, y=${Math.round(item.transform[5])}`,
-              });
+          const before = lines.length;
+          try {
+            const page = await pdf.getPage(p);
+            const content = await page.getTextContent();
+            for (const item of content.items) {
+              if ("str" in item && item.str.trim())
+                lines.push({
+                  text: item.str,
+                  location: `Page ${p}, y=${Math.round(item.transform[5])}`,
+                });
+            }
+            const operators = await page.getOperatorList();
+            const has_images = operators.fnArray.some((op: number) =>
+              imageOps.has(op),
+            );
+            let textDrawn = false;
+            const has_vector_overlays = operators.fnArray.some(
+              (op: number, index: number) => {
+                if (textOps.has(op)) textDrawn = true;
+                // PDF.js folds a rectangle fill or stroke into constructPath:
+                // args[0] is the paint operator, not another fnArray entry.
+                // rawFillPath may likewise be produced for a compiled image mask.
+                const paint =
+                  op === OPS.constructPath
+                    ? operators.argsArray[index]?.[0]
+                    : op;
+                return textDrawn && pathPaintOps.has(paint);
+              },
+            );
+            const annotations = await page.getAnnotations();
+            const has_annotations = annotations.some(
+              (annotation) =>
+                annotation.subtype !== "Link" ||
+                !!annotation.contentsObj?.str?.trim() ||
+                !!annotation.richText,
+            );
+            const text_items = lines.length - before;
+            const requires_review =
+              !text_items ||
+              has_images ||
+              has_annotations ||
+              has_vector_overlays;
+            pdf_coverage.pages.push({
+              page: p,
+              text_items,
+              has_images,
+              requires_review,
+              ...(requires_review
+                ? {
+                    reason: !text_items
+                      ? "No readable text layer on this page."
+                      : has_images
+                        ? "This page contains image content that text extraction cannot verify."
+                        : has_annotations
+                          ? "This page has visual annotations or form content requiring inspection."
+                          : "This page paints shapes or lines after readable text. They may cover or cross out values; inspect the original page. Table borders can also require this conservative visual review.",
+                  }
+                : {}),
+            });
+            page.cleanup();
+          } catch {
+            // Other pages stay useful. Failure on one page must never disappear
+            // behind a successful text extraction elsewhere in the document.
+            pdf_coverage.pages.push({
+              page: p,
+              text_items: lines.length - before,
+              has_images: false,
+              requires_review: true,
+              reason: "This page could not be fully inspected.",
+            });
           }
         }
       } finally {
         await pdf.loadingTask.destroy();
       }
-      if (!lines.length)
-        throw new Error(
-          "Image-only scan: no text layer. Request a readable copy or submit verified text for human review.",
-        );
     } else if (format === "docx") {
       method = "DOCX paragraphs and table cells";
       const files = zipXml(bytes),
@@ -202,7 +287,7 @@ export async function parseDocument(
       throw new Error("Unsupported file type. Use TXT, PDF, DOCX or XLSX.");
     if (lines.reduce((n, l) => n + l.text.length, 0) > 200000)
       throw new Error("Extracted document is too large.");
-    return {
+    const document: ParsedDocument = {
       name,
       format,
       lines,
@@ -210,7 +295,15 @@ export async function parseDocument(
       method,
       sha256,
       page_count,
+      pdf_coverage,
     };
+    const coverageIssue = pdfCoverageIssue(document);
+    if (coverageIssue)
+      document.error =
+        format === "pdf" && !lines.length
+          ? `Image-only scan: no text layer. ${coverageIssue}`
+          : coverageIssue;
+    return document;
   } catch (error) {
     return {
       name,
@@ -220,6 +313,7 @@ export async function parseDocument(
       method: method || "File validation",
       sha256,
       page_count,
+      pdf_coverage,
       error:
         error instanceof Error
           ? error.message

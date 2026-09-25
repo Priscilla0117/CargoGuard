@@ -1,0 +1,76 @@
+.batch-review {
+  margin: 18px 0;
+  padding: 18px;
+  border: 1px solid #cadbe6;
+  border-radius: 10px;
+  background: #f7fafc;
+}
+.batch-review h3 {
+  margin: 18px 0 8px;
+}
+.batch-review p,
+.batch-review li {
+  font-size: 15px;
+  line-height: 1.8;
+}
+.batch-review form > label {
+  display: grid;
+  gap: 8px;
+  margin: 15px 0;
+  font-size: 15px;
+}
+.batch-review textarea {
+  min-height: 70px;
+  padding: 10px;
+  width: 100%;
+  border: 1px solid #bdcfdd;
+  border-radius: 6px;
+}
+.batch-candidates {
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid #d9e3ec;
+}
+.batch-candidates label {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid #d9e3ec;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.batch-review .batch-attestation {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.batch-review input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.batch-review .text-button {
+  margin-top: 16px;
+}
+.batch-candidates details {
+  margin: 0 16px 14px;
+  font-size: 14px;
+}
+.batch-candidates summary {
+  cursor: pointer;
+}
+.batch-candidates table {
+  width: 100%;
+  table-layout: fixed;
+  margin-top: 10px;
+}
+.batch-candidates td,
+.batch-candidates th {
+  padding: 8px;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  text-align: left;
+  border-bottom: 1px solid #d9e3ec;
+}

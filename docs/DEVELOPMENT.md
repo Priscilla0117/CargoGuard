@@ -1,3 +1,5 @@
+> Historical release document retained from the existing repository. For the current employee feature branch, verified results and rollout requirements, see [EMPLOYEE_RELEASE.md](EMPLOYEE_RELEASE.md).
+
 # CargoGuard — setup, testing and operating limits
 
 For developers reproducing the prototype. [Back to the overview](../README.md) · [Dated verification](SUBMISSION_CHECK.md)

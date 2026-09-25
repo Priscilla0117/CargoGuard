@@ -1,0 +1,179 @@
+.team-access-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 24px;
+  background: #eef5f3;
+  border-bottom: 1px solid #cadbd4;
+  color: #25443a;
+  font-size: 15px;
+}
+.team-access-banner > div {
+  display: flex;
+  gap: 8px;
+}
+.team-access-banner button,
+.team-access-card button,
+.team-access-panel button {
+  border: 1px solid #b5cbc0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: white;
+  color: #173e31;
+  font: inherit;
+  cursor: pointer;
+}
+.team-access-card {
+  max-width: 520px;
+  margin: 8vh auto;
+  padding: 32px;
+  border: 1px solid #d5dfd9;
+  border-radius: 16px;
+  background: white;
+  box-shadow: 0 16px 50px #173e310d;
+}
+.team-access-card h1 {
+  font-size: 26px;
+  margin: 10px 0;
+}
+.team-access-card p,
+.team-access-panel p {
+  line-height: 1.6;
+}
+.team-eyebrow {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #356854;
+}
+.team-access-card form,
+.team-access-panel form {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0;
+}
+.team-access-card label,
+.team-access-panel label {
+  display: grid;
+  gap: 5px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.team-access-card input,
+.team-access-panel input:not([type="checkbox"]),
+.team-access-panel select {
+  padding: 9px;
+  border: 1px solid #c3cec9;
+  border-radius: 7px;
+  background: white;
+  color: #192d25;
+  font: inherit;
+  min-width: 0;
+}
+.team-access-card button[type="submit"],
+.team-access-panel button {
+  background: #173e31;
+  color: white;
+}
+.team-access-card button:disabled,
+.team-access-panel button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.team-help {
+  font-size: 14px;
+  color: #54675e;
+}
+.team-access-card .team-link {
+  margin-top: 12px;
+  background: transparent;
+  border: 0;
+  text-decoration: underline;
+}
+.team-access-panel {
+  max-width: 1000px;
+  margin: 20px auto;
+  padding: 24px;
+  background: white;
+  border: 1px solid #cbd6d0;
+  border-radius: 12px;
+}
+.team-access-panel h2 {
+  margin-top: 0;
+}
+.team-access-panel details {
+  margin: 16px 0;
+  padding: 12px;
+  border: 1px solid #d7e0da;
+  border-radius: 8px;
+}
+.team-access-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.team-member {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid #e4e9e6;
+}
+.team-member form {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 0 0 auto;
+}
+.team-inline {
+  display: flex !important;
+  align-items: center;
+  padding-bottom: 8px;
+}
+.team-audit {
+  font-size: 15px;
+  max-height: 320px;
+  overflow: auto;
+}
+.team-audit li {
+  margin: 10px 0;
+}
+.team-audit small {
+  display: block;
+  color: #586a61;
+}
+.team-access-error,
+[role="alert"].team-access-error {
+  padding: 12px 24px;
+  color: #8c2929;
+  background: #fff2ed;
+}
+.team-access-card [role="alert"],
+.team-access-panel [role="alert"] {
+  color: #a12b2b;
+}
+.team-access-panel [role="status"] {
+  color: #1e6548;
+}
+@media (max-width: 600px) {
+  .team-access-banner {
+    padding: 10px 14px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .team-access-card {
+    margin: 24px 12px;
+    padding: 22px;
+  }
+  .team-access-panel {
+    margin: 12px;
+    padding: 16px;
+  }
+  .team-member form {
+    margin-left: 0;
+    width: 100%;
+  }
+}

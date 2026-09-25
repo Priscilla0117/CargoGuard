@@ -112,13 +112,13 @@ body {
 }
 .guide-heading h2 {
   color: #264d54;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 650;
   line-height: 1.5;
 }
 .guide-heading p {
   color: #506d76;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.8;
   margin-top: 4px;
   max-width: 750px;
@@ -135,7 +135,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
   color: #3b626b;
 }
@@ -147,7 +147,7 @@ body {
   border-radius: 50%;
   background: #dcebe6;
   color: #295e57;
-  font-size: 10px;
+  font-size: 14px;
 }
 .guide-review {
   background: linear-gradient(110deg, #fff6e8, #fff);
@@ -373,12 +373,12 @@ body {
 }
 .availability-heading .eyebrow {
   margin-bottom: 4px;
-  font-size: 9px;
+  font-size: 14px;
   letter-spacing: 1px;
   color: #496e69;
 }
 .availability-heading h3 {
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 650;
   color: #264d54;
 }
@@ -387,7 +387,7 @@ body {
 }
 .ai-availability > p {
   color: #47685f;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.8;
   margin: 14px 0;
 }
@@ -406,12 +406,12 @@ body {
 .availability-stats strong {
   display: block;
   color: #2d645b;
-  font-size: 23px;
+  font-size: 22px;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 .availability-stats span {
-  font-size: 10px;
+  font-size: 14px;
   color: #536e70;
   line-height: 1.6;
   display: block;
@@ -420,7 +420,7 @@ body {
 .ai-availability > small {
   display: block;
   color: #576f75;
-  font-size: 10px;
+  font-size: 14px;
   line-height: 1.8;
   margin-top: 12px;
 }
@@ -429,14 +429,14 @@ body {
   padding-top: 14px;
   margin-top: 14px;
   color: #486c67;
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.8;
 }
 .governance-panel {
   border-top: 3px solid #8b75ae;
 }
 .governance-panel > h2 {
-  font-size: 23px;
+  font-size: 22px;
   font-weight: 600;
   color: #3a4f67;
   margin-top: 9px;
@@ -471,7 +471,7 @@ body {
 .governance-panel summary {
   cursor: pointer;
   line-height: 1.7;
-  font-size: 12px;
+  font-size: 14px;
   color: #455c70;
 }
 .timeline > div {
@@ -567,7 +567,7 @@ body {
   margin: 14px 0;
   background: #f0f8f3;
   color: #315d4e;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.7;
 }
 .assistant-capacity.unavailable {
@@ -601,10 +601,10 @@ body {
     gap: 11px;
   }
   .guide-heading h2 {
-    font-size: 15px;
+    font-size: 16px;
   }
   .guide-heading p {
-    font-size: 11px;
+    font-size: 14px;
   }
   .feature-icon {
     width: 36px;
@@ -616,7 +616,7 @@ body {
     gap: 8px;
   }
   .workspace-guide li {
-    font-size: 10px;
+    font-size: 14px;
     gap: 5px;
     flex: 1 1 100%;
   }
@@ -644,7 +644,7 @@ body {
   }
   .detail-tabs button {
     padding: 10px 8px;
-    font-size: 11px;
+    font-size: 14px;
   }
   .timeline > div {
     padding: 13px;

@@ -1,64 +1,75 @@
-# CargoGuard — deployment
+# CargoGuard 3.3.1 deployment and recovery
 
-CargoGuard 3.2.1 uses **Next.js/Node on Render with persistent Turso/libSQL storage**. The default deployment is not the historical Worker/D1/R2 adapter.
+This release runs as a standard Next.js Node server with a persistent SQLite/libSQL database. The source branch is `codex/final-round-employee-workflow`. A branch push does not deploy it: Render automatic deployment is disabled. Historical hosted evidence in [CLOUD_RELEASE.md](CLOUD_RELEASE.md) applies to the earlier release described there, not to this branch. Verify the intended engine version and actual HTTPS workflow before calling a new deployment accepted.
 
-Public prototype: [CargoGuard](https://cargoguard-averis.onrender.com/). Dated acceptance results and known limitations: [cloud validation](CLOUD_RELEASE.md) and [verification report](SUBMISSION_CHECK.md).
+## Reproduce the release
 
-## Reproduce the hosted service
-
-1. Use the source at the repository root and select the intended commit/branch. The current `main` includes the released application. A source update alone does not establish a successful deployment.
-2. Create a **libSQL-compatible** Turso database. Use a database-scoped read/write token with migration permission. Put the URL and token in the host's secret environment settings, never in Git.
-3. Create a Render Node web service using [render.yaml](../render.yaml):
-   - Runtime: Node **24.14.0** in the supplied blueprint.
-   - Build: `npm ci --include=dev --no-audit --no-fund && npm run build`.
-   - Start: `npm start`.
-   - Process-health path: `/api/live`.
-   - Select the intended plan and region; monitor current provider/account quotas.
-4. Configure `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`. **Do not set `CARGO_LOCAL_DB` on Render**: live data must survive process replacement.
-5. Render's trusted `RENDER_EXTERNAL_URL` supports the origin check. For a custom domain, set `CARGO_PUBLIC_ORIGIN=https://your-exact-domain`.
-6. Startup applies versioned transactional SQL migrations before serving. Both `/api/live` and `/api/health` must return HTTP 200, and actual workspace reads/saves must pass.
-
-Use [the local setup guide](DEVELOPMENT.md) for SQLite development and test commands. Turso's native engine and libSQL are distinct; this adapter targets libSQL.
-
-## Optional OpenAI assistance
-
-Classification, exact comparison and manual review do not require an LLM key. To enable evidence recovery and case chat, set these server-only variables:
+Use a supported Node version (`>=22.13.0`; Render is pinned to 24.14.0) and the committed lockfile. Start from a clean checkout of the release branch:
 
 ```text
-CARGO_AI_PROVIDER=openai
-CARGO_AI_MODEL=gpt-5.4-mini
-CARGO_AI_API_KEY=<restricted project key>
+npm ci --include=dev --include=optional --no-audit --no-fund
+npm run typecheck
+npm run lint
+npm test
+npm run build
+node scripts/test-team-runtime.mjs
 ```
 
-Never use a `NEXT_PUBLIC_` prefix or commit real environment files. See [.env.example](../.env.example), [the model card](MODEL_CARD.md) and [case-assistant safeguards](CASE_ASSISTANT.md).
+Build stages the local OCR worker, WASM and English language assets. It needs no database, AI provider or Microsoft credentials. Keep development dependencies installed on the deployment: startup migrations use `tsx`. A static export cannot run the authenticated APIs, migrations or server parsers.
 
-Judges need no personal provider key. Requests require a sharing preview/consent and consume shared persistent allowances. Current application bounds are 50 attempts globally per UTC day, 10 per workspace/day, 100 lifetime, 500,000 reserved token units/day and 1,000,000 lifetime. Other input/concurrency/provider bounds can stop requests sooner. Failed attempts count; process restarts and new cookies do not reset global usage.
+The team acceptance script creates a separate local database under ignored `work/validation/`, generates temporary credentials internally, starts the **production build** on loopback, and verifies bootstrap, real login, permissions, empty employee inbox, document import/download, reviewed export, audit identity, cross-origin protection and membership revocation. It restarts the server with the bootstrap secret removed and checks session, document bytes, revisions, follow-ups and shipment persistence. The redacted result is `work/validation/team-runtime.json`. It never connects to the configured cloud database or sends mail. A passing local run does not prove cloud availability or Microsoft connectivity.
 
-Removing `CARGO_AI_PROVIDER` disables new external requests without removing saved evidence. Provider failure must not create a comparison verdict or silently save a proposal. Use only organiser/synthetic text in this public prototype.
+The GitHub workflow runs a clean install and release checks on the feature branch/PR; it does not deploy or require secrets. The separate organiser accuracy gate remains `npm run quality -- --build`, with the independent inputs described in [DEFENSIBILITY.md](DEFENSIBILITY.md). The local team smoke does not substitute for that scoring evidence.
 
-## Acceptance checks
+## Local operation
 
-Run `npm run quality -- --build` first with the organiser-path overrides in [DEVELOPMENT.md](DEVELOPMENT.md#full-organiser-evaluation). It generates the baseline required by the core API suite. Run mutation tests only against an explicitly approved test workspace/service.
+Copy `.env.example` to `.env.local`, then set an explicit file path such as `CARGO_LOCAL_DB=work/local.db`. Parent directories are created by migrations. Relative paths and environment files resolve from the checkout, even when the startup script is invoked from elsewhere. Host-injected environment variables take precedence over `.env.local`, then `.env`.
 
-```text
-node scripts/test-api.mjs https://YOUR-ASSIGNED-HOST
-node scripts/test-hardening-api.mjs https://YOUR-ASSIGNED-HOST
-node scripts/test-governance-api.mjs https://YOUR-ASSIGNED-HOST
-node scripts/test-release-api.mjs https://YOUR-ASSIGNED-HOST
-node --import tsx scripts/test-revision-api.ts https://YOUR-ASSIGNED-HOST
-node scripts/test-assistant-api.mjs https://YOUR-ASSIGNED-HOST
-node --import tsx scripts/test-review-workspace-api.ts https://YOUR-ASSIGNED-HOST
-```
+For the isolated synthetic demonstration, use `CARGO_AUTH_MODE=demo`. It offers separate cookie workspaces with self-declared actors; it is unsuitable for company documents. For a local team acceptance workspace, use the settings below with `CARGO_PUBLIC_ORIGIN=http://127.0.0.1:3000`. HTTP is allowed only on loopback. Run `npm start` after building; startup applies migrations and validates the full schema before serving. `npm run db:migrate` runs the same preflight and migration checks separately.
 
-This is a reproduction checklist, not a claim that every suite ran against every historical release. The dated cloud report identifies the hosted subset; assistant preflight does not test real model-answer quality.
+Local database files survive process restarts on that machine. Their durability still depends on the disk and backups. On an ephemeral host, use the remote database; never point production at an unmounted temporary directory. A local SQLite file is intended for one Node instance, not a shared writable network file across replicas.
 
-Check original downloads, supported upload boundaries, source-pair exclusions, correction previews, stale-write rejection, historical snapshots and isolation between browser workspaces. Verify retained cases, policies and original source hashes after restart and idle wake-up. Independently score an untouched automatic export; agreement with local predictions alone is not independent accuracy evidence.
+## Shared employee deployment
 
-## Failure and capacity boundaries
+Provision a **libSQL-compatible** database and a database-scoped read/write token. The current adapter uses `@libsql/client`; an incompatible database engine is not an interchangeable substitute. Store the following in the host's secret/environment settings, never source control or a `NEXT_PUBLIC_` variable:
 
-- `/api/live` checks the process only. `/api/health` checks database/schema readiness and returns a controlled 503 during storage failure. Process liveness is not proof of working storage.
-- Database writes fail closed and are not automatically replayed. A response with an unknown commit outcome requires inspection, not a blind retry.
-- Free hosting can sleep and has resource quotas; temporary local disks are not persistent storage. This deployment has no uptime or sustained-throughput certification.
-- Intake accepts 0–10 files; replacement 2–10. Bounds are 5 MiB/file, 20 MiB combined and a 21 MiB multipart request. One selected SI/BL pair is compared; other files remain unverified.
-- The demo's shared 256 MiB attachment-byte cap is not a complete database-size or account-spending cap.
-- Corporate SSO/RBAC, malware screening, formal retention, queued processing and managed large-file storage are production prerequisites, not delivered features.
+| Setting | Required behavior |
+| --- | --- |
+| `TURSO_DATABASE_URL` | Persistent `libsql://` or `https://` endpoint, without credentials in the URL. |
+| `TURSO_AUTH_TOKEN` | Database-scoped token with permission to apply transactional migrations. |
+| `CARGO_AUTH_MODE=team` | Require authenticated accounts and enforce operator/reviewer/admin roles. |
+| `CARGO_INCLUDE_SAMPLE_DATA=false` | Start with imported employee records only. This is also the team default. |
+| `CARGO_PUBLIC_ORIGIN=https://your-exact-host` | Trusted public origin. On Render, `RENDER_EXTERNAL_URL` is the default when this setting is absent. Set it explicitly for a custom domain. |
+| `CARGO_BOOTSTRAP_SECRET` | At least 32 cryptographically random characters for first setup. Remove after creating the first administrator. Never paste it into chat or commit it. |
+| `CARGO_MAX_WORKSPACE_UPLOADS` | Optional integer 1–10000; defaults to 1000 in team mode, 30 in demo mode. This is a record-count limit, not a retention mechanism. |
+
+A new team refuses startup without a bootstrap secret. An initialized team restarts without it. Open the HTTPS app, create the initial administrator using the setup secret, sign in, create named employee accounts, then remove the setup secret from the host and restart. Maintain at least two active administrators and distribute initial credentials through the company's approved channel. Password changes revoke existing sessions. See [TEAM_ACCESS.md](TEAM_ACCESS.md) for account lifecycle, rate limits and recovery limitations.
+
+The supplied `render.yaml` defines a Node service, team mode, samples disabled, the exact build/start commands and `autoDeployTrigger: off`. Use the requested feature branch. It retains the existing service name; do not create a duplicate resource for an already configured service. A new Blueprint prompts for the database token and bootstrap secret. **For an existing Blueprint, Render does not apply newly added `sync: false` secrets automatically**: add them in the dashboard before deploying. Set the exact public origin when using a custom domain. Official reference: [Render Blueprint specification](https://render.com/docs/blueprint-spec).
+
+Render's local filesystem is ephemeral and the runtime rejects local-database configuration there. The supplied free compute plan is for demonstration/pilot validation; choose the company's approved hosting, capacity and availability arrangement before operational reliance. This repository does not enroll a service, accept a paid plan or deploy on your behalf. Review current [Render free-service limitations](https://render.com/docs/free) and account/database quotas directly before an event.
+
+## Health and hosted acceptance
+
+Use `/api/live` for the host's process health check. It reports `alive` without touching the database, avoiding dependency-driven restart loops during a storage outage. `/api/health` is the separate database readiness check: it returns `ready` only after a bounded query verifies all runtime tables. Partial schemas or unavailable storage return 503. Healthy probes alone do not establish successful business operations.
+
+Before accepting a new HTTPS deployment:
+
+1. Back up the existing database using the provider's supported procedure and verify a restore to an isolated database. Retain the previous release identifier. Review migrations before applying them; they are transactional per file, and startup never resets stored data.
+2. Confirm `/api/live` and `/api/health` return the intended engine, **3.3.1**. Sign-out must block inbox, document, shipment and export APIs. Inspect the real HTTPS session cookie for `Secure`, `HttpOnly` and `SameSite=Strict`.
+3. With synthetic data and named test accounts, import a document pair, resolve an exception as reviewer, save a shipment/follow-up, download original bytes, inspect revisions and export reviewed evidence. An operator must not approve reviews or edit membership; cross-origin writes must fail.
+4. Restart/redeploy the service, then verify the same accounts see the exact saved versions, source bytes, audit history and notes. Verify after the host's idle wake too, if applicable. Revoke a test account and confirm its existing session is rejected.
+5. Verify PDF/DOCX/XLSX/TXT parsing, browser OCR assets, bounded uploads, quota errors and user-visible failures on the actual host. Measure cloud latency and memory with expected users; local test timings are not cloud capacity evidence.
+
+Anonymous organiser API suites (`test-api`, `test-hardening`, `test-governance`, `test-release-api`) are for a **separate demo-mode synthetic deployment**. Do not weaken a team service to make those suites pass. Never run QA that writes synthetic records against a live employee database without a defined test workspace and authorization.
+
+## Limits and incident handling
+
+- Uploaded files are limited to 5 MB each, 20 MB per email and 10 attachments. Stored attachment bytes have a **deployment-wide 256 MB cap**, shared by all workspaces. This is not a complete database-size or spending cap; revisions, metadata and account limits also consume capacity. Reaching a cap fails explicitly and retains existing evidence. Plan storage, retention and orphan cleanup before broader use; do not delete evidence to make a demo look successful.
+- Writes fail closed when the database is unavailable. A network failure after a write may mean the write committed. Refresh current records before retrying; do not automatically replay business mutations. Database tokens, email bodies and attachment contents must not appear in diagnostic logs.
+- Migration preflight reports configuration failures without dumping driver errors or secrets. If it fails, correct the environment or restore database availability before restarting. Do not remove migration-history rows or reset the database as a troubleshooting shortcut. All-table readiness detects missing feature tables after a partial upgrade.
+- Revisions and security audit use database protections against ordinary edits. A database administrator can change the schema; this is not immutable external audit storage. Establish backup/restore ownership, key rotation, retention and incident response with company IT.
+- Named accounts and roles are implemented. Corporate SSO/MFA, identity-provider lifecycle integration, malware scanning, penetration testing and company security/privacy approval remain prerequisites for a company rollout. The local passwords are a pilot access mechanism, not a claim of enterprise identity integration.
+- Microsoft connection, selected-mail import, Outlook task pane and reviewer-triggered draft/alert adapters require an Entra tenant, registered application, approved scopes, callback URL and encryption key. None has been provisioned or live-tested for this user. See [MICROSOFT_SETUP.md](MICROSOFT_SETUP.md). Disabled configuration fails closed; no unattended delivery is claimed.
+
+Keep the earlier service and saved work until the new release passes its own acceptance. Domains and cookies do not migrate work automatically. Keep licensing and AI-assisted-development attribution truthful when presenting the system.

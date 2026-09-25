@@ -1,0 +1,68 @@
+{
+  "name": "CargoGuard field-test mailbox v1",
+  "emails": 28,
+  "measured_at": "2026-09-24T13:36:30.872Z",
+  "note": "Team-authored Averis-style emails (not the organiser generator): real .eml headers and dates, conversations on one order number, PDF/Word/text files, unit variations, a missing and a scanned attachment, phishing. Small and authored by us, so it shows robustness — it is not a blind real-world accuracy figure.",
+  "metrics": {
+    "email_files_read": {
+      "correct": 28,
+      "total": 28
+    },
+    "email_type": {
+      "correct": 28,
+      "total": 28
+    },
+    "email_type_without_asking_a_person": {
+      "correct": 26,
+      "total": 28
+    },
+    "document_check_outcome": {
+      "correct": 13,
+      "total": 13
+    },
+    "exact_differences_found": {
+      "correct": 4,
+      "total": 5
+    },
+    "no_false_alarm_on_matching_documents": {
+      "correct": 5,
+      "total": 5
+    },
+    "conversation_pairs_grouped": {
+      "correct": 14,
+      "total": 14
+    },
+    "conversation_pairs_wrongly_joined": {
+      "correct": 0,
+      "total": 14
+    },
+    "urgent_email_in_top_of_plan": {
+      "correct": 4,
+      "total": 4
+    },
+    "deadline_found_in_email": {
+      "correct": 6,
+      "total": 6
+    }
+  },
+  "failures": [
+    {
+      "id": "ft_02",
+      "check": "exact_differences_found",
+      "expected": "consignee,gross_weight_kg",
+      "actual": "consignee,gross_weight_kg,notify_party"
+    },
+    {
+      "id": "ft_06",
+      "check": "email_type_without_asking_a_person",
+      "expected": "SI_REQUEST, confident",
+      "actual": "SI_REQUEST, asks a person to confirm"
+    },
+    {
+      "id": "ft_14",
+      "check": "email_type_without_asking_a_person",
+      "expected": "INVOICE_QUERY, confident",
+      "actual": "INVOICE_QUERY, asks a person to confirm"
+    }
+  ]
+}

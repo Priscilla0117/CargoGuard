@@ -1,3 +1,4 @@
+import { checkDocumentIntegrity } from "./integrity-checks";
 import {
   FIELDS,
   type CaseResult,
@@ -80,11 +81,24 @@ export function revisionDiff(before: CaseResult, after: CaseResult) {
     );
   const previous = rows(before),
     current = rows(after);
+  // The files actually compared: the chosen pair, or the SI and BL picked
+  // automatically — identified by content fingerprint, not by name.
   const pair = (r: CaseResult) =>
-    JSON.stringify([
-      r.document_selection?.si ?? null,
-      r.document_selection?.bl ?? null,
-    ]);
+    JSON.stringify(
+      r.document_selection
+        ? [r.document_selection.si, r.document_selection.bl]
+        : r.documents
+            .filter((doc) => doc.type === "SI" || doc.type === "BL")
+            .map((doc) => [doc.type, doc.name, doc.sha256 ?? null])
+            .sort(),
+    );
+  const findings = (r: CaseResult) =>
+    checkDocumentIntegrity(r)
+      .findings.filter((f) => f.status === "blocking" || f.status === "review")
+      .map((f) => `${f.rule}:${f.title}`)
+      .sort();
+  const integrityBefore = findings(before),
+    integrityAfter = findings(after);
   const changes: FieldChange[] = FIELDS.map((field) => {
     const a = previous.get(field),
       b = current.get(field);
@@ -120,6 +134,14 @@ export function revisionDiff(before: CaseResult, after: CaseResult) {
     engineChanged: before.pipeline_version !== after.pipeline_version,
     policyChanged: before.policy?.version !== after.policy?.version,
     documentPairChanged: pair(before) !== pair(after),
+    /** Extra safety findings (container numbers, weights) are separate from the seven fields. */
+    integrity: {
+      before: integrityBefore.length,
+      after: integrityAfter.length,
+      added: integrityAfter.filter((f) => !integrityBefore.includes(f)).length,
+      resolved: integrityBefore.filter((f) => !integrityAfter.includes(f))
+        .length,
+    },
     remaining: changes.filter((r) => !checked(r.after)).length,
   };
 }

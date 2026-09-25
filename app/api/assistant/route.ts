@@ -1,13 +1,9 @@
+import { errorSession, requireCapability } from "@/lib/auth";
 import { z } from "zod";
 import { refersToAnotherCase } from "@/lib/assistant-navigation";
+import { sensitiveFindings, sensitiveMessage } from "@/lib/assistant-privacy";
 import { HttpError, readJson } from "@/lib/http";
-import {
-  workspace,
-  requireMutation,
-  respond,
-  getCase,
-  storage,
-} from "@/lib/storage";
+import { requireMutation, respond, getCase, storage } from "@/lib/storage";
 import { recoveryConfig } from "@/lib/recovery-provider";
 import { recoveryHash } from "@/lib/recovery-schema";
 import {
@@ -48,8 +44,9 @@ const inputSchema = z.discriminatedUnion("action", [
     .strict(),
 ]);
 export async function GET(request: Request) {
-  const session = workspace(request);
+  let session = errorSession(request);
   try {
+    session = await requireCapability(request, "read");
     return respond(
       {
         ...recoveryConfig(),
@@ -58,7 +55,9 @@ export async function GET(request: Request) {
       },
       session,
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof HttpError)
+      return respond({ error: error.message }, session, error.status);
     return respond(
       {
         error:
@@ -70,10 +69,14 @@ export async function GET(request: Request) {
   }
 }
 export async function POST(request: Request) {
-  let session = workspace(request);
+  let session = errorSession(request);
   try {
-    session = requireMutation(request);
+    session = await requireCapability(request, "operate");
+    requireMutation(request);
     const input = inputSchema.parse(await readJson(request, 6000));
+    const secrets = sensitiveFindings(input.question);
+    if (secrets.length)
+      throw new HttpError(sensitiveMessage(secrets, "server"), 422);
     if (refersToAnotherCase(input.question, input.id))
       throw new HttpError(
         "Your question names a different case. Use Change case to select it first. Questions cannot combine shipments; no AI request was sent.",

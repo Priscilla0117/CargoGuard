@@ -1,3 +1,5 @@
+import { emailInsight } from "./mail-intel";
+import { completionBlocker, integrityNeedsConfirmation } from "./follow-up";
 export const CATEGORIES = [
   "BL_COMPARISON",
   "SI_REQUEST",
@@ -32,12 +34,33 @@ export type ReviewReason =
   | "missing_value"
   | "uncertain_category";
 export type Outcome = "OK" | "MISMATCH" | "NEEDS_REVIEW";
+export type EmailSource =
+  | "sample"
+  | "upload"
+  | "eml"
+  | "gmail"
+  | "imap"
+  | "outlook";
 export interface Email {
   email_id: string;
   from: string;
   subject: string;
   body: string;
   attachments: string[];
+  /** When the mailbox received the message (ISO 8601). Absent for samples without a date. */
+  received_at?: string;
+  /** Sender-declared Date header; distinct from the provider's receipt time. */
+  sent_at?: string;
+  message_id?: string;
+  in_reply_to?: string;
+  references?: string[];
+  to?: string[];
+  cc?: string[];
+  source?: EmailSource;
+  /** Provider thread id (for example Gmail threadId); used only for grouping. */
+  thread_hint?: string;
+  /** Stable, workspace-scoped identity used for idempotent mailbox intake. */
+  import_key?: string;
 }
 export interface SourceLine {
   text: string;
@@ -52,8 +75,26 @@ export interface ParsedDocument {
   method: string;
   sha256?: string;
   page_count?: number;
+  /** Every original PDF page is inspected; readable text alone is not coverage. */
+  pdf_coverage?: {
+    version: 1;
+    pages: {
+      page: number;
+      text_items: number;
+      has_images: boolean;
+      requires_review: boolean;
+      reason?: string;
+    }[];
+  };
+  /** Attachment retained, but deliberately not read for a confirmed other route. */
+  deferred?: boolean;
   transcription?: import("./transcription").Transcript;
   recovery?: import("./recovery-schema").ConfirmedRecovery;
+  label_rules?: {
+    source_sha256: string;
+    template_signature: string;
+    aliases: { id: string; version: number; label: string; field: Field }[];
+  };
 }
 export interface FieldValue {
   raw: string;
@@ -63,6 +104,10 @@ export interface FieldValue {
   method: string;
   issue?: string;
   extraction_issue?: string;
+  correction?: {
+    source_sha256: string;
+    state: "confirmed" | "unresolved";
+  };
 }
 export type Extracted = Record<Field, FieldValue>;
 export interface ComparisonRow {
@@ -70,6 +115,13 @@ export interface ComparisonRow {
   si: FieldValue;
   bl: FieldValue;
   result: "match" | "mismatch" | "uncertain";
+}
+export interface SourceCorrection {
+  field: Field;
+  side: "si" | "bl";
+  source: string;
+  sha256: string;
+  value: FieldValue;
 }
 export interface Classification {
   category: Category;
@@ -114,10 +166,32 @@ export interface CaseResult {
   pipeline_version?: string;
   policy?: import("./policy").PolicySnapshot;
   policy_assessment?: ReturnType<typeof import("./policy").assessPolicy>;
+  /** Inbox summaries only: an independent safety finding is still open. */
+  integrity_attention?: boolean;
+  /** Summary projection recomputed from full source evidence; absent is unverified. */
+  completion_blocker?: string | null;
+  /** Source-bound reading corrections survive a temporarily unreadable pair. */
+  retained_corrections?: SourceCorrection[];
 }
+export type EmailSummary = Pick<
+  Email,
+  | "email_id"
+  | "from"
+  | "subject"
+  | "attachments"
+  | "received_at"
+  | "message_id"
+  | "in_reply_to"
+  | "references"
+  | "source"
+  | "thread_hint"
+> & { insight?: import("./mail-intel").EmailInsight };
 export interface CaseSummary {
-  email: Pick<Email, "email_id" | "from" | "subject" | "attachments">;
-  result: Omit<CaseResult, "email" | "documents" | "comparison"> | null;
+  email: EmailSummary;
+  result: Omit<
+    CaseResult,
+    "email" | "documents" | "comparison" | "retained_corrections"
+  > | null;
 }
 export interface AuditEvent {
   id: string;
@@ -127,14 +201,35 @@ export interface AuditEvent {
   detail: string;
   created_at: string;
 }
-export const PIPELINE_VERSION = "3.2.1";
+export const PIPELINE_VERSION = "3.5.0";
 export function emailSummaryOf(email: Email): CaseSummary["email"] {
   const { email_id, from, subject, attachments } = email;
-  return { email_id, from, subject, attachments };
+  const summary: EmailSummary = { email_id, from, subject, attachments };
+  for (const key of [
+    "received_at",
+    "message_id",
+    "in_reply_to",
+    "references",
+    "source",
+    "thread_hint",
+  ] as const)
+    if (email[key] !== undefined)
+      (summary as Record<string, unknown>)[key] = email[key];
+  summary.insight = emailInsight(email);
+  return summary;
 }
 export function summaryOf(result: CaseResult): CaseSummary {
-  const { email, documents, comparison, ...rest } = result;
+  const { email, documents, comparison, retained_corrections, ...rest } =
+    result;
   void documents;
   void comparison;
-  return { email: emailSummaryOf(email), result: rest };
+  void retained_corrections;
+  return {
+    email: emailSummaryOf(email),
+    result: {
+      ...rest,
+      completion_blocker: completionBlocker(result),
+      integrity_attention: integrityNeedsConfirmation(result),
+    },
+  };
 }

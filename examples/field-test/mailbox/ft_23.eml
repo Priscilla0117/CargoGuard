@@ -1,0 +1,16 @@
+From: Mail Admin <admin@secure-mailbox-verify.xyz>
+To: docs@april-demo.com
+Subject: Your mailbox storage is full - verify your account now
+Date: Sun, 20 Sep 2026 19:14:00 +0000
+Message-ID: <ft_23.fieldtest@cargoguard-demo.invalid>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="cg-ft_23-boundary"
+
+--cg-ft_23-boundary
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: base64
+
+RGVhciB1c2VyLA0KDQpZb3VyIG1haWxib3ggaGFzIGV4Y2VlZGVkIGl0cyBzdG9yYWdlIGxpbWl0
+LiBDbGljayBoZXJlIHdpdGhpbiAyNCBob3VycyB0byB2ZXJpZnkgeW91ciBwYXNzd29yZCBvciB5
+b3VyIGFjY291bnQgd2lsbCBiZSBzdXNwZW5kZWQuDQoNCk1haWwgQWRtaW5pc3RyYXRvcg==
+--cg-ft_23-boundary--

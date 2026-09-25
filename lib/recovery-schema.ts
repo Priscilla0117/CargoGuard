@@ -7,6 +7,7 @@ import {
 } from "./types";
 import { HttpError } from "./http";
 import { normalizeValue, resolveFields } from "./normalization";
+import { pdfCoverageIssue } from "./pdf-coverage";
 
 export const RECOVERY_PROMPT_VERSION = "evidence-selectors-v3";
 export const RECOVERY_LIMITS = {
@@ -94,6 +95,7 @@ export function canRecover(doc: ParsedDocument): boolean {
   return (
     !!doc.sha256 &&
     !doc.error &&
+    !pdfCoverageIssue(doc) &&
     !doc.transcription &&
     ["txt", "pdf", "docx", "xlsx"].includes(doc.format) &&
     doc.type !== "OTHER" &&

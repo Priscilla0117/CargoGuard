@@ -1,6 +1,8 @@
 import { FIELDS, type CaseResult, type ParsedDocument } from "./types";
 import { HttpError } from "./http";
-import { analyze, deriveResult, recomputeRows } from "./compare";
+import { requireCurrentEngine } from "./review-guard";
+import { analyze } from "./compare";
+import { retainSourceCorrections } from "./source-corrections";
 import {
   requireRecoverable,
   sourceTextHash,
@@ -66,6 +68,7 @@ export async function applyRecovery(
   confirmation: { role: "SI" | "BL"; actor: string; reason: string },
   now = new Date(),
 ): Promise<CaseResult> {
+  requireCurrentEngine(previous);
   if (
     proposal.case_id !== previous.email.email_id ||
     proposal.version !== previous.version ||
@@ -117,21 +120,8 @@ export async function applyRecovery(
     previous.policy,
     previous.document_selection,
   );
-  if (next.comparison.length && previous.comparison.length) {
-    const rows = structuredClone(next.comparison);
-    for (const row of rows)
-      for (const side of ["si", "bl"] as const) {
-        const old = previous.comparison.find((r) => r.field === row.field)?.[
-          side
-        ];
-        if (
-          old?.method.startsWith("Human correction") &&
-          old.source !== doc.name &&
-          old.source === row[side].source
-        )
-          row[side] = old;
-      }
-    next = deriveResult(next, recomputeRows(rows));
-  }
+  next = retainSourceCorrections(previous, next, {
+    excludeSources: [doc.name],
+  });
   return { ...next, reviewed: true, source_replaced: previous.source_replaced };
 }

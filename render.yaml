@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     region: singapore
-    buildCommand: npm ci --include=dev --no-audit --no-fund && npm run build
+    buildCommand: npm ci --include=dev --include=optional --no-audit --no-fund && npm run build
     startCommand: npm start
     healthCheckPath: /api/live
     autoDeployTrigger: off
@@ -13,6 +13,17 @@ services:
         value: 24.14.0
       - key: NEXT_TELEMETRY_DISABLED
         value: "1"
+      - key: CARGO_AUTH_MODE
+        value: team
+      - key: CARGO_MAIL_WORKER_ENABLED
+        value: "true"
+      - key: CARGO_INCLUDE_SAMPLE_DATA
+        value: "false"
+      # Render supplies RENDER_EXTERNAL_URL as the trusted public origin.
+      # A custom domain also needs CARGO_PUBLIC_ORIGIN in the dashboard.
+      # Remove the bootstrap secret after creating the first administrator.
+      - key: CARGO_BOOTSTRAP_SECRET
+        sync: false
       - key: TURSO_DATABASE_URL
         sync: false
       - key: TURSO_AUTH_TOKEN

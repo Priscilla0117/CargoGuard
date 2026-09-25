@@ -13,6 +13,17 @@ const missing =
   /^(?:[\s?_\-–—.\/]+|t\.?\s*b\.?\s*[acd]\.?|n\.?\s*\/?\s*a\.?|nil|none|null|unknown|pending|unavailable|not\s+(?:available|provided|specified|stated|known|confirmed|applicable)|to\s+be\s+(?:advised|confirmed|determined|provided|decided)|awaiting\s+(?:confirmation|details|instructions)|same\s+as\s+above)$/i;
 const unitPlaceholder =
   /^(?:[?_\-–—.\s]+)\s*(?:kgs?|kilograms?|mt|metric tonnes?|tonnes?)$/i;
+/** Consume the entire placeholder expression; never reject a real name merely
+ * because it contains an acronym such as TBA. */
+function missingExpression(raw: string) {
+  if (missing.test(raw) || unitPlaceholder.test(raw)) return true;
+  const parts = raw
+    .replace(/\bn\s*\/\s*a\b/gi, "N.A.")
+    .split(/\s*(?:[\/,;|&()[\]{}]+|\band\b|\bor\b)\s*/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return parts.length > 0 && parts.every((part) => missing.test(part));
+}
 export const sameAsConsignee = (raw: string) =>
   /^(?:same as|as per)\s+(?:the\s+)?consignee\.?$/i.test(
     raw.normalize("NFKC").trim(),
@@ -54,6 +65,31 @@ function ambiguousParty(value: string) {
   return names.size > 1;
 }
 
+const NUMBER_WORDS: Record<string, number> = Object.fromEntries(
+  [
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+    "eighteen",
+    "nineteen",
+    "twenty",
+  ].map((word, index) => [word, index + 1]),
+);
+
 /** Consume the whole expression. A valid prefix must never hide a conflicting suffix. */
 export function normalizeValue(field: Field, raw: string): NormalizedValue {
   const value = raw
@@ -65,11 +101,7 @@ export function normalizeValue(field: Field, raw: string): NormalizedValue {
     !/[\p{L}\p{N}]/u.test(value) ||
     value
       .split(/\r?\n/)
-      .some(
-        (line) =>
-          line.trim() &&
-          (missing.test(line.trim()) || unitPlaceholder.test(line.trim())),
-      )
+      .some((line) => line.trim() && missingExpression(line.trim()))
   ) {
     return {
       value: null,
@@ -79,12 +111,21 @@ export function normalizeValue(field: Field, raw: string): NormalizedValue {
   if (field === "container_count") {
     const parts = value.split(/\s*(?:\+|;|&|\band\b)\s*/i);
     let total = 0;
-    for (const part of parts) {
+    for (const raw of parts) {
+      // "TWO (2) X 40' HC": the words and the digits must agree.
+      const worded = raw.trim().match(/^([a-z]+)\s*\(\s*(\d+)\s*\)\s*(.*)$/i);
+      if (worded && NUMBER_WORDS[worded[1].toLowerCase()] !== Number(worded[2]))
+        return {
+          value: null,
+          issue:
+            "The container count in words and in digits do not agree. Confirm the total.",
+        };
+      const part = worded ? `${worded[2]} ${worded[3]}` : raw;
       // Sizes/types describe containers; they are not additional shipment fields.
       const match = part
         .trim()
         .match(
-          /^(\d+)\s*(?:(?:containers?|units?)|(?:x|×)\s*(?:20|40|45)\s*(?:['′’]|ft|feet|foot)?\s*(?:hc|hq|gp|dc|dv|ot|rf|reefer|fcl|std)?)?$/i,
+          /^(\d+)\s*(?:(?:containers?|units?)|(?:x|×)\s*(?:20|40|45)\s*(?:['′’]|ft|feet|foot)?\s*(?:hc|hq|gp|dc|dv|ot|rf|reefer|fcl|std)?(?:\s+(?:containers?|units?))?)?$/i,
         );
       if (
         !match ||
@@ -149,15 +190,25 @@ export function normalizeValue(field: Field, raw: string): NormalizedValue {
       issue:
         "Multiple possible company names appear in this party field. Confirm the intended party from the source; identical ambiguity in both documents is not a match.",
     };
-  return {
-    value: value
-      .toUpperCase()
-      .replace(/&/g, " AND ")
-      .replace(/[|;\n\r]/g, " ")
-      .replace(/[.,]/g, "")
-      .replace(/\s+/g, " ")
-      .trim(),
-  };
+  const normalized = value
+    .toUpperCase()
+    .replace(/&/g, " AND ")
+    .replace(/[|;\n\r]/g, " ")
+    .replace(/[.,]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (field.startsWith("port_of_")) {
+    const port = portReference(normalized);
+    // Validate each source before equality: identical contradictory statements
+    // on both documents are still unsafe. Unknown aliases are not guessed.
+    if (port?.expected && port.code !== port.expected)
+      return {
+        value: null,
+        issue:
+          "The port name and location code do not agree. Confirm both from the source before completing the check.",
+      };
+  }
+  return { value: normalized };
 }
 
 export function normalize(field: Field, raw: string) {
@@ -172,7 +223,33 @@ const portCodes: Record<string, string> = {
   SHANGHAI: "CNSHA",
   ROTTERDAM: "NLRTM",
   "HONG KONG": "HKHKG",
+  SAVANNAH: "USSAV",
+  HOUSTON: "USHOU",
 };
+// New aliases checked against the official UNECE 2025-1 release:
+// https://unlocode.unece.org/publications/
+// US,SAV,Savannah,GA,1--4----,AI and US,HOU,Houston,TX,1-345---,AI.
+// Country-qualified names are explicit aliases; arbitrary suffixes are retained.
+const portAliases: Record<string, string> = Object.fromEntries(
+  ["SAVANNAH", "HOUSTON"].flatMap((name) =>
+    ["US", "USA", "UNITED STATES", "UNITED STATES OF AMERICA"].map(
+      (country) => [`${name} ${country}`, name],
+    ),
+  ),
+);
+function portReference(value: string) {
+  const match = value.match(/^(.+?)\s*\(\s*([A-Z]{2})\s*([A-Z0-9]{3})\s*\)$/);
+  if (!match) return null;
+  const name = portAliases[match[1].trim()] ?? match[1].trim();
+  const code = match[2] + match[3];
+  return {
+    name,
+    code,
+    // Keep the established Shanghai alias for compatibility. Its maritime use
+    // differs from the current directory and is not a validation authority.
+    expected: name === "SHANGHAI" ? undefined : portCodes[name],
+  };
+}
 export function equivalent(
   field: Field,
   a: string | number | null,
@@ -187,10 +264,10 @@ export function equivalent(
   )
     return false;
   const canonical = (value: string) => {
-    const match = value.match(/^(.+?)\s*\(([A-Z]{2}[A-Z0-9]{3})\)$/);
-    return match && portCodes[match[1].trim()] === match[2]
-      ? match[1].trim()
-      : value;
+    const port = portReference(value);
+    return port && portCodes[port.name] === port.code
+      ? port.name
+      : (portAliases[value] ?? value);
   };
   return canonical(a) === canonical(b);
 }
@@ -200,6 +277,9 @@ export function resolveFields(fields: Extracted): Extracted {
   const resolved = structuredClone(fields);
   for (const field of FIELDS) {
     const n = normalizeValue(field, resolved[field].raw);
+    if (resolved[field].correction?.state === "unresolved")
+      resolved[field].extraction_issue ??=
+        "This reading correction still needs confirmation from the original source.";
     resolved[field].normalized = resolved[field].extraction_issue
       ? null
       : n.value;

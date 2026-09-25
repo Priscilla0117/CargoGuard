@@ -1,2 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Preserve the frozen authored challenge byte checksum across Windows/Linux checkouts.
+tests/fixtures/operations-challenge.json text eol=lf
+
+# PDF offsets and source hashes must survive checkout byte-for-byte.
+tests/fixtures/pdf-coverage/*.pdf binary

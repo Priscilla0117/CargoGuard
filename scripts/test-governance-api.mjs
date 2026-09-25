@@ -7,7 +7,9 @@ const check = (value, name) => {
   checks.push(name);
 };
 async function session() {
-  const r = await fetch(origin + "/api/inbox", { signal: AbortSignal.timeout(90000) });
+  const r = await fetch(origin + "/api/inbox", {
+    signal: AbortSignal.timeout(90000),
+  });
   assert.equal(r.status, 200);
   return r.headers.get("set-cookie").split(";")[0];
 }
@@ -87,11 +89,33 @@ const edit = {
   side: "bl",
   value: "1008",
   actor: "Tester",
-  reason: "Confirm eight kg discrepancy",
+  reason: "Test unsupported typed weight; original BL still states 1010 KG",
 };
 const edited = await call("/api/cases", edit);
-check(edited.status === 200, "human correction commits");
+check(
+  edited.status === 200,
+  "unsupported human reading is saved for source review",
+);
 current = edited.data.result;
+const editedWeight = current.comparison.find(
+  (row) => row.field === "gross_weight_kg",
+);
+const originalWeightSource = initial.data.result.documents.find(
+  (doc) => doc.name === editedWeight.bl.source,
+);
+check(
+  current.status === "NEEDS_REVIEW" &&
+    current.workflow === "review" &&
+    editedWeight.result === "uncertain" &&
+    editedWeight.bl.raw === "1008" &&
+    editedWeight.bl.normalized === null &&
+    editedWeight.bl.correction?.state === "unresolved" &&
+    editedWeight.bl.correction.source_sha256 === originalWeightSource.sha256 &&
+    !!editedWeight.bl.extraction_issue &&
+    current.policy_assessment.covered === false,
+  "unsupported weight stays source-bound and unresolved, with no policy coverage",
+);
+assert.deepEqual(current.documents, initial.data.result.documents);
 check(
   (
     await call("/api/policies", {
@@ -108,6 +132,13 @@ check(
   "stale edit cannot create a revision",
 );
 preview = await call("/api/policies", { action: "preview", rules });
+check(
+  preview.status === 200 &&
+    preview.data.impact[0].strictStatus === "NEEDS_REVIEW" &&
+    preview.data.impact[0].covered === false &&
+    preview.data.impact[0].differenceKg === null,
+  "policy preview cannot assign tolerance to an unresolved typed weight",
+);
 const activation = {
   action: "activate",
   token: preview.data.token,
@@ -150,11 +181,30 @@ const corrected = await call("/api/cases", {
   ...edit,
   version: current.version,
 });
-current = corrected.data.result;
 check(
-  current.policy.version === 1 && current.policy_assessment.covered,
-  "human edit preserves recorded policy",
+  corrected.status === 200,
+  "unsupported edit under active policy is saved for review",
 );
+current = corrected.data.result;
+const policyEditedWeight = current.comparison.find(
+  (row) => row.field === "gross_weight_kg",
+);
+check(
+  current.policy.version === 1 &&
+    current.status === "NEEDS_REVIEW" &&
+    current.workflow === "review" &&
+    current.policy_assessment.covered === false &&
+    current.policy_assessment.differenceKg === null &&
+    policyEditedWeight.result === "uncertain" &&
+    policyEditedWeight.bl.normalized === null &&
+    policyEditedWeight.bl.correction?.state === "unresolved" &&
+    policyEditedWeight.bl.correction.source_sha256 ===
+      originalWeightSource.sha256 &&
+    !!policyEditedWeight.bl.extraction_issue,
+  "human edit preserves policy but unsupported evidence cannot receive a tolerance exception",
+);
+assert.deepEqual(current.policy, processed.data.results[0].policy);
+assert.deepEqual(current.documents, initial.data.result.documents);
 const replacement = form("1000");
 replacement.set("id", id);
 replacement.set("version", String(current.version));

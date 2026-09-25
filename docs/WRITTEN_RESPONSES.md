@@ -1,3 +1,5 @@
+> Historical release document retained from the existing repository. For the current employee feature branch, verified results and rollout requirements, see [EMPLOYEE_RELEASE.md](EMPLOYEE_RELEASE.md).
+
 # CargoGuard — written responses
 
 Expanded submission answers for judges and technical reviewers. [Back to the visual overview](../README.md).

@@ -1,0 +1,11 @@
+DRAFT BILL OF LADING
+Complete container list:
+Container number: MSCU1234566 | Loaded gross weight: 33000 KG | Tare: 3800 KG | Max gross weight: 32500 KG | Max payload: 28700 KG
+End container list
+Shipper: Bright Paper Exports Pte Ltd
+Consignee: Peninsula Stationery Sdn Bhd
+Notify Party: Same as consignee
+Port of Loading: Singapore
+Port of Discharge: Singapore
+Container Count: 1 x 40HC
+Gross Weight (KG): 29200

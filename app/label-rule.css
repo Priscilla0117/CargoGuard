@@ -1,0 +1,181 @@
+.label-rule-desk {
+  max-width: 1240px;
+  margin: auto;
+  padding: 28px;
+  color: #203c54;
+}
+.label-rule-desk h1 {
+  font-size: 30px;
+  letter-spacing: -0.025em;
+  margin: 5px 0 12px;
+}
+.label-rule-desk h2 {
+  font-size: 22px;
+  margin-bottom: 16px;
+}
+.label-rule-desk p {
+  font-size: 15px;
+  line-height: 1.7;
+  margin: 12px 0;
+}
+.label-rule-desk a {
+  color: #086d7a;
+  text-decoration: underline;
+}
+.label-rule-desk section {
+  background: white;
+  border: 1px solid #d6e1eb;
+  border-radius: 12px;
+  padding: 24px;
+  margin: 24px 0;
+}
+.label-rule-desk label {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.label-rule-desk select {
+  max-width: 100%;
+  padding: 10px;
+  border: 1px solid #bdcdd9;
+  border-radius: 6px;
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  background: white;
+  font: inherit;
+}
+.rule-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+.rule-metrics p {
+  padding: 16px;
+  background: #eaf2f8;
+  border-radius: 8px;
+  flex: 1 1 180px;
+  border: 1px solid #d5e2ec;
+  color: #587287;
+  font-size: 14px;
+  margin: 8px 0;
+}
+.rule-metrics strong {
+  display: block;
+  font-size: 26px;
+  color: #203e54;
+}
+.label-rule-card {
+  border-top: 1px solid #dbe5ec;
+  padding: 20px 0;
+  overflow-wrap: anywhere;
+}
+.label-rule-card h3 {
+  font-size: 16px;
+  overflow-wrap: anywhere;
+  margin-bottom: 10px;
+}
+.label-rule-desk .workspace-eyebrow {
+  font-size: 14px;
+  margin-bottom: 5px;
+  color: #0b7380;
+}
+.label-rule-desk .rule-scope-details {
+  margin: 18px 0 24px;
+  padding: 12px 16px;
+  border: 1px solid #dce6ed;
+  border-radius: 9px;
+  background: #f3f7fa;
+}
+.rule-scope-details summary {
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+}
+.label-rule-desk .rule-scope-details p,
+.label-rule-desk .rule-help {
+  font-size: 15px;
+  color: #5c7487;
+}
+.label-rule-desk :where(button, a, input, select, summary):focus-visible {
+  outline: 3px solid #168698;
+  outline-offset: 3px;
+}
+.label-rule-desk button {
+  min-height: 40px;
+  cursor: pointer;
+}
+.label-rule-desk button.primary {
+  background: #0f5c55;
+  color: white;
+  border-color: #0f5c55;
+}
+.label-rule-desk button.secondary {
+  background: white;
+  color: #264e63;
+  border-color: #c5d6e2;
+}
+.label-rule-desk button:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+.label-rule-desk .workspace-empty {
+  margin: 18px 0;
+}
+.label-rule-desk .rule-ack {
+  line-height: 1.7;
+  font-weight: 500;
+}
+.label-rule-desk .rule-ack input {
+  min-width: 18px;
+  width: 18px;
+  height: 18px;
+  accent-color: #087789;
+}
+.label-rule-card > p {
+  color: #587287;
+  font-size: 14px;
+}
+.rule-preview {
+  padding: 18px;
+  border: 1px solid #c5d6e2;
+  margin-top: 16px;
+  border-radius: 8px;
+}
+.rule-preview ul {
+  max-height: 250px;
+  overflow: auto;
+  line-height: 1.8;
+}
+.label-rule-desk .rule-ack {
+  display: flex;
+  align-items: flex-start;
+}
+.rule-ack input {
+  margin-top: 3px;
+}
+.rule-source-inspection pre {
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  background: #f5f8fa;
+  padding: 12px;
+}
+.label-rule-desk button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@media (max-width: 650px) {
+  .label-rule-desk {
+    padding: 18px;
+  }
+  .label-rule-desk section {
+    padding: 16px;
+  }
+  .rule-metrics {
+    gap: 8px;
+  }
+}
