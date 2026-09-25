@@ -84,7 +84,7 @@ test("buckets: differences are to-do, matches are done, waiting follow-ups are p
   const overdue = { ...waiting, due_at: "2026-09-20T00:00:00Z" };
   const overduePlan = planFor(mismatch, overdue, now);
   assert.equal(overduePlan.bucket, "todo");
-  assert.ok(overduePlan.reasons.includes("Follow-up is overdue"));
+  assert.ok(overduePlan.reasons.includes("No answer yet — time to chase"));
 });
 
 test("an urgent email with a deadline tomorrow outranks an older quiet difference", async () => {
@@ -160,7 +160,7 @@ test("reply drafts quote the SI and BL values and keep references", async () => 
   });
   assert.equal(draft.to, "jasmine.tan@carrier.test");
   assert.equal(draft.subject, "RE: TO CONFIRM DOCS _ 5RFR-36541 _ ROTTERDAM");
-  assert.match(draft.body, /^Dear Jasmine,/);
+  assert.match(draft.body, /^Dear Jasmine Tan,/);
   assert.match(draft.body, /Order 5RFR-36541/);
   assert.match(draft.body, /Per our SI: +42,000 KG/);
   assert.match(draft.body, /Draft BL shows: 43,000 KG/);
@@ -171,7 +171,7 @@ test("reply drafts quote the SI and BL values and keep references", async () => 
     "orig@carrier.test",
   ]);
   const short = draftReply(mismatch, { tone: "short" });
-  assert.match(short.body, /^Hi Jasmine,/);
+  assert.match(short.body, /^Hi Jasmine Tan,/);
   assert.match(short.body, /should be "42,000 KG"/);
   // AI polishing may not drop a checked value.
   assert.deepEqual(missingFacts(draft.body, draft.body), []);
@@ -331,7 +331,7 @@ test("today's plan lists open work first with its reasons", async () => {
   const text = planText(rows, new Date(now));
   assert.match(text, /1 emails to do · 0 waiting/);
   assert.match(text, /1\. \[URGENT\] TO CONFIRM DOCS/);
-  assert.match(text, /Why: Documents do not match; Cut-off tomorrow/);
+  assert.match(text, /Why: Weight differs; Cut-off tomorrow/);
   assert.match(text, /Cut-off: 2026-09-22/);
 });
 

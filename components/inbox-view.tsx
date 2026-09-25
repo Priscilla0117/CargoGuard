@@ -29,7 +29,7 @@ import {
   type SortOrder,
   type TodoReason,
 } from "@/lib/priority";
-import { categoryWords, rowStatus } from "@/lib/case-status";
+import { categoryWords, displayStatus, rowStatus } from "@/lib/case-status";
 import { CATEGORIES, type CaseSummary } from "@/lib/types";
 
 /** The three kinds of work shown as colour tiles above the list. */
@@ -142,7 +142,14 @@ function Row({
   onOpen: () => void;
 }) {
   const { row, plan } = item;
-  const status = rowStatus(row);
+  const base = rowStatus(row);
+  const status = displayStatus(row, plan);
+  const why =
+    plan.bucket === "waiting"
+      ? base.text
+      : plan.bucket === "todo" && plan.reason === "differences"
+        ? plan.reasons[0]
+        : null;
   const received = formatReceived(row.email.received_at, now);
   const deadline = deadlineText(plan, now);
   const insight = row.email.insight;
@@ -184,6 +191,7 @@ function Row({
       </span>
       <span className="cg-row-status">
         <span className={`cg-pill ${status.tone}`}>{status.text}</span>
+        {why && <small>{why}</small>}
       </span>
       <span className="cg-row-date">
         {received ? (
@@ -222,6 +230,7 @@ export function InboxView({
   onImport,
   onPlan,
   doneTools,
+  checking = false,
 }: {
   cases: CaseSummary[];
   plans: Map<string, Plan>;
@@ -235,6 +244,8 @@ export function InboxView({
   onImport: () => void;
   onPlan?: () => void;
   doneTools?: React.ReactNode;
+  /** New emails are being read: the plan is not final yet. */
+  checking?: boolean;
 }) {
   const [limit, setLimit] = useState(40);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -347,7 +358,7 @@ export function InboxView({
 
   return (
     <>
-      {focus && !loading && (
+      {focus && !loading && !checking && (
         <section
           className={`cg-nextup ${focus.plan.level}`}
           aria-label="Suggested next email"
@@ -411,34 +422,6 @@ export function InboxView({
           )}
         </section>
       )}
-      <section className="cg-tiles" aria-label="Kinds of work to do">
-        {(Object.keys(WORK_GROUPS) as WorkGroup[]).map((key) => {
-          const group = WORK_GROUPS[key];
-          const count = group.reasons.reduce(
-            (sum, reason) => sum + (reasonCounts[reason] ?? 0),
-            0,
-          );
-          const active = filters.bucket === "todo" && filters.reason === key;
-          return (
-            <button
-              key={key}
-              type="button"
-              className={`cg-tile ${key}`}
-              aria-pressed={active}
-              onClick={() => {
-                setFilters({ bucket: "todo", reason: active ? "all" : key });
-                setLimit(40);
-              }}
-            >
-              <strong>{loading ? "–" : count.toLocaleString()}</strong>
-              <span>
-                <b>{group.label}</b>
-                <small>{count ? group.hint : "All clear"}</small>
-              </span>
-            </button>
-          );
-        })}
-      </section>
       <section className="cg-queue" aria-label="Email lists">
         <div className="cg-qtabs" role="tablist" aria-label="Lists">
           {(["todo", "waiting", "done", "other", "all"] as const).map((key) => (
@@ -460,6 +443,53 @@ export function InboxView({
             </button>
           ))}
         </div>
+        {filters.bucket === "todo" && (
+          <div className="cg-kinds" role="group" aria-label="Show only">
+            <button
+              type="button"
+              className="cg-kind all"
+              aria-pressed={filters.reason === "all"}
+              onClick={() => {
+                setFilters({ reason: "all" });
+                setLimit(40);
+              }}
+            >
+              <span>
+                <b>Everything to do</b>
+                <small>Most urgent first</small>
+              </span>
+              <strong>
+                {loading ? "–" : bucketCounts.todo.toLocaleString()}
+              </strong>
+            </button>
+            {(Object.keys(WORK_GROUPS) as WorkGroup[]).map((key) => {
+              const group = WORK_GROUPS[key];
+              const count = group.reasons.reduce(
+                (sum, reason) => sum + (reasonCounts[reason] ?? 0),
+                0,
+              );
+              const active = filters.reason === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={`cg-kind ${key}`}
+                  aria-pressed={active}
+                  onClick={() => {
+                    setFilters({ reason: active ? "all" : key });
+                    setLimit(40);
+                  }}
+                >
+                  <span>
+                    <b>{group.label}</b>
+                    <small>{count ? group.hint : "All clear"}</small>
+                  </span>
+                  <strong>{loading ? "–" : count.toLocaleString()}</strong>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </section>
       {filters.bucket === "done" && bucketCounts.done > 0 && doneTools && (
         <div style={{ paddingTop: 14 }}>{doneTools}</div>
@@ -470,7 +500,7 @@ export function InboxView({
           <input
             value={filters.search}
             onChange={(e) => setFilters({ search: e.target.value })}
-            placeholder="Search subject, sender, order no. (e.g. 5RFR-36541), PO…"
+            placeholder="Search order no. (5RFR-36541), PO, sender…"
             aria-label="Search emails"
           />
           {filters.search && (
@@ -502,7 +532,7 @@ export function InboxView({
             <label className="cg-filter">
               From
               <input
-                type="date"
+                type="datetime-local"
                 value={filters.from}
                 max={filters.to || undefined}
                 onChange={(e) => setFilters({ from: e.target.value })}
@@ -511,7 +541,7 @@ export function InboxView({
             <label className="cg-filter">
               To
               <input
-                type="date"
+                type="datetime-local"
                 value={filters.to}
                 min={filters.from || undefined}
                 onChange={(e) => setFilters({ to: e.target.value })}

@@ -52,12 +52,18 @@ export function ReplyComposer({
   defaultName,
   onDone,
   onError,
+  onReplied,
+  status,
 }: {
   result: CaseResult;
   mailbox: MailboxState | null;
   defaultName: string;
   onDone: (message: string) => void;
   onError: (message: string) => void;
+  /** Records that the reply went out, so the email leaves "To do". */
+  onReplied?: (how: string) => Promise<boolean>;
+  /** Where the email is now: "todo", "waiting", "done" or "other". */
+  status?: string;
 }) {
   const suggested = suggestedIntent(result);
   const [intent, setIntent] = useState<ReplyIntent>(suggested);
@@ -83,7 +89,19 @@ export function ReplyComposer({
   );
   const [aiConsent, setAiConsent] = useState(false);
   const [aiNote, setAiNote] = useState("");
+  // After copying / opening Gmail we cannot see the send: ask once.
+  const [askSent, setAskSent] = useState("");
+  const [recording, setRecording] = useState(false);
   const lastDraft = useRef(draft.body);
+  async function recordReply(how: string) {
+    if (!onReplied) return;
+    setRecording(true);
+    try {
+      if (await onReplied(how)) setAskSent("");
+    } finally {
+      setRecording(false);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -169,6 +187,8 @@ export function ReplyComposer({
           : `Draft saved in ${value.where} (${value.account}). Open your mailbox to review and send it.`,
       );
       setConfirmSend(false);
+      if (mode === "send") await recordReply("sent from CargoGuard");
+      else setAskSent("saved as a draft in your mailbox");
     } catch (error) {
       onError(error instanceof Error ? error.message : "Delivery failed.");
     } finally {
@@ -209,6 +229,7 @@ export function ReplyComposer({
       );
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+      setAskSent("copied into your email program");
     } catch {
       onError("Copy is blocked by the browser. Select the text and copy it.");
     }
@@ -235,6 +256,7 @@ export function ReplyComposer({
     link.download = `reply-${result.email.email_id}.eml`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setAskSent("downloaded as an email file");
   }
 
   // Very long links are rejected by Gmail; leave the quote out if needed.
@@ -255,6 +277,14 @@ export function ReplyComposer({
 
   return (
     <section className="cg-composer" aria-label="Reply to this email">
+      {(status === "waiting" || status === "done") && (
+        <p className="cg-composer-state" role="status">
+          <CheckCircle2 size={18} />
+          {status === "waiting"
+            ? "You already replied — this email is in “Waiting for reply”. You can still write again."
+            : "This email is done. You can still send another reply."}
+        </p>
+      )}
       <div className="cg-composer-options">
         <label className="cg-opt-title" id="reply-type">
           1. What do you want to say?
@@ -400,6 +430,33 @@ export function ReplyComposer({
           </>
         )}
       </div>
+      {askSent && onReplied && status !== "waiting" && status !== "done" && (
+        <div className="cg-composer-sent" role="status">
+          <span>
+            Reply {askSent}. <strong>Did you send it?</strong>
+          </span>
+          <button
+            type="button"
+            className="cg-btn primary small"
+            disabled={recording}
+            onClick={() => void recordReply(askSent)}
+          >
+            {recording ? (
+              <Loader2 size={16} className="cg-spin" />
+            ) : (
+              <CheckCircle2 size={16} />
+            )}
+            Yes, I sent it
+          </button>
+          <button
+            type="button"
+            className="cg-btn small ghost"
+            onClick={() => setAskSent("")}
+          >
+            Not yet
+          </button>
+        </div>
+      )}
       <div className="cg-composer-actions">
         {canSend &&
           (confirmSend ? (
@@ -460,6 +517,7 @@ export function ReplyComposer({
           aria-disabled={!ready}
           target="_blank"
           rel="noreferrer"
+          onClick={() => ready && setAskSent("opened in Gmail")}
         >
           <ExternalLink size={18} /> Open in Gmail
         </a>

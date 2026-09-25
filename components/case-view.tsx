@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
+  Clock3,
   CircleHelp,
   ExternalLink,
   FileText,
@@ -31,8 +32,11 @@ import {
   quotedHistory,
   type ThreadInfo,
 } from "@/lib/mail-intel";
-import type { Plan } from "@/lib/priority";
-import { caseStatus, categoryWords, rowStatus } from "@/lib/case-status";
+import { LEVEL_LABELS, type Plan } from "@/lib/priority";
+import { draftProgress } from "@/lib/conversation";
+import { senderHeadsUp } from "@/lib/sender-insights";
+import { FIELD_RISK } from "@/lib/field-risk";
+import { caseStatus, categoryWords, displayStatus } from "@/lib/case-status";
 import { canTranscribe } from "@/lib/transcription";
 import { checkDocumentIntegrity } from "@/lib/integrity-checks";
 import type { FollowUp } from "@/lib/follow-up";
@@ -122,6 +126,7 @@ const STATUS_ICON: Record<string, ReactNode> = {
   unprocessed: <CircleHelp size={20} />,
   done: <CheckCircle2 size={20} />,
   other: <Inbox size={20} />,
+  waiting: <Clock3 size={20} />,
 };
 
 export interface CaseViewProps {
@@ -162,6 +167,7 @@ export interface CaseViewProps {
   ) => void;
   onNotice: (message: string) => void;
   onError: (message: string) => void;
+  onReplied?: (how: string) => Promise<boolean>;
   error: string;
   followup: {
     value: FollowUp | undefined;
@@ -191,6 +197,14 @@ export function CaseView(props: CaseViewProps) {
   const insight = emailInsight(result.email);
   const refs = insight.refs;
   const canEdit = result.comparison.length > 0;
+  const summary = cases.find(
+    (row) => row.email.email_id === result.email.email_id,
+  );
+  const progress = summary ? draftProgress(summary, cases, thread) : null;
+  const headsUp =
+    result.category === "BL_COMPARISON"
+      ? senderHeadsUp(cases, result.email.from, result.email.email_id)
+      : null;
 
   useEffect(() => {
     if (!menu) return;
@@ -413,8 +427,18 @@ export function CaseView(props: CaseViewProps) {
             <div className="cg-casehead-result">
               <strong>{status.title}</strong>
               <span>{status.detail}</span>
-              {plan?.bucket === "todo" && plan.reasons.length > 0 && (
-                <small>{plan.reasons.join(" · ")}</small>
+              {plan?.bucket === "todo" && plan.factors.length > 0 && (
+                <details className="cg-why">
+                  <summary>
+                    Why is this {LEVEL_LABELS[plan.level].toLowerCase()}{" "}
+                    priority?
+                  </summary>
+                  <ul>
+                    {plan.factors.map((factor) => (
+                      <li key={factor.label}>{factor.label}</li>
+                    ))}
+                  </ul>
+                </details>
               )}
             </div>
             <div className="cg-casehead-actions">
@@ -473,6 +497,20 @@ export function CaseView(props: CaseViewProps) {
         </nav>
         {tab === "compare" && (
           <div className="cg-panel">
+            {progress && (
+              <DraftProgressCard
+                progress={progress}
+                onOpen={() =>
+                  props.onOpenCase(progress.previous.email.email_id)
+                }
+              />
+            )}
+            {headsUp && (
+              <p className="cg-notice warn" style={{ margin: 0 }}>
+                <AlertTriangle size={18} />
+                <span>{headsUp}</span>
+              </p>
+            )}
             {result.document_selection && (
               <p className="cg-notice" style={{ margin: 0 }}>
                 <FileText size={18} />
@@ -549,6 +587,8 @@ export function CaseView(props: CaseViewProps) {
             defaultName={props.defaultSignature}
             onDone={props.onNotice}
             onError={props.onError}
+            onReplied={props.onReplied}
+            status={plan?.bucket}
           />
         )}
         {tab === "conversation" && (
@@ -682,6 +722,62 @@ export function CaseView(props: CaseViewProps) {
   );
 }
 
+function DraftProgressCard({
+  progress,
+  onOpen,
+}: {
+  progress: NonNullable<ReturnType<typeof draftProgress>>;
+  onOpen: () => void;
+}) {
+  const { previous, fixed, still, added } = progress;
+  const when = formatReceived(previous.email.received_at);
+  const allFixed = !still.length && !added.length;
+  const names = (fields: typeof fixed) =>
+    fields.map((field) => FIELD_LABELS[field]).join(", ");
+  if (!fixed.length && !still.length && !added.length) return null;
+  return (
+    <section
+      className={`cg-progress-card ${added.length ? "bad" : allFixed ? "good" : "mixed"}`}
+      aria-label="Compared with the previous draft"
+    >
+      <div>
+        <strong>
+          {allFixed
+            ? "The sender fixed everything from the previous draft"
+            : added.length
+              ? "The new draft has a new mistake"
+              : "Some differences are still not fixed"}
+        </strong>
+        <small>
+          Compared with the previous draft in this conversation
+          {when ? ` (${when.day} ${when.time})` : ""}.
+        </small>
+        <ul>
+          {fixed.length > 0 && (
+            <li className="good">
+              <CheckCircle2 size={16} /> Fixed: {names(fixed)}
+            </li>
+          )}
+          {still.length > 0 && (
+            <li className="mixed">
+              <AlertTriangle size={16} /> Still wrong: {names(still)}
+            </li>
+          )}
+          {added.length > 0 && (
+            <li className="bad">
+              <AlertTriangle size={16} /> New problem: {names(added)} —{" "}
+              {FIELD_RISK[added[0]].short.toLowerCase()}
+            </li>
+          )}
+        </ul>
+      </div>
+      <button className="cg-btn small" onClick={onOpen}>
+        Open previous draft
+      </button>
+    </section>
+  );
+}
+
 function QuotedTimeline({ result }: { result: CaseResult }) {
   const history = quotedHistory(result.email.body);
   if (!history.length) return null;
@@ -780,7 +876,10 @@ function ConversationSummary({
         {open.length
           ? `${open.length} of ${rows.length} emails still need action. `
           : "No email in this conversation needs action. "}
-        Latest: <strong>{rowStatus(latest).text}</strong>
+        Latest:{" "}
+        <strong>
+          {displayStatus(latest, plans.get(latest.email.email_id)).text}
+        </strong>
         {latest.email.received_at
           ? ` (${new Date(latest.email.received_at).toLocaleDateString()})`
           : ""}
@@ -812,7 +911,7 @@ function ConversationSummary({
         {rows.map((row) => {
           const current = row.email.email_id === result.email.email_id;
           const plan = plans.get(row.email.email_id);
-          const status = rowStatus(row);
+          const status = displayStatus(row, plan);
           const when = formatReceived(row.email.received_at);
           return (
             <button

@@ -43,12 +43,12 @@ import { useCargoTools } from "./cargo-tools";
 import { requestJson, requestInbox, latencySummary } from "@/lib/client-api";
 import { createRequestGate } from "@/lib/request-gate";
 import { mergeCaseSummaries } from "@/lib/case-state";
-import type { FollowUp } from "@/lib/follow-up";
+import { completionBlocker, type FollowUp } from "@/lib/follow-up";
+import { emailInsight } from "@/lib/mail-intel";
 import type { PolicySnapshot } from "@/lib/policy";
 import type { FollowUpMap, WorkspaceView } from "@/lib/work-queue";
 import { shiftBrief } from "@/lib/operations";
-import { groupThreads } from "@/lib/mail-intel";
-import { planFor } from "@/lib/priority";
+import { planAll, threadsFor } from "@/lib/conversation";
 import { categoryWords } from "@/lib/case-status";
 import {
   CATEGORIES,
@@ -158,6 +158,15 @@ function download(name: string, data: string, type = "application/json") {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 const REVIEWER_KEY = "cg-reviewer-name";
+/** 09:00 on the next working day (Mon–Fri), local time. */
+function nextWorkingMorning(from: Date) {
+  const date = new Date(from);
+  date.setDate(date.getDate() + 1);
+  while (date.getDay() === 0 || date.getDay() === 6)
+    date.setDate(date.getDate() + 1);
+  date.setHours(9, 0, 0, 0);
+  return date;
+}
 function readLocal(key: string) {
   try {
     return localStorage.getItem(key) ?? "";
@@ -388,7 +397,12 @@ export default function Workbench({
                   selectedCaseId.current = id;
                   setSelected(data.result);
                   setCaseEvents(data.audit);
-                  setCaseTab(tabFor(params.get("tab") ?? "compare"));
+                  const wanted = tabFor(params.get("tab") ?? "compare");
+                  setCaseTab(
+                    wanted === "compare" && !data.result.comparison.length
+                      ? "conversation"
+                      : wanted,
+                  );
                 }
               })
               .catch((e) => {
@@ -499,15 +513,10 @@ export default function Workbench({
   }, [autoSync, inboxReady, syncMail]);
 
   // ----- Derived planning data -----
+  const threads = useMemo(() => threadsFor(cases), [cases]);
   const plans = useMemo(
-    () =>
-      new Map(
-        cases.map((row) => [
-          row.email.email_id,
-          planFor(row, followups[row.email.email_id], queueNow),
-        ]),
-      ),
-    [cases, followups, queueNow],
+    () => planAll(cases, followups, queueNow, threads),
+    [cases, followups, queueNow, threads],
   );
   const planned = useMemo(
     () =>
@@ -516,22 +525,6 @@ export default function Workbench({
         plan: plans.get(row.email.email_id)!,
       })),
     [cases, plans],
-  );
-  const threads = useMemo(
-    () =>
-      groupThreads(
-        cases.map((row) => ({
-          id: row.email.email_id,
-          subject: row.email.subject,
-          refs: row.email.insight?.refs,
-          message_id: row.email.message_id,
-          in_reply_to: row.email.in_reply_to,
-          references: row.email.references,
-          thread_hint: row.email.thread_hint,
-          excluded: row.result?.category === "SPAM",
-        })),
-      ),
-    [cases],
   );
   const counts = useMemo(() => {
     const c = {
@@ -560,6 +553,17 @@ export default function Workbench({
     (c) => !c.result || c.result.pipeline_version !== PIPELINE_VERSION,
   ).length;
   const timing = latencySummary(latencies);
+  // New emails are checked automatically — nobody has to press a button to
+  // find out what is in the inbox. Runs once per page load.
+  const autoChecked = useRef(false);
+  useEffect(() => {
+    if (!inboxReady || loading || running || autoChecked.current || !outdated)
+      return;
+    autoChecked.current = true;
+    const timer = setTimeout(() => void processAll(), 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inboxReady, loading, running, outdated]);
   const position = selected ? queueOrder.indexOf(selected.email.email_id) : -1;
   const available = new Set(cases.map((row) => row.email.email_id));
   const nextId =
@@ -616,6 +620,59 @@ export default function Workbench({
         setCaseError(
           `Follow-up saved; the email could not be refreshed. ${(e as Error).message}`,
         );
+    }
+  }
+  /** A reply went out: take the email off "To do" without extra clicks. */
+  async function recordReply(result: CaseResult, how: string) {
+    const id = result.email.email_id;
+    const current = followups[id];
+    const name = (effectiveReviewer || employeeName || "Document desk")
+      .trim()
+      .slice(0, 80);
+    const person = name.length >= 2 ? name : "Document desk";
+    // Answered requests and confirmed matches are finished; everything else
+    // waits for the sender (corrected BL, missing documents, clarification).
+    const finished = !completionBlocker(result);
+    const due = nextWorkingMorning(new Date());
+    const refs = emailInsight(result.email).refs;
+    try {
+      const data = await requestJson<{ followup: FollowUp }>(
+        "/api/follow-ups",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id,
+            case_version: result.version,
+            version: current?.version ?? 0,
+            owner: person,
+            shipment_reference: (refs.shipment[0] ?? refs.po[0] ?? "").slice(
+              0,
+              120,
+            ),
+            due_at: finished ? null : due.toISOString(),
+            state: finished ? "completed" : "waiting",
+            note: finished
+              ? `Reply ${how}. Nothing else is needed.`
+              : `Reply ${how}. Waiting for the sender to answer.`,
+            actor: person,
+          }),
+        },
+      );
+      setFollowups((all) => ({ ...all, [id]: data.followup }));
+      setFollowupFormKey((value) => value + 1);
+      setNotice(
+        finished
+          ? "Reply recorded. This email is now in “Done”."
+          : `Moved to “Waiting for reply”. It comes back to To do as soon as the sender answers, or on ${due.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} at ${due.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} if there is no answer.`,
+      );
+      return true;
+    } catch (e) {
+      setCaseError(
+        `The reply was not recorded: ${(e as Error).message} Use the Follow-up tab instead.`,
+      );
+      void loadFollowups();
+      return false;
     }
   }
   async function reloadFollowupCase(id: string) {
@@ -705,7 +762,10 @@ export default function Workbench({
         setDocument(null);
         setSourceLocation("");
         setCaseEvents(history);
-        setCaseTab(tab);
+        // Nothing to compare (SI request, invoice question…): show the email.
+        setCaseTab(
+          tab === "compare" && !result.comparison.length ? "conversation" : tab,
+        );
       }
     } catch (e) {
       if (activeRequest.current.isCurrent(request)) {
@@ -1182,6 +1242,7 @@ export default function Workbench({
               onOpen={(id, order) => void openCase(id, "compare", order)}
               onImport={openImport}
               onPlan={() => setPlanOpen(true)}
+              checking={running}
               doneTools={
                 inboxReady && counts.verified > 0 ? (
                   <BatchReview
@@ -1482,6 +1543,7 @@ export default function Workbench({
               }}
               onAsk={() => launchAssistant(selected.email.email_id)}
               onUpdated={applyCase}
+              onReplied={(how) => recordReply(selected, how)}
               onNotice={setNotice}
               onError={setCaseError}
               error={caseError}

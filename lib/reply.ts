@@ -64,14 +64,29 @@ export function suggestedIntent(result: CaseResult): ReplyIntent {
   return "acknowledge";
 }
 
-function firstName(name: string) {
-  const first = name.trim().split(/\s+/)[0] ?? "";
-  return /^[A-Za-z][A-Za-z'.-]{1,30}$/.test(first) &&
-    !/^(info|admin|sales|docs|documentation|shipping|operations|noreply|no-reply|hr|exports?|imports?|support|team|cs)$/i.test(
-      first,
+/**
+ * The name to greet. Uses the whole name as written: many colleagues in
+ * Malaysia and Singapore write the family name first ("Teo Ei Leen",
+ * "Lee Guan Cheng"), so "Dear Teo" would be wrong.
+ */
+function greetingName(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (
+    !words.length ||
+    words.length > 4 ||
+    words.some((word) => !/^[A-Za-z][A-Za-z'.-]{0,30}$/.test(word)) ||
+    /^(info|admin|sales|docs|documentation|shipping|operations|noreply|no-reply|hr|exports?|imports?|support|team|cs|mail|administrator)$/i.test(
+      words[0],
     )
-    ? first[0].toUpperCase() + first.slice(1).toLowerCase()
-    : "";
+  )
+    return "";
+  return words
+    .map((word) =>
+      word === word.toUpperCase() || word === word.toLowerCase()
+        ? word[0].toUpperCase() + word.slice(1).toLowerCase()
+        : word,
+    )
+    .join(" ");
 }
 function oneLine(value: string) {
   return value.replace(/\s+/g, " ").trim();
@@ -133,7 +148,7 @@ export function draftReply(
   const intent = options.intent ?? suggestedIntent(result);
   const tone = options.tone ?? "formal";
   const insight = emailInsight(result.email);
-  const name = firstName(insight.sender_name);
+  const name = greetingName(insight.sender_name);
   const greeting =
     tone === "formal"
       ? `Dear ${name || "Sir/Madam"},`
@@ -175,9 +190,9 @@ export function draftReply(
         thanks,
         `We have checked the draft BL${about} against our Shipping Instruction. ${
           listed.length === 1
-            ? "The following detail does not match"
-            : `The following ${listed.length} details do not match`
-        } and need to be corrected:`,
+            ? "The following detail does not match and needs to be corrected:"
+            : `The following ${listed.length} details do not match and need to be corrected:`
+        }`,
         "",
         ...differenceLines(listed, tone),
         ...(direct.length && derived.length

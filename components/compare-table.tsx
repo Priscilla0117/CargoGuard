@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   CircleHelp,
   FileText,
   Loader2,
@@ -10,6 +12,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { previewCorrection } from "@/lib/corrections";
+import { FIELD_RISK } from "@/lib/field-risk";
 import {
   FIELD_LABELS,
   type CaseResult,
@@ -154,6 +157,17 @@ export function CompareTable({
       )
       .map((row) => row.field),
   );
+  // Details that already matched when the case opened are folded away so the
+  // eye goes to the problems. Rows fixed during this visit stay visible.
+  const [initiallyMatching] = useState(
+    () =>
+      new Set(
+        result.comparison
+          .filter((row) => row.result === "match")
+          .map((row) => row.field),
+      ),
+  );
+  const [showMatches, setShowMatches] = useState(false);
   const rows = useMemo(
     () =>
       [
@@ -197,6 +211,17 @@ export function CompareTable({
   }
 
   const problems = rows.filter((row) => row.result !== "match").length;
+  const foldable =
+    initiallyMatching.size < rows.length && initiallyMatching.size > 0;
+  const folded = foldable && !showMatches;
+  const shown = folded
+    ? rows.filter(
+        (row) => !(initiallyMatching.has(row.field) && row.result === "match"),
+      )
+    : rows;
+  const hidden = rows.filter(
+    (row) => initiallyMatching.has(row.field) && row.result === "match",
+  );
   return (
     <section aria-label="Shipping Instruction compared with draft BL">
       <div className="cg-legend" style={{ marginBottom: 10 }}>
@@ -224,7 +249,7 @@ export function CompareTable({
             <small>Document being checked</small>
           </div>
         </div>
-        {rows.map((row) => (
+        {shown.map((row) => (
           <div
             key={row.field}
             role="row"
@@ -411,8 +436,43 @@ export function CompareTable({
                 </div>
               );
             })}
+            {row.result === "mismatch" && (
+              <p className="cg-risk" role="note">
+                <TriangleAlert size={15} aria-hidden="true" />
+                <span>
+                  <strong>If not corrected:</strong>{" "}
+                  {FIELD_RISK[row.field].risk}
+                </span>
+              </p>
+            )}
           </div>
         ))}
+        {foldable && (
+          <button
+            type="button"
+            className="cg-compare-fold"
+            aria-expanded={!folded}
+            onClick={() => setShowMatches(!showMatches)}
+          >
+            <CheckCircle2 size={18} color="var(--cg-green)" />
+            <span>
+              {folded ? (
+                <>
+                  <strong>
+                    {hidden.length} other detail{hidden.length === 1 ? "" : "s"}{" "}
+                    match
+                  </strong>{" "}
+                  ({hidden.map((row) => FIELD_LABELS[row.field]).join(", ")})
+                </>
+              ) : (
+                <strong>Hide the details that match</strong>
+              )}
+            </span>
+            <span className="cg-spacer" />
+            {folded ? "Show them" : "Hide"}
+            {folded ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+          </button>
+        )}
       </div>
       <p className="cg-small cg-muted" style={{ marginTop: 10 }}>
         {problems

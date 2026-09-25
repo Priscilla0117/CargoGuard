@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { formatReceived } from "./inbox-view";
 import { operationsSnapshot } from "@/lib/operations";
+import { senderScores } from "@/lib/sender-insights";
 import {
   FIELDS,
   FIELD_LABELS,
@@ -216,6 +217,7 @@ export function ReportsOverview({
               ))}
             </ul>
           </section>
+          <SenderQuality cases={cases} />
           <section className="cg-card cg-card-pad" aria-label="Other emails">
             <h2>Other emails</h2>
             <dl className="cg-report-other">
@@ -238,5 +240,45 @@ export function ReportsOverview({
         </aside>
       </div>
     </div>
+  );
+}
+
+/** Which companies send drafts with mistakes — something to raise with them. */
+function SenderQuality({ cases }: { cases: CaseSummary[] }) {
+  const scores = useMemo(
+    () => senderScores(cases).filter((score) => score.with_errors > 0),
+    [cases],
+  );
+  if (!scores.length) return null;
+  return (
+    <section
+      className="cg-card cg-card-pad"
+      aria-label="Who sends drafts with mistakes"
+    >
+      <h2>Who sends drafts with mistakes</h2>
+      <p className="cg-small cg-muted" style={{ marginTop: 0 }}>
+        Per sending company. Use it to ask a forwarder or carrier to check
+        before they send.
+      </p>
+      <ol className="cg-senders">
+        {scores.slice(0, 6).map((score) => (
+          <li key={score.company}>
+            <span>
+              <strong>{score.company}</strong>
+              <small>
+                {score.with_errors} of {score.checked} drafts wrong
+                {score.top[0]
+                  ? ` · most often ${score.top[0].label.toLowerCase()}`
+                  : ""}
+                {score.checked < 5 ? " · few emails so far" : ""}
+              </small>
+            </span>
+            <b className={score.rate >= 0.5 ? "bad" : ""}>
+              {Math.round(score.rate * 100)}%
+            </b>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }

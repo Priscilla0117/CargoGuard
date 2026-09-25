@@ -3,7 +3,7 @@ import { errorSession, requireCapability } from "@/lib/auth";
 import { HttpError, readJson } from "@/lib/http";
 import { askCopilotAi } from "@/lib/copilot-ai";
 import { listFollowUps } from "@/lib/follow-up-storage";
-import { planFor } from "@/lib/priority";
+import { planAll } from "@/lib/conversation";
 import { replyAiConfig } from "@/lib/reply-ai";
 import { listCaseSummaries, requireMutation, respond } from "@/lib/storage";
 
@@ -59,11 +59,15 @@ export async function POST(request: Request) {
       listCaseSummaries(session.id),
       listFollowUps(session.id),
     ]);
-    const byId = new Map(followups.map((item) => [item.email_id, item]));
     const now = Date.now();
+    const plans = planAll(
+      cases,
+      Object.fromEntries(followups.map((item) => [item.email_id, item])),
+      now,
+    );
     const rows = cases.map((row) => ({
       row,
-      plan: planFor(row, byId.get(row.email.email_id), now),
+      plan: plans.get(row.email.email_id)!,
     }));
     return respond(
       await askCopilotAi(input.question, rows, new Date(now)),
