@@ -41,7 +41,7 @@ Validated locally on 25 September 2026:
 | Check | Result |
 | --- | --- |
 | Type checks and lint | Passed |
-| Automated regression suite | 648 passed, 0 failed or skipped |
+| Automated regression suite | 649 passed, 0 failed or skipped |
 | Production build and local OCR assets | Passed |
 | Original organiser corpus and independent scoring script | 520/520 exact output agreement; 46/46 defect cases and 20/20 required reviews; 0 observed false clearances on this corpus |
 | Organiser input integrity | 520 emails and 250 documents unchanged |
@@ -49,7 +49,7 @@ Validated locally on 25 September 2026:
 | Employee correction/request/replacement HTTP journey | 24 checks passed |
 | Explicit document-selection HTTP journey | 28 checks passed |
 | Revision history and source isolation HTTP journey | 15 checks passed |
-| Browser review | Inbox, compact comparison, prefilled correction proposal, source excerpt, unsupported-edit preview, reply and follow-up screens inspected |
+| Browser review | Inbox, compact comparison, desktop/mobile prefilled correction proposal, source excerpt, unsupported-edit preview, reply and follow-up screens inspected |
 
 Organiser scoring and authored regression fixtures are development evidence, not independently labelled unseen production accuracy. Provider tests use simulated services; the checks above do not establish live-mailbox compatibility, production capacity or zero defects.
 

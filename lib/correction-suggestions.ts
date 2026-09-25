@@ -1,6 +1,6 @@
 import { extract } from "./compare";
 import { comparisonDocuments } from "./document-selection";
-import { equivalent } from "./normalization";
+import { equivalent, sameAsConsignee } from "./normalization";
 import { sourceBoundCorrection } from "./source-corrections";
 import {
   PIPELINE_VERSION,
@@ -107,8 +107,15 @@ export function blAmendmentSuggestion(
   const { row, si, bl } = sources;
   const literal = (value: string) =>
     value.replace(/\s+/g, " ").trim().toUpperCase();
-  // "SAME AS CONSIGNEE" needs the referenced consignee fixed, not its wording.
-  if (literal(row.si.raw) === literal(row.bl.raw)) return null;
+  // Equivalent references to the consignee need that party fixed, not the
+  // wording of the reference (for example "SAME AS" versus "AS PER").
+  if (
+    literal(row.si.raw) === literal(row.bl.raw) ||
+    (field === "notify_party" &&
+      sameAsConsignee(row.si.raw) &&
+      sameAsConsignee(row.bl.raw))
+  )
+    return null;
   if (!supportedValue(si, field, row.si) || !supportedValue(bl, field, row.bl))
     return null;
   return {

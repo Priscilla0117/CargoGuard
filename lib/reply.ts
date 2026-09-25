@@ -1,6 +1,7 @@
 import { emailInsight, extractReferences } from "./mail-intel";
 import { FIELD_LABELS, type CaseResult, type ComparisonRow } from "./types";
 import { finishBlocker } from "./follow-up";
+import { sameAsConsignee } from "./normalization";
 
 /**
  * Grounded reply drafts. Every fact in a draft comes from the saved case:
@@ -188,10 +189,14 @@ export function draftReply(
 
   switch (intent) {
     case "request_correction": {
-      // "SAME AS CONSIGNEE" on both sides differs only because the consignee
-      // differs: explain it once instead of asking to change identical text.
+      // Equivalent references to the consignee differ only because that party
+      // differs. Explain the dependency without requesting a wording change.
       const same = (row: ComparisonRow) =>
-        oneLine(row.si.raw).toUpperCase() === oneLine(row.bl.raw).toUpperCase();
+        oneLine(row.si.raw).toUpperCase() ===
+          oneLine(row.bl.raw).toUpperCase() ||
+        (row.field === "notify_party" &&
+          sameAsConsignee(row.si.raw) &&
+          sameAsConsignee(row.bl.raw));
       const direct = mismatches.filter((row) => !same(row));
       const derived = mismatches.filter(same);
       const listed = direct.length ? direct : mismatches;
