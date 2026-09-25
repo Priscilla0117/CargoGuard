@@ -5,6 +5,8 @@ import { askCopilotAi } from "@/lib/copilot-ai";
 import { listFollowUps } from "@/lib/follow-up-storage";
 import { planAll } from "@/lib/conversation";
 import { replyAiConfig } from "@/lib/reply-ai";
+import { questionPlanAvailable } from "@/lib/question-plan-ai";
+import { sensitiveFindings, sensitiveMessage } from "@/lib/assistant-privacy";
 import { listCaseSummaries, requireMutation, respond } from "@/lib/storage";
 
 const windowMs = 60 * 60 * 1000;
@@ -26,7 +28,11 @@ export async function GET(request: Request) {
     session = await requireCapability(request, "read");
     const config = replyAiConfig();
     return respond(
-      { available: config.available, label: config.label },
+      {
+        available: config.available,
+        label: config.label,
+        understand: questionPlanAvailable(),
+      },
       session,
     );
   } catch (error) {
@@ -50,6 +56,9 @@ export async function POST(request: Request) {
       })
       .strict()
       .parse(await readJson(request, 16 * 1024));
+    const secrets = sensitiveFindings(input.question);
+    if (secrets.length)
+      throw new HttpError(sensitiveMessage(secrets, "server"), 422);
     if (!allow(session.id))
       throw new HttpError(
         "AI answers are limited to 40 per hour. The instant answers still work.",

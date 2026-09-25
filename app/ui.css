@@ -4712,3 +4712,68 @@ p.cg-copilot-ai {
   .cg-proposal-dialog .cg-dialog-head { flex-direction: column; align-items: stretch; }
   .cg-proposal-dialog .cg-dialog-head > button { order: -1; align-self: flex-end; }
 }
+
+/* Ask CargoGuard: AI reads only the question; the answer comes from saved emails. */
+.cg-copilot-understanding {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0 0;
+  font-size: var(--fs-sm, 13px);
+  line-height: 1.5;
+  color: var(--cg-muted);
+}
+.cg-copilot-understanding svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.cg-copilot-understood {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--cg-blue-bg);
+  border: 1px solid var(--cg-blue-line);
+  font-size: var(--fs-xs, 12px);
+  line-height: 1.5;
+  color: var(--cg-ink);
+}
+.cg-copilot-understood > svg {
+  flex-shrink: 0;
+  color: var(--cg-blue);
+}
+.cg-copilot-understood > span {
+  flex: 1 1 220px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.cg-copilot-understood.error {
+  margin: 10px 0 0;
+  background: var(--cg-amber-bg);
+  border-color: var(--cg-amber-line);
+  color: var(--cg-amber);
+}
+.cg-copilot-reread {
+  margin-top: 8px;
+}
+.cg-copilot-privacy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 8px 2px 0;
+  font-size: var(--fs-xs, 12px);
+  line-height: 1.5;
+  color: var(--cg-faint);
+}
+.cg-copilot-privacy > svg {
+  flex-shrink: 0;
+  color: var(--cg-brand);
+}
+.cg-copilot-privacy > span {
+  flex: 1 1 220px;
+  min-width: 0;
+}
