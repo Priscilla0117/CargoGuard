@@ -19,10 +19,7 @@ import {
 } from "../lib/question-plan-ai";
 import { answerPlan } from "../lib/question-plan-run";
 import { POST as understandRoute } from "../app/api/copilot/understand/route";
-import {
-  GET as copilotGet,
-  POST as copilotPost,
-} from "../app/api/copilot/route";
+import * as copilotRoute from "../app/api/copilot/route";
 import { summaryOf, type Email } from "../lib/types";
 
 const NOW = Date.parse("2026-09-21T04:00:00Z");
@@ -508,7 +505,7 @@ test("the understand API checks origin, input and secrets, caches, and limits us
     });
     assert.equal(off.status, 503);
     const status = await json(
-      await copilotGet(
+      await copilotRoute.GET(
         new Request("https://cargo.example/api/copilot", {
           headers: { Cookie: `cargo_workspace=${workspace}` },
         }),
@@ -518,7 +515,7 @@ test("the understand API checks origin, input and secrets, caches, and limits us
 
     Object.assign(process.env, AI_ENV);
     const on = await json(
-      await copilotGet(
+      await copilotRoute.GET(
         new Request("https://cargo.example/api/copilot", {
           headers: { Cookie: `cargo_workspace=${workspace}` },
         }),
@@ -557,11 +554,8 @@ test("the understand API checks origin, input and secrets, caches, and limits us
     });
     assert.equal(secret.status, 422);
     assert.match((await json(secret)).error ?? "", /nothing was sent to AI/);
-    const advice = await post(copilotPost, "/api/copilot", {
-      question: "card 4111 1111 1111 1111 what next?",
-      consent: true,
-    });
-    assert.equal(advice.status, 422);
+    // The old "advice" mode that sent the inbox list to AI no longer exists.
+    assert.ok(!("POST" in copilotRoute));
     assert.equal(calls, 0);
 
     const first = await post(understandRoute, "/api/copilot/understand", {
