@@ -1,6 +1,6 @@
-# CargoGuard 3.3.1 deployment and recovery
+# CargoGuard 3.5.0 deployment and recovery
 
-This release runs as a standard Next.js Node server with a persistent SQLite/libSQL database. The source branch is `codex/final-round-employee-workflow`. A branch push does not deploy it: Render automatic deployment is disabled. Historical hosted evidence in [CLOUD_RELEASE.md](CLOUD_RELEASE.md) applies to the earlier release described there, not to this branch. Verify the intended engine version and actual HTTPS workflow before calling a new deployment accepted.
+This release runs as a standard Next.js Node server with a persistent SQLite/libSQL database. The source branch is `codex/document-trust-and-mail-worker`, engine **3.5.0**. See the [current release notes](DOCUMENT_TRUST_RELEASE.md) for document-review changes and background mailbox intake. A branch push does not deploy it: Render automatic deployment is disabled. Historical hosted evidence in [CLOUD_RELEASE.md](CLOUD_RELEASE.md) applies to the earlier release described there, not to this branch. Verify the intended engine version and actual HTTPS workflow before calling a new deployment accepted.
 
 ## Reproduce the release
 
@@ -47,6 +47,12 @@ A new team refuses startup without a bootstrap secret. An initialized team resta
 
 The supplied `render.yaml` defines a Node service, team mode, samples disabled, the exact build/start commands and `autoDeployTrigger: off`. Use the requested feature branch. It retains the existing service name; do not create a duplicate resource for an already configured service. A new Blueprint prompts for the database token and bootstrap secret. **For an existing Blueprint, Render does not apply newly added `sync: false` secrets automatically**: add them in the dashboard before deploying. Set the exact public origin when using a custom domain. Official reference: [Render Blueprint specification](https://render.com/docs/blueprint-spec).
 
+### Background mailbox intake
+
+For connected team accounts, set `CARGO_MAIL_WORKER_ENABLED=true` and configure `CARGO_MAIL_TOKEN_KEY` plus the selected mailbox provider using [Gmail setup](GMAIL_SETUP.md). Each account must have **Automatic import** enabled. `npm start` applies migrations through `0014_mail_worker.sql` and supervises the website and intake worker together. The Render template includes the worker flag; mailbox credentials still require configuration.
+
+The worker continues after browser closure or sign-out, imports only, and never drafts or sends messages. Disabling Automatic import, disconnecting the mailbox or revoking membership stops further intake. Without the worker enabled, or in demo mode, automatic checks require the Inbox to remain open. Continuous intake requires an always-on Node host; a sleeping or stopped service cannot poll. Validate real mailbox import, duplicate handling, interruptions and restarts on the intended installation before a pilot.
+
 Render's local filesystem is ephemeral and the runtime rejects local-database configuration there. The supplied free compute plan is for demonstration/pilot validation; choose the company's approved hosting, capacity and availability arrangement before operational reliance. This repository does not enroll a service, accept a paid plan or deploy on your behalf. Review current [Render free-service limitations](https://render.com/docs/free) and account/database quotas directly before an event.
 
 ## Health and hosted acceptance
@@ -56,10 +62,11 @@ Use `/api/live` for the host's process health check. It reports `alive` without 
 Before accepting a new HTTPS deployment:
 
 1. Back up the existing database using the provider's supported procedure and verify a restore to an isolated database. Retain the previous release identifier. Review migrations before applying them; they are transactional per file, and startup never resets stored data.
-2. Confirm `/api/live` and `/api/health` return the intended engine, **3.3.1**. Sign-out must block inbox, document, shipment and export APIs. Inspect the real HTTPS session cookie for `Secure`, `HttpOnly` and `SameSite=Strict`.
+2. Confirm `/api/live` and `/api/health` return the intended engine, **3.5.0**. Sign-out must block authenticated employee access to inbox, document, shipment and export APIs; an authorised background mailbox worker remains independent of the browser session. Inspect the real HTTPS session cookie for `Secure`, `HttpOnly` and `SameSite=Strict`.
 3. With synthetic data and named test accounts, import a document pair, resolve an exception as reviewer, save a shipment/follow-up, download original bytes, inspect revisions and export reviewed evidence. An operator must not approve reviews or edit membership; cross-origin writes must fail.
 4. Restart/redeploy the service, then verify the same accounts see the exact saved versions, source bytes, audit history and notes. Verify after the host's idle wake too, if applicable. Revoke a test account and confirm its existing session is rejected.
 5. Verify PDF/DOCX/XLSX/TXT parsing, browser OCR assets, bounded uploads, quota errors and user-visible failures on the actual host. Measure cloud latency and memory with expected users; local test timings are not cloud capacity evidence.
+6. Recheck saved cases with engine 3.5.0 before completion. Older scan confirmations without page-coverage evidence must not clear the new PDF review requirements. Verify that flagged pages require acknowledgement, confirmed fields retain their sources, and unresolved coverage blocks completion.
 
 Anonymous organiser API suites (`test-api`, `test-hardening`, `test-governance`, `test-release-api`) are for a **separate demo-mode synthetic deployment**. Do not weaken a team service to make those suites pass. Never run QA that writes synthetic records against a live employee database without a defined test workspace and authorization.
 
