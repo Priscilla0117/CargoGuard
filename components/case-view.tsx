@@ -184,6 +184,9 @@ export interface CaseViewProps {
 export function CaseView(props: CaseViewProps) {
   const { result, tab, onTab, plans, thread, cases, busy, running } = props;
   const [menu, setMenu] = useState(false);
+  const [correctionReplyFor, setCorrectionReplyFor] = useState<string | null>(
+    null,
+  );
   // "Mark as handled" pre-fills the follow-up once, for this email only.
   const [markDoneFor, setMarkDoneFor] = useState<string | null>(null);
   const markDone = markDoneFor === result.email.email_id;
@@ -557,6 +560,12 @@ export function CaseView(props: CaseViewProps) {
                     : undefined
                 }
                 onSource={props.onSource}
+                onRequestCorrection={() => {
+                  setCorrectionReplyFor(
+                    `${result.email.email_id}:${result.version}`,
+                  );
+                  go("reply");
+                }}
               />
             ) : (
               <div className="cg-card cg-card-pad">
@@ -603,6 +612,12 @@ export function CaseView(props: CaseViewProps) {
             result={result}
             mailbox={props.mailbox}
             defaultName={props.defaultSignature}
+            initialIntent={
+              correctionReplyFor ===
+              `${result.email.email_id}:${result.version}`
+                ? "request_correction"
+                : undefined
+            }
             onDone={props.onNotice}
             onError={props.onError}
             onReplied={props.onReplied}

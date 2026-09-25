@@ -75,6 +75,7 @@ export function ReplyComposer({
   onReplied,
   onFollowUpRecorded,
   status,
+  initialIntent,
 }: {
   result: CaseResult;
   mailbox: MailboxState | null;
@@ -86,9 +87,10 @@ export function ReplyComposer({
   onFollowUpRecorded?: () => void;
   /** Where the email is now: "todo", "waiting", "done" or "other". */
   status?: string;
+  initialIntent?: ReplyIntent;
 }) {
   const suggested = suggestedIntent(result);
-  const [intent, setIntent] = useState<ReplyIntent>(suggested);
+  const [intent, setIntent] = useState<ReplyIntent>(initialIntent ?? suggested);
   const [tone, setTone] = useState<ReplyTone>("formal");
   const [signature, setSignature] = useState(
     () => readSignature() || defaultName,
@@ -115,7 +117,7 @@ export function ReplyComposer({
   const [askSent, setAskSent] = useState("");
   const [sentForSure, setSentForSure] = useState(false);
   const [trackResponse, setTrackResponse] = useState(() =>
-    replyNeedsResponse(suggested),
+    replyNeedsResponse(initialIntent ?? suggested),
   );
   const [deliveryNote, setDeliveryNote] = useState("");
   const [unresolvedSend, setUnresolvedSend] = useState(false);

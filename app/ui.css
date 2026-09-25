@@ -4695,3 +4695,15 @@ p.cg-copilot-ai {
 .cg-delivery-recovery p { margin: 0 0 10px; line-height: 1.5; }
 .cg-delivery-recovery .cg-composer-actions { padding: 8px 0 0; }
 .cg-value-tools button { min-height: 34px; }
+.cg-proposal-dialog { width: min(780px, calc(100vw - 32px)); max-width: 780px; max-height: calc(100dvh - 32px); overflow-y: auto; }
+.cg-proposal-body { display: grid; gap: 16px; padding: 0 24px 24px; min-width: 0; }
+.cg-proposal-body > p { margin: 0; line-height: 1.6; }
+.cg-proposal-values { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; min-width: 0; }
+.cg-proposal-values section { min-width: 0; padding: 16px; border: 1px solid var(--cg-border); border-radius: 10px; background: var(--cg-bg); }
+.cg-proposal-values h3, .cg-proposal-reading h3 { margin: 0 0 8px; font-size: 16px; }
+.cg-proposal-values p { margin: 0 0 12px; font-size: 18px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cg-proposal-values a { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; overflow-wrap: anywhere; }
+.cg-proposal-values .cg-proposal-suggested { border-color: #639f96; background: #f0f8f6; }
+.cg-proposal-reading { padding-top: 16px; border-top: 1px solid var(--cg-border); }
+.cg-proposal-reading p { margin: 0 0 10px; line-height: 1.5; }
+@media (max-width: 600px) { .cg-proposal-values { grid-template-columns: 1fr; } .cg-proposal-body { padding: 0 16px 16px; } }
