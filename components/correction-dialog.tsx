@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { previewCorrection } from "@/lib/corrections";
 import { evidenceHasLocation } from "@/lib/source-location";
 import { revisionSourceUrl } from "@/lib/revision-diff";
+import { readingSuggestion } from "@/lib/correction-suggestions";
 import {
   FIELD_LABELS,
   type CaseResult,
@@ -70,12 +71,14 @@ export function CorrectionDialog({
   onCancel,
   onSave,
   onSaveNext,
+  onReadingHelp,
 }: {
   result: CaseResult;
   edit: FieldEdit;
   reviewerName: string;
   onReviewerName: (name: string) => void;
   onCancel: () => void;
+  onReadingHelp?: () => void;
   onSave: (edit: FieldEdit, actor: string, reason: string) => Promise<boolean>;
   /** Save and open the next email in the list (when there is one). */
   onSaveNext?: (
@@ -99,8 +102,15 @@ export function CorrectionDialog({
     sourceIndex >= 0
       ? source!.lines.slice(Math.max(0, sourceIndex - 1), sourceIndex + 3)
       : [];
-  const [value, setValue] = useState(edit.value);
-  const [reason, setReason] = useState("");
+  const [suggestion] = useState(() =>
+    readingSuggestion(result, edit.field, edit.side),
+  );
+  const [value, setValue] = useState(() => suggestion?.value ?? edit.value);
+  const [reason, setReason] = useState(() =>
+    suggestion
+      ? "Restored the suggested field reading from the original source after review."
+      : "",
+  );
   const [sourceChecked, setSourceChecked] = useState(false);
   const [saving, setSaving] = useState<"" | "save" | "next">("");
   const [error, setError] = useState("");
@@ -234,6 +244,27 @@ export function CorrectionDialog({
                 Open original in a new tab
               </a>
             )}
+            {suggestion && (
+              <p className="cg-notice" role="status">
+                A reading from the original {sideName} is filled in below.
+                Review it against the source, then confirm and save.
+              </p>
+            )}
+            {!suggestion && onReadingHelp && (
+              <p className="cg-small cg-muted">
+                No different, supported reading is available from this source
+                yet.{" "}
+                <button
+                  type="button"
+                  className="cg-btn small"
+                  onClick={onReadingHelp}
+                >
+                  Review document &amp; reading help
+                </button>{" "}
+                Use OCR or recovery there when available, or enter what you can
+                confirm in the original.
+              </p>
+            )}
             <label className="cg-field">
               Value shown in the original
               <textarea
@@ -245,8 +276,9 @@ export function CorrectionDialog({
                 onChange={(e) => setValue(e.target.value)}
               />
               <small className="cg-muted">
-                Type exactly what the original document shows — not what it
-                should say.
+                {suggestion
+                  ? "Review the suggested reading. Edit it only if the original shows something else."
+                  : "Enter what the original document shows. The SI's expected value belongs in a correction request when the BL itself is wrong."}
               </small>
             </label>
             <label className="cg-check">

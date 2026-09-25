@@ -11,8 +11,15 @@ import {
   UserCheck,
 } from "lucide-react";
 import { CorrectionDialog, type FieldEdit } from "./correction-dialog";
+import { BLCorrectionDialog } from "./bl-correction-dialog";
+import { blAmendmentSuggestion } from "@/lib/correction-suggestions";
 import { FIELD_RISK } from "@/lib/field-risk";
-import { FIELD_LABELS, type CaseResult, type ComparisonRow } from "@/lib/types";
+import {
+  FIELD_LABELS,
+  type CaseResult,
+  type ComparisonRow,
+  type Field,
+} from "@/lib/types";
 
 export type { FieldEdit };
 
@@ -116,6 +123,7 @@ export function CompareTable({
   onSaveNext,
   onSource,
   onReviewerName,
+  onRequestCorrection,
 }: {
   result: CaseResult;
   reviewerName: string;
@@ -129,8 +137,19 @@ export function CompareTable({
   ) => Promise<boolean>;
   onSource: (source: string, location: string) => void;
   onReviewerName: (name: string) => void;
+  onRequestCorrection?: () => void;
 }) {
   const [editing, setEditing] = useState<FieldEdit | null>(null);
+  const [amendField, setAmendField] = useState<Field | null>(null);
+  const proposals = useMemo(
+    () =>
+      new Set(
+        result.comparison
+          .filter((row) => blAmendmentSuggestion(result, row.field))
+          .map((row) => row.field),
+      ),
+    [result],
+  );
   const [flash, setFlash] = useState<string>("");
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -298,15 +317,28 @@ export function CompareTable({
                         <button
                           type="button"
                           onClick={() => {
+                            if (
+                              side === "bl" &&
+                              proposals.has(row.field) &&
+                              onRequestCorrection
+                            ) {
+                              setAmendField(row.field);
+                              return;
+                            }
                             setEditing({
                               field: row.field,
                               side,
                               value: value.raw,
                             });
                           }}
-                          aria-label={`Correct reading of ${FIELD_LABELS[row.field]} in the ${side === "si" ? "SI" : "draft BL"}`}
+                          aria-label={`${side === "bl" && proposals.has(row.field) && onRequestCorrection ? "Review correction" : "Correct reading"} of ${FIELD_LABELS[row.field]} in the ${side === "si" ? "SI" : "draft BL"}`}
                         >
-                          <Pencil size={14} /> Correct reading
+                          <Pencil size={14} />{" "}
+                          {side === "bl" &&
+                          proposals.has(row.field) &&
+                          onRequestCorrection
+                            ? "Review correction"
+                            : "Correct reading"}
                         </button>
                       )}
                       {value.source && (
@@ -363,14 +395,42 @@ export function CompareTable({
           </button>
         )}
       </div>
+      {amendField && onRequestCorrection && (
+        <BLCorrectionDialog
+          result={result}
+          field={amendField}
+          onClose={() => setAmendField(null)}
+          onReading={() => {
+            const row = result.comparison.find(
+              (item) => item.field === amendField,
+            );
+            if (row)
+              setEditing({ field: amendField, side: "bl", value: row.bl.raw });
+            setAmendField(null);
+          }}
+          onRequest={() => {
+            setAmendField(null);
+            onRequestCorrection();
+          }}
+        />
+      )}
       {editing && (
         <CorrectionDialog
-          key={`${editing.field}-${editing.side}`}
+          key={`${result.version}-${editing.field}-${editing.side}`}
           result={result}
           edit={editing}
           reviewerName={reviewerName}
           onReviewerName={onReviewerName}
           onCancel={() => setEditing(null)}
+          onReadingHelp={() => {
+            const source = result.comparison.find(
+              (row) => row.field === editing.field,
+            )?.[editing.side];
+            if (source?.source) {
+              setEditing(null);
+              onSource(source.source, source.evidence);
+            }
+          }}
           onSave={(edit, actor, reason) => save(edit, actor, reason, false)}
           onSaveNext={
             onSaveNext
