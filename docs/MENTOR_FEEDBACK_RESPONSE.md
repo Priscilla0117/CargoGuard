@@ -215,6 +215,29 @@ CargoGuard now does for them.
 
 Tests: `tests/mentor-round2.test.ts`.
 
+## Round 6 — independent review fixes
+
+A second reviewer tested edge cases. Each finding was reproduced before it
+was fixed; tests are in `tests/review-round3.test.ts`.
+
+| Finding | Fix |
+| --- | --- |
+| Two unrelated emails with the same subject ("Draft BL for review") could close each other's open problem | A same subject only groups emails in the list. Closing or comparing drafts needs proof: the same order number or BL/booking number, reply headers, or the same Gmail thread (`sameShipment` in `lib/conversation.ts`). |
+| Replying with "we are checking" could move an invoice question to Done | After any reply the employee chooses **Waiting for their answer**, **Still working on it** (stays in To do with a reminder) or **Finished**. The suggestion follows the reply type; *Finished* is disabled, with the reason, while differences, missing documents or a safety finding are open. |
+| Batch completion accepted general emails; individual completion ignored the extra safety checks | Batch completion requires a complete, matching SI/BL check. Completing a check with an open safety finding (container number check digit, weights) requires the person to tick that they looked; the server enforces it and records it. Such emails stay in To do (*Extra check needed*) instead of silently going to Done. |
+| HS codes and BL numbers were read as container numbers | "HS CODE 48025700" and labelled BL numbers such as "B/L No.: SINF93802620" are no longer reported (6 of 68 matching organiser checks still show a real container-number finding, down from 17). |
+| Gmail/IMAP import could miss older mail once the first page was already imported | Import walks page by page until it has the new emails it needs, and says *more emails waiting* when there is a backlog. |
+| Revision history said "pair unchanged" after a BL replacement | The compared files are identified by content fingerprint, and changes in the extra safety checks are shown separately. |
+| Order timeline claimed "SI sent" / "Carrier corrected the BL" | Wording now states the evidence: *Draft BL received, so the SI was used*, *A newer draft matches the SI*. |
+| Automatic orders and tracked shipments were two separate worlds | **Track this order** turns an automatic order into a tracked shipment with all its emails linked, for owner, confirmed deadlines and amendments. |
+
+Also added: **Write reply with AI** (with an OpenAI key). The AI writes the
+reply from the incoming email and the checked values; CargoGuard rejects its
+text if any checked value is lost **or** if it adds a number, date, time,
+address or link that is not in the email or the documents. **Ask
+CargoGuard** now explains an order's progress and what the newest draft
+fixed, and answers *Who sends drafts with mistakes?*
+
 ## How to demo in five minutes
 
 1. Inbox → *Import email* → **Load 28 practice emails**.

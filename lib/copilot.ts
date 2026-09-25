@@ -6,8 +6,12 @@ import {
   type Plan,
   type TodoReason,
 } from "./priority";
-import { rowStatus, type StatusTone } from "./case-status";
-import { FIELD_LABELS, type CaseSummary, type Field } from "./types";
+import { displayStatus, type StatusTone } from "./case-status";
+import { orderFrom } from "./orders";
+import { senderScores } from "./sender-insights";
+import { byImpact } from "./field-risk";
+import { FIELDS, FIELD_LABELS, type CaseSummary, type Field } from "./types";
+import { GLOSSARY, glossaryAnswer } from "./shipping-glossary";
 
 /**
  * Ask CargoGuard — workspace planning copilot.
@@ -28,6 +32,8 @@ export interface CopilotItem {
   /** The reasons already say when it is due; show the date only on hover. */
   deadline_in_why: boolean;
   level: Plan["level"];
+  /** One-click next steps offered beside "Open". */
+  actions: ("reply" | "documents")[];
 }
 export interface CopilotAnswer {
   intent:
@@ -39,6 +45,11 @@ export interface CopilotAnswer {
     | "reason"
     | "summary"
     | "sender"
+    | "quality"
+    | "lookup"
+    | "draft"
+    | "explain"
+    | "handover"
     | "help"
     | "search"
     | "none";
@@ -48,6 +59,12 @@ export interface CopilotAnswer {
   more: number;
   facts: { label: string; value: string }[];
   suggestions: string[];
+  /** Load one email's documents: show SI/BL values, or a reply draft. */
+  fetch?: { id: string; mode: "fields" | "reply"; fields: Field[] };
+  /** Ready-to-paste text (handover). */
+  copy?: string;
+  /** Extra advice shown under the answer. */
+  tip?: string;
 }
 
 export const COPILOT_STARTERS = [
@@ -57,7 +74,90 @@ export const COPILOT_STARTERS = [
   "Show open POs",
   "Summarise my inbox",
   "Which documents do not match?",
+  "Who sends drafts with mistakes?",
+  "Write my end-of-day handover",
+  "How do I check a draft BL?",
 ];
+
+/** Starter questions in groups, with real order numbers from the inbox. */
+export function copilotStarterGroups(rows: Planned[]) {
+  const orderOf = (row: CaseSummary) => row.email.insight?.refs.shipment[0];
+  const mismatch = rows
+    .filter(
+      ({ row, plan }) =>
+        plan.bucket === "todo" &&
+        row.result?.workflow === "discrepancy" &&
+        orderOf(row),
+    )
+    .sort(byPriority)[0];
+  const checked = rows.find(
+    ({ row }) =>
+      row.result?.category === "BL_COMPARISON" &&
+      (row.result.workflow === "verified" ||
+        row.result.workflow === "discrepancy") &&
+      orderOf(row),
+  );
+  const lookupRef = orderOf((mismatch ?? checked)?.row ?? rows[0]?.row);
+  return [
+    {
+      label: "Plan my day",
+      items: [
+        "What should I do first today?",
+        "What is due this week?",
+        "Which emails am I waiting on?",
+      ],
+    },
+    {
+      label: "Check documents",
+      items: [
+        ...(lookupRef ? [`What do the SI and BL say for ${lookupRef}?`] : []),
+        ...(mismatch
+          ? [`Write the correction email for ${orderOf(mismatch.row)}`]
+          : []),
+        "Which documents do not match?",
+      ],
+    },
+    {
+      label: "Team",
+      items: [
+        "Write my end-of-day handover",
+        "Who sends drafts with mistakes?",
+        "Show open POs",
+      ],
+    },
+    {
+      label: "Learn",
+      items: [
+        "How do I check a draft BL?",
+        "What is a notify party?",
+        "What is VGM?",
+      ],
+    },
+  ];
+}
+
+const FIELD_WORDS: [RegExp, Field[]][] = [
+  [/\bshipper\b/, ["shipper"]],
+  [/\bconsignee\b/, ["consignee"]],
+  [/\bnotify/, ["notify_party"]],
+  [
+    /\bport of loading\b|\bpol\b|\bloading port\b|\borigin port\b/,
+    ["port_of_loading"],
+  ],
+  [
+    /\bport of discharge\b|\bpod\b|\bdischarge port\b|\bdestination\b/,
+    ["port_of_discharge"],
+  ],
+  [/\bports\b/, ["port_of_loading", "port_of_discharge"]],
+  [/\bcontainers?\b|\bboxes\b/, ["container_count"]],
+  [/\bweights?\b|\bkgs?\b|\btonnes?\b|\bmt\b/, ["gross_weight_kg"]],
+];
+function fieldsIn(q: string): Field[] {
+  const found = new Set<Field>();
+  for (const [pattern, fields] of FIELD_WORDS)
+    if (pattern.test(q)) for (const field of fields) found.add(field);
+  return FIELDS.filter((field) => found.has(field));
+}
 
 const DAY = 86400000;
 /** "2026-09-25" -> "Fri 25 Sep" (easier to read than ISO dates). */
@@ -71,7 +171,7 @@ export function friendlyDate(value: string) {
   });
 }
 function item({ row, plan }: Planned): CopilotItem {
-  const status = rowStatus(row);
+  const status = displayStatus(row, plan);
   const dateInReasons = plan.reasons.some((reason) =>
     /due|cut-off|etd|eta|payment|deadline|overdue|follow-up/i.test(reason),
   );
@@ -87,6 +187,17 @@ function item({ row, plan }: Planned): CopilotItem {
         : null,
     deadline_in_why: dateInReasons,
     level: plan.level,
+    actions: [
+      ...(plan.bucket === "todo" &&
+      !!row.result &&
+      row.result.category !== "SPAM" &&
+      plan.reason !== "unprocessed"
+        ? (["reply"] as const)
+        : []),
+      ...(row.result && row.email.attachments.length
+        ? (["documents"] as const)
+        : []),
+    ],
   };
 }
 function list(rows: Planned[], limit = 6) {
@@ -193,12 +304,15 @@ export function copilotAnswer(
       suggestions: [],
     };
 
-  if (/^(help|hi|hello|what can you do|how (?:can|do) (?:you|i)).*/.test(q))
+  if (
+    /^(help|hi|hello|what can you do|how (?:can|do) (?:you|i)).*/.test(q) &&
+    !glossaryAnswer(q)
+  )
     return {
       ...base,
       intent: "help",
       title: "I help you plan and find things",
-      text: "Ask me in your own words. For example: what to do first, what is due today or this week, everything about an order number such as 5RFR-36541, a PO or invoice number, which customers you are waiting on, or which documents do not match. I only use the emails in CargoGuard and show you the emails behind every answer.",
+      text: "Ask me in your own words. For example: what to do first, what is due this week, everything about an order number such as 5RFR-36541, what the SI or BL says for an order, a correction email for an order, your end-of-day handover, or what a shipping term means. I only use the emails and documents in CargoGuard and show you where every answer comes from.",
       items: [],
       suggestions: COPILOT_STARTERS.slice(0, 4),
     };
@@ -222,6 +336,75 @@ export function copilotAnswer(
       .filter(({ plan }) => plan.bucket === "todo")
       .sort(byPriority);
     const latest = related[related.length - 1];
+    const fields = fieldsIn(q);
+    const checked = [...related]
+      .reverse()
+      .find(
+        ({ row }) =>
+          row.result?.category === "BL_COMPARISON" &&
+          ["verified", "discrepancy", "review"].includes(row.result.workflow),
+      );
+    // "Write the correction email for 5RFR-36541"
+    if (
+      /\b(draft|write|prepare|compose)\b.*\b(reply|email|mail|correction|response|answer)\b|\breply to\b|\bcorrection email\b/.test(
+        q,
+      )
+    ) {
+      const target =
+        todo.find(({ row }) => !!row.result) ??
+        [...related].reverse().find(({ row }) => !!row.result);
+      if (!target)
+        return {
+          ...base,
+          intent: "draft",
+          title: `Reply for ${ref.label.toLowerCase()} ${ref.value}`,
+          text: "The emails about it are not checked yet. Open the inbox first so CargoGuard can read them.",
+          items: [],
+          suggestions: ["What should I do first today?"],
+        };
+      return {
+        ...base,
+        intent: "draft",
+        title: `Reply for ${ref.label.toLowerCase()} ${ref.value}`,
+        text: `Written from the checked values of “${target.row.email.subject}”. Read it once, then open it in the reply editor to send, copy or save it to Gmail.`,
+        items: [item(target)],
+        fetch: { id: target.row.email.email_id, mode: "reply", fields: [] },
+        suggestions: [
+          `What do the SI and BL say for ${ref.value}?`,
+          "What should I do first today?",
+        ],
+      };
+    }
+    // "What is the consignee for 5RFR-36541?" / "What does the SI say?"
+    if (
+      checked &&
+      (fields.length > 0 ||
+        /\b(si|bl|b\/l|bill of lading|shipping instruction|documents?|compare|comparison|values?|details?|says?|show me)\b/.test(
+          q,
+        ))
+    ) {
+      const chosen = fields.length ? fields : [...FIELDS];
+      return {
+        ...base,
+        intent: "lookup",
+        title: `${ref.label} ${ref.value} · ${
+          fields.length
+            ? chosen.map((f) => FIELD_LABELS[f].toLowerCase()).join(", ")
+            : "SI vs draft BL"
+        }`,
+        text: `As read from the Shipping Instruction and the draft BL of “${checked.row.email.subject}”. Each value shows where in the document it was read.`,
+        items: [item(checked)],
+        fetch: {
+          id: checked.row.email.email_id,
+          mode: "fields",
+          fields: chosen,
+        },
+        suggestions: [
+          `Write the correction email for ${ref.value}`,
+          `What happened with ${ref.value}?`,
+        ],
+      };
+    }
     const deadlines = related
       .flatMap(({ row }) => row.email.insight?.dates ?? [])
       .filter((d) => d.kind !== "Mentioned")
@@ -235,12 +418,64 @@ export function copilotAnswer(
       ),
     );
     const parts = [
-      `${plural(related.length, "email")} mention ${ref.label.toLowerCase()} ${ref.value}.`,
+      `${plural(related.length, "email")} mention${related.length === 1 ? "s" : ""} ${ref.label.toLowerCase()} ${ref.value}.`,
       todo.length
         ? `${plural(todo.length, "email")} still need${todo.length === 1 ? "s" : ""} you — start with “${todo[0].row.email.subject}”.`
         : "Nothing is waiting for you on it.",
-      `Latest: ${rowStatus(latest.row).text.toLowerCase()} (“${latest.row.email.subject}”).`,
+      `Latest: ${displayStatus(latest.row, latest.plan).text.toLowerCase()} (“${latest.row.email.subject}”).`,
     ];
+    // For an order number: where the documents stand and what the newest
+    // draft fixed compared with the one before.
+    let progress: CopilotAnswer["facts"] = [];
+    if (ref.label === "Order") {
+      const order = orderFrom(
+        ref.value,
+        related.map(({ row }) => row),
+        new Map(related.map(({ row, plan }) => [row.email.email_id, plan])),
+      );
+      parts.splice(1, 0, order.summary);
+      progress = [
+        {
+          label: "Progress",
+          value: order.steps
+            .map(
+              (step) =>
+                `${step.state === "done" ? "✓" : step.state === "problem" ? "✗" : step.state === "waiting" ? "…" : "○"} ${step.label}`,
+            )
+            .join("  "),
+        },
+      ];
+      const drafts = related.filter(
+        ({ row }) =>
+          row.result?.category === "BL_COMPARISON" &&
+          (row.result.workflow === "verified" ||
+            row.result.workflow === "discrepancy") &&
+          receivedTime(row) !== null,
+      );
+      if (drafts.length >= 2) {
+        const [before, after] = drafts.slice(-2).map(({ row }) => row);
+        const was = new Set(before.result!.defect_fields);
+        const now2 = new Set(after.result!.defect_fields);
+        const names = (fields: Field[]) =>
+          byImpact(fields)
+            .map((f) => FIELD_LABELS[f].toLowerCase())
+            .join(", ");
+        const fixed = [...was].filter((f) => !now2.has(f));
+        const added = [...now2].filter((f) => !was.has(f));
+        const still = [...now2].filter((f) => was.has(f));
+        parts.push(
+          `Newest draft vs the one before: ${
+            [
+              fixed.length ? `fixed ${names(fixed)}` : "",
+              still.length ? `still wrong: ${names(still)}` : "",
+              added.length ? `new problem: ${names(added)}` : "",
+            ]
+              .filter(Boolean)
+              .join("; ") || "no change in the differences"
+          }.`,
+        );
+      }
+    }
     if (upcoming)
       parts.push(
         `Next date mentioned: ${upcoming.kind.toLowerCase()} ${friendlyDate(upcoming.date)}.`,
@@ -255,6 +490,7 @@ export function copilotAnswer(
         8,
       ),
       facts: [
+        ...progress,
         { label: "Emails", value: String(related.length) },
         { label: "Still to do", value: String(todo.length) },
         ...(differences.size
@@ -272,6 +508,80 @@ export function copilotAnswer(
           : []),
       ],
       suggestions: ["What should I do first today?", "What is due this week?"],
+    };
+  }
+
+  // 1b. Shipping terms and how-to questions (fixed text, no AI).
+  const term = glossaryAnswer(q);
+  if (term)
+    return {
+      ...base,
+      intent: "explain",
+      title: term.title,
+      text: term.text,
+      tip: term.tip,
+      items: [],
+      suggestions: [
+        ...[1, 2].map((step) => {
+          const index = GLOSSARY.findIndex((entry) => entry.id === term.id);
+          const next = GLOSSARY[(index + step * 3) % GLOSSARY.length];
+          const short = next.title.split(" (")[0];
+          return `What does ${/[A-Z]{2}/.test(short) ? short : short.toLowerCase()} mean?`;
+        }),
+        ...(term.id === "check-bl" ? [] : ["How do I check a draft BL?"]),
+      ].filter((text, index, all) => all.indexOf(text) === index),
+    };
+
+  // 1c. End-of-day handover a colleague can read.
+  if (
+    /\b(handover|hand over|end of (?:the )?day|end-of-day|eod|shift (?:summary|report|brief|notes)|summary for (?:my )?(?:manager|team|colleague|boss))\b/.test(
+      q,
+    )
+  ) {
+    const urgent = open.filter(({ plan }) => plan.level === "urgent");
+    const soon = rows
+      .filter(({ plan }) => plan.bucket === "todo" || plan.bucket === "waiting")
+      .filter(({ plan }) => {
+        const t = deadlineTime(plan);
+        const window = dayWindow(now, 0, 1);
+        return t !== null && t < window.end;
+      })
+      .sort(
+        (a, b) => (deadlineTime(a.plan) ?? 0) - (deadlineTime(b.plan) ?? 0),
+      );
+    const line = (entry: Planned) => {
+      const it = item(entry);
+      return `- ${it.subject}\n  ${it.status}${it.why ? ` · ${it.why}` : ""}${it.deadline && !it.deadline_in_why ? ` · ${it.deadline}` : ""}`;
+    };
+    const copy = [
+      `CargoGuard handover — ${new Date(now).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`,
+      `To do: ${open.length} (${urgent.length} urgent) · Waiting for replies: ${waiting.length}`,
+      "",
+      "MOST URGENT",
+      ...(open.slice(0, 5).map(line).length
+        ? open.slice(0, 5).map(line)
+        : ["- Nothing open"]),
+      "",
+      "DUE TODAY OR TOMORROW",
+      ...(soon.slice(0, 5).map(line).length
+        ? soon.slice(0, 5).map(line)
+        : ["- Nothing due"]),
+      "",
+      "WAITING FOR REPLIES",
+      ...(waiting.slice(0, 8).map(line).length
+        ? waiting.slice(0, 8).map(line)
+        : ["- Nobody"]),
+      "",
+      "Statuses come from CargoGuard's checks; open each email before acting.",
+    ].join("\n");
+    return {
+      ...base,
+      intent: "handover",
+      title: "Your end-of-day handover",
+      text: `${plural(open.length, "email")} still to do (${urgent.length} urgent), ${waiting.length} ${waiting.length === 1 ? "reply" : "replies"} awaited, ${plural(soon.length, "deadline")} today or tomorrow. Copy it into an email or Teams message for the next person.`,
+      copy,
+      ...list(open, 5),
+      suggestions: ["Which emails am I waiting on?", "What is due this week?"],
     };
   }
 
@@ -396,9 +706,57 @@ export function copilotAnswer(
         : "You are not waiting on anyone",
       text: all.length
         ? `${overdue.length ? `${plural(overdue.length, "follow-up")} ${overdue.length === 1 ? "is" : "are"} overdue — chase ${overdue.length === 1 ? "it" : "those"} first. ` : ""}Emails marked “waiting” leave your to-do list until the other side answers or the follow-up date passes.`
-        : "When you ask someone for a corrected BL or missing documents, set the follow-up to “Awaiting reply” and it will appear here.",
+        : "After you reply to an email, choose “Waiting for their answer” and it will appear here until they write back.",
       ...list(all, 8),
       suggestions: ["What should I do first today?", "Summarise my inbox"],
+    };
+  }
+
+  // 5b. Where mistakes come from (per sending company).
+  if (
+    /\b(who|which|what)\b.*\b(sends?|senders?|compan(y|ies)|forwarders?|carriers?|customers?)\b.*\b(mistakes?|errors?|wrong|worst|quality)\b|\b(mistakes?|errors?)\b.*\bby (sender|company|carrier)\b|\bscorecard\b/.test(
+      q,
+    )
+  ) {
+    const scores = senderScores(rows.map(({ row }) => row)).filter(
+      (score) => score.with_errors > 0,
+    );
+    const worst = scores[0];
+    const theirs = worst
+      ? rows
+          .filter(
+            ({ row }) =>
+              worst.last_ids.includes(row.email.email_id) &&
+              row.result?.workflow === "discrepancy",
+          )
+          .sort(byPriority)
+      : [];
+    return {
+      ...base,
+      intent: "quality",
+      title: worst
+        ? `${worst.company} sends the most drafts with mistakes`
+        : "No draft with a mistake yet",
+      text: worst
+        ? `${scores
+            .slice(0, 4)
+            .map(
+              (score) =>
+                `${score.company}: ${score.with_errors} of ${score.checked} drafts wrong${score.top[0] ? ` (most often ${score.top[0].label.toLowerCase()})` : ""}`,
+            )
+            .join(
+              "; ",
+            )}. Share this with them so they check before sending. Their drafts with differences are below.`
+        : "Every checked draft BL matched its SI so far.",
+      ...list(theirs, 6),
+      facts: scores.slice(0, 4).map((score) => ({
+        label: score.company,
+        value: `${Math.round(score.rate * 100)}% wrong (${score.with_errors}/${score.checked})`,
+      })),
+      suggestions: [
+        "Which documents do not match?",
+        "What should I do first today?",
+      ],
     };
   }
 

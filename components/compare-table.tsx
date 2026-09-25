@@ -1,31 +1,20 @@
 "use client";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   CircleHelp,
   FileText,
-  Loader2,
   Pencil,
   TriangleAlert,
   UserCheck,
 } from "lucide-react";
-import { previewCorrection } from "@/lib/corrections";
+import { CorrectionDialog, type FieldEdit } from "./correction-dialog";
 import { FIELD_RISK } from "@/lib/field-risk";
-import {
-  FIELD_LABELS,
-  type CaseResult,
-  type ComparisonRow,
-  type Field,
-} from "@/lib/types";
+import { FIELD_LABELS, type CaseResult, type ComparisonRow } from "@/lib/types";
 
-type Side = "si" | "bl";
-export interface FieldEdit {
-  field: Field;
-  side: Side;
-  value: string;
-}
+export type { FieldEdit };
 
 const tokenize = (value: string) =>
   value.split(/(\s+|[,;:/()\-.])/).filter((part) => part !== "");
@@ -124,6 +113,7 @@ export function CompareTable({
   reviewerName,
   canEdit,
   onSave,
+  onSaveNext,
   onSource,
   onReviewerName,
 }: {
@@ -131,12 +121,16 @@ export function CompareTable({
   reviewerName: string;
   canEdit: boolean;
   onSave: (edit: FieldEdit, actor: string, reason: string) => Promise<boolean>;
+  /** Save, then open the next email in the list. */
+  onSaveNext?: (
+    edit: FieldEdit,
+    actor: string,
+    reason: string,
+  ) => Promise<boolean>;
   onSource: (source: string, location: string) => void;
   onReviewerName: (name: string) => void;
 }) {
   const [editing, setEditing] = useState<FieldEdit | null>(null);
-  const [reason, setReason] = useState("Checked against the original document");
-  const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState<string>("");
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -180,34 +174,21 @@ export function CompareTable({
         .filter((row): row is ComparisonRow => !!row),
     [order, result.comparison],
   );
-  const preview = editing ? previewCorrection(result, editing) : null;
-  const fixed =
-    preview?.changes.filter((c) => c.before !== "match" && c.after === "match")
-      .length ?? 0;
-  const broken =
-    preview?.changes.filter((c) => c.before === "match" && c.after !== "match")
-      .length ?? 0;
-  const unchanged =
-    !!editing &&
-    editing.value.trim() ===
-      (
-        result.comparison.find((r) => r.field === editing.field)?.[editing.side]
-          .raw ?? ""
-      ).trim();
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!editing || !preview || preview.error || unchanged) return;
-    setSaving(true);
-    const target = `${editing.field}-${editing.side}`;
-    const ok = await onSave(editing, reviewerName.trim(), reason.trim());
-    setSaving(false);
-    if (ok) {
+  async function save(
+    edit: FieldEdit,
+    actor: string,
+    reason: string,
+    next: boolean,
+  ) {
+    const handler = next && onSaveNext ? onSaveNext : onSave;
+    const ok = await handler(edit, actor, reason);
+    if (ok && !next) {
       setEditing(null);
-      setFlash(target);
+      setFlash(`${edit.field}-${edit.side}`);
       if (flashTimer.current) clearTimeout(flashTimer.current);
       flashTimer.current = setTimeout(() => setFlash(""), 2600);
     }
+    return ok;
   }
 
   const problems = rows.filter((row) => row.result !== "match").length;
@@ -273,8 +254,6 @@ export function CompareTable({
             {(["si", "bl"] as const).map((side) => {
               const value = row[side];
               const other = row[side === "si" ? "bl" : "si"];
-              const isEditing =
-                editing?.field === row.field && editing.side === side;
               const edited = value.method.startsWith("Human correction");
               return (
                 <div
@@ -285,154 +264,64 @@ export function CompareTable({
                   }
                   className={`cg-value ${flash === `${row.field}-${side}` ? "cg-flash" : ""}`}
                 >
-                  {isEditing ? (
-                    <form className="cg-editor" onSubmit={submit}>
-                      <label className="cg-field">
-                        Correct {FIELD_LABELS[row.field].toLowerCase()} (
-                        {side === "si" ? "SI" : "BL"})
-                        <textarea
-                          autoFocus
-                          value={editing.value}
-                          maxLength={2000}
-                          disabled={saving}
-                          onChange={(e) =>
-                            setEditing({ ...editing, value: e.target.value })
-                          }
-                        />
-                      </label>
-                      <div className="cg-editor-row">
-                        <label className="cg-field">
-                          Your name
-                          <input
-                            value={reviewerName}
-                            required
-                            minLength={2}
-                            maxLength={80}
-                            disabled={saving}
-                            onChange={(e) => onReviewerName(e.target.value)}
-                          />
-                        </label>
-                        <label className="cg-field">
-                          Reason
-                          <input
-                            value={reason}
-                            required
-                            minLength={5}
-                            maxLength={2000}
-                            disabled={saving}
-                            onChange={(e) => setReason(e.target.value)}
-                          />
-                        </label>
-                      </div>
-                      {preview && (
-                        <p
-                          className={`cg-editor-effect ${preview.error ? "bad" : broken ? "bad" : fixed ? "good" : ""}`}
-                          role="status"
-                        >
-                          {preview.error
-                            ? preview.error
-                            : unchanged
-                              ? "Change the value to save a correction."
-                              : broken
-                                ? `Careful: this would make ${broken} matching detail${broken === 1 ? "" : "s"} different.`
-                                : fixed
-                                  ? `This fixes ${fixed} difference${fixed === 1 ? "" : "s"}. The check is re-run when you save.`
-                                  : "The check is re-run when you save. The original document is not changed."}
+                  <>
+                    <p
+                      className={`cg-value-text ${value.raw ? "" : "missing-value"}`}
+                    >
+                      {!value.raw ? (
+                        "Not found in the document"
+                      ) : row.result === "mismatch" ? (
+                        <HighlightedValue value={value.raw} other={other.raw} />
+                      ) : (
+                        value.raw
+                      )}
+                    </p>
+                    {value.issue && (
+                      <p className="cg-value-issue">{value.issue}</p>
+                    )}
+                    {row.result === "mismatch" &&
+                      side === "bl" &&
+                      value.raw.trim().toUpperCase() ===
+                        other.raw.trim().toUpperCase() && (
+                        <p className="cg-value-issue">
+                          Same words on both documents — it differs because the
+                          consignee it refers to differs.
                         </p>
                       )}
-                      <div className="cg-editor-row">
-                        <button
-                          className="cg-btn primary"
-                          disabled={
-                            saving ||
-                            !!preview?.error ||
-                            unchanged ||
-                            reviewerName.trim().length < 2 ||
-                            reason.trim().length < 5
-                          }
-                        >
-                          {saving ? (
-                            <Loader2 size={18} className="cg-spin" />
-                          ) : (
-                            <CheckCircle2 size={18} />
-                          )}
-                          Save correction
-                        </button>
+                    {edited && (
+                      <span className="cg-edited">
+                        <UserCheck size={13} /> Corrected by a reviewer
+                      </span>
+                    )}
+                    <div className="cg-value-tools">
+                      {canEdit && (
                         <button
                           type="button"
-                          className="cg-btn"
-                          disabled={saving}
-                          onClick={() => setEditing(null)}
+                          onClick={() => {
+                            setEditing({
+                              field: row.field,
+                              side,
+                              value: value.raw,
+                            });
+                          }}
+                          aria-label={`Edit ${FIELD_LABELS[row.field]} in the ${side === "si" ? "SI" : "draft BL"}`}
                         >
-                          Cancel
+                          <Pencil size={14} /> Edit
                         </button>
-                      </div>
-                    </form>
-                  ) : (
-                    <>
-                      <p
-                        className={`cg-value-text ${value.raw ? "" : "missing-value"}`}
-                      >
-                        {!value.raw ? (
-                          "Not found in the document"
-                        ) : row.result === "mismatch" ? (
-                          <HighlightedValue
-                            value={value.raw}
-                            other={other.raw}
-                          />
-                        ) : (
-                          value.raw
-                        )}
-                      </p>
-                      {value.issue && (
-                        <p className="cg-value-issue">{value.issue}</p>
                       )}
-                      {row.result === "mismatch" &&
-                        side === "bl" &&
-                        value.raw.trim().toUpperCase() ===
-                          other.raw.trim().toUpperCase() && (
-                          <p className="cg-value-issue">
-                            Same words on both documents — it differs because
-                            the consignee it refers to differs.
-                          </p>
-                        )}
-                      {edited && (
-                        <span className="cg-edited">
-                          <UserCheck size={13} /> Corrected by a reviewer
-                        </span>
+                      {value.source && (
+                        <button
+                          type="button"
+                          className="cg-source"
+                          onClick={() => onSource(value.source, value.evidence)}
+                          title={`Show where this value comes from (${value.evidence})`}
+                        >
+                          <FileText size={14} />
+                          {plainEvidence(value.evidence)}
+                        </button>
                       )}
-                      <div className="cg-value-tools">
-                        {canEdit && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditing({
-                                field: row.field,
-                                side,
-                                value: value.raw,
-                              });
-                            }}
-                            aria-label={`Edit ${FIELD_LABELS[row.field]} in the ${side === "si" ? "SI" : "draft BL"}`}
-                          >
-                            <Pencil size={14} /> Edit
-                          </button>
-                        )}
-                        {value.source && (
-                          <button
-                            type="button"
-                            className="cg-source"
-                            onClick={() =>
-                              onSource(value.source, value.evidence)
-                            }
-                            title={`Show where this value comes from (${value.evidence})`}
-                          >
-                            <FileText size={14} />
-                            {plainEvidence(value.evidence)}
-                          </button>
-                        )}
-                      </div>
-                    </>
-                  )}
+                    </div>
+                  </>
                 </div>
               );
             })}
@@ -474,6 +363,22 @@ export function CompareTable({
           </button>
         )}
       </div>
+      {editing && (
+        <CorrectionDialog
+          key={`${editing.field}-${editing.side}`}
+          result={result}
+          edit={editing}
+          reviewerName={reviewerName}
+          onReviewerName={onReviewerName}
+          onCancel={() => setEditing(null)}
+          onSave={(edit, actor, reason) => save(edit, actor, reason, false)}
+          onSaveNext={
+            onSaveNext
+              ? (edit, actor, reason) => save(edit, actor, reason, true)
+              : undefined
+          }
+        />
+      )}
       <p className="cg-small cg-muted" style={{ marginTop: 10 }}>
         {problems
           ? `${problems} of ${rows.length} details need attention. Edit a value only if the extracted text is wrong — if the BL itself is wrong, ask the sender to correct it (Reply tab).`

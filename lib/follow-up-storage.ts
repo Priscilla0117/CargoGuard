@@ -2,6 +2,7 @@ import { storage } from "./storage";
 import { HttpError } from "./http";
 import {
   completionBlocker,
+  integrityNeedsConfirmation,
   followUpInput,
   type FollowUp,
   type FollowUpInput,
@@ -49,6 +50,14 @@ export async function saveFollowUp(
   if (input.state === "completed") {
     const blocker = completionBlocker(result);
     if (blocker) throw new HttpError(blocker, 409);
+    if (
+      integrityNeedsConfirmation(result) &&
+      input.integrity_confirmed !== true
+    )
+      throw new HttpError(
+        "An extra safety check (container numbers, weights or totals) needs attention. Look at it and confirm before completing.",
+        409,
+      );
   }
   const prior = await db
     .prepare(
@@ -75,6 +84,9 @@ export async function saveFollowUp(
     actor: input.actor,
     created_at: previous?.created_at ?? now,
     updated_at: now,
+    ...(input.state === "completed" && input.integrity_confirmed
+      ? { integrity_confirmed: true }
+      : {}),
     completed_at:
       input.state === "completed"
         ? previous?.state === "completed" &&

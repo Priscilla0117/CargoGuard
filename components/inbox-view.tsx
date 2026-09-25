@@ -45,8 +45,8 @@ export const WORK_GROUPS: Record<
   },
   review: {
     label: "Needs review",
-    hint: "Unclear or missing documents",
-    reasons: ["unclear", "missing"],
+    hint: "Unclear, missing or extra check",
+    reasons: ["unclear", "missing", "extra_check"],
   },
   reply: {
     label: "Reply needed",

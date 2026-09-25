@@ -137,6 +137,8 @@ export interface CaseResult {
   pipeline_version?: string;
   policy?: import("./policy").PolicySnapshot;
   policy_assessment?: ReturnType<typeof import("./policy").assessPolicy>;
+  /** Inbox summaries only: an independent safety finding is still open. */
+  integrity_attention?: boolean;
 }
 export type EmailSummary = Pick<
   Email,

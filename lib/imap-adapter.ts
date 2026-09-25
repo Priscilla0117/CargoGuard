@@ -102,50 +102,70 @@ export async function imapFetchNew(
     try {
       const since = new Date(Date.now() - options.days * 86400000);
       const uids = (await client.search({ since }, { uid: true })) || [];
-      const recent = uids.slice(-Math.min(200, options.max * 5)).reverse();
-      if (!recent.length) return [] as ImapCandidate[];
-      const envelopes: {
+      const newestFirst = [...uids].reverse();
+      const selected: {
         uid: number;
         key: string;
         date?: string;
         thread?: string;
       }[] = [];
-      for await (const message of client.fetch(
-        recent.join(","),
-        {
-          uid: true,
-          envelope: true,
-          internalDate: true,
-          size: true,
-          threadId: true,
-        },
-        { uid: true },
-      )) {
-        if ((message.size ?? 0) > 20 * 1024 * 1024) continue;
-        const id = message.envelope?.messageId?.replace(/[<>\s]/g, "");
-        const date =
-          message.internalDate instanceof Date
-            ? message.internalDate
-            : message.internalDate
-              ? new Date(message.internalDate)
-              : message.envelope?.date;
-        envelopes.push({
-          uid: message.uid,
-          key: id
-            ? `mid:${id.toLowerCase()}`
-            : `uid:${client.mailbox && typeof client.mailbox === "object" ? String(client.mailbox.uidValidity) : "0"}:${message.uid}`,
-          date:
-            date && Number.isFinite(new Date(date).getTime())
-              ? new Date(date).toISOString()
-              : undefined,
-          thread: message.threadId,
-        });
+      let more = false;
+      // Walk from the newest message back in pages of 100, skipping mail
+      // that is already imported, until `max` new messages are found.
+      for (
+        let start = 0;
+        start < Math.min(newestFirst.length, 1000);
+        start += 100
+      ) {
+        const page = newestFirst.slice(start, start + 100);
+        const envelopes: typeof selected = [];
+        for await (const message of client.fetch(
+          page.join(","),
+          {
+            uid: true,
+            envelope: true,
+            internalDate: true,
+            size: true,
+            threadId: true,
+          },
+          { uid: true },
+        )) {
+          if ((message.size ?? 0) > 20 * 1024 * 1024) continue;
+          const id = message.envelope?.messageId?.replace(/[<>\s]/g, "");
+          const date =
+            message.internalDate instanceof Date
+              ? message.internalDate
+              : message.internalDate
+                ? new Date(message.internalDate)
+                : message.envelope?.date;
+          envelopes.push({
+            uid: message.uid,
+            key: id
+              ? `mid:${id.toLowerCase()}`
+              : `uid:${client.mailbox && typeof client.mailbox === "object" ? String(client.mailbox.uidValidity) : "0"}:${message.uid}`,
+            date:
+              date && Number.isFinite(new Date(date).getTime())
+                ? new Date(date).toISOString()
+                : undefined,
+            thread: message.threadId,
+          });
+        }
+        const seen = await known(envelopes.map((item) => item.key));
+        const fresh = envelopes
+          .filter((item) => !seen.has(item.key))
+          .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+        for (const item of fresh)
+          if (selected.length < options.max) selected.push(item);
+          else more = true;
+        if (selected.length >= options.max) {
+          if (start + 100 < newestFirst.length) more = true;
+          break;
+        }
       }
-      const seen = await known(envelopes.map((item) => item.key));
-      const selected = envelopes
-        .filter((item) => !seen.has(item.key))
-        .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""))
-        .slice(0, options.max);
+      if (newestFirst.length > 1000 && selected.length < options.max)
+        more = true;
+      if (!selected.length)
+        return Object.assign([] as ImapCandidate[], { more });
       const results: ImapCandidate[] = [];
       for (const item of selected) {
         const message = await client.fetchOne(
@@ -161,7 +181,7 @@ export async function imapFetchNew(
             thread: item.thread,
           });
       }
-      return results;
+      return Object.assign(results, { more });
     } finally {
       lock.release();
     }

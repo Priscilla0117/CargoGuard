@@ -6,6 +6,7 @@ import { requestJson } from "@/lib/client-api";
 import {
   completionBlocker,
   effectiveFollowUp,
+  integrityNeedsConfirmation,
   type FollowUp,
 } from "@/lib/follow-up";
 import type { CaseResult } from "@/lib/types";
@@ -73,6 +74,9 @@ export function FollowUpDesk({
     () => Intl.DateTimeFormat().resolvedOptions().timeZone,
   );
   const blocker = completionBlocker(result);
+  const needsIntegrity = integrityNeedsConfirmation(result);
+  const [integrityChecked, setIntegrityChecked] = useState(false);
+  const integrityBlocked = needsIntegrity && !integrityChecked;
 
   const who = (followup?.owner ?? person).trim() || "Document desk";
   /** One-click updates for the common cases; the full form stays below. */
@@ -104,6 +108,9 @@ export function FollowUpDesk({
             state: next,
             note,
             actor: name,
+            ...(next === "completed" && needsIntegrity
+              ? { integrity_confirmed: integrityChecked }
+              : {}),
           }),
         },
       );
@@ -178,6 +185,9 @@ export function FollowUpDesk({
             state,
             note: form.get("note"),
             actor: form.get("actor"),
+            ...(state === "completed" && needsIntegrity
+              ? { integrity_confirmed: integrityChecked }
+              : {}),
           }),
         },
       );
@@ -276,12 +286,28 @@ export function FollowUpDesk({
           <span>
             {blocker ? notYet : "Nothing else is needed for this email."}
           </span>
+          {!blocker && needsIntegrity && (
+            <label className="cg-check follow-up-integrity">
+              <input
+                type="checkbox"
+                checked={integrityChecked}
+                onChange={(e) => setIntegrityChecked(e.target.checked)}
+              />
+              I looked at the extra safety findings (container numbers, weights)
+              on the SI vs BL check tab
+            </label>
+          )}
           <div className="follow-up-quick-row">
             <button
               type="button"
               className="cg-btn primary"
               disabled={
-                !!blocker || saving || refreshing || !ready || !!loadError
+                !!blocker ||
+                integrityBlocked ||
+                saving ||
+                refreshing ||
+                !ready ||
+                !!loadError
               }
               onClick={() =>
                 void quick(
@@ -419,7 +445,9 @@ export function FollowUpDesk({
               <button
                 type="submit"
                 className="button primary"
-                disabled={state === "completed" && !!blocker}
+                disabled={
+                  state === "completed" && (!!blocker || integrityBlocked)
+                }
               >
                 {saving ? (
                   <Loader2 size={16} className="spin" />

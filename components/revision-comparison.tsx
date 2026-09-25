@@ -93,6 +93,8 @@ export function RevisionComparison({
         diff.categoryChanged ||
         diff.engineChanged ||
         diff.documentPairChanged ||
+        diff.integrity.added > 0 ||
+        diff.integrity.resolved > 0 ||
         diff.policyChanged) && (
         <div className="revision-warning" role="status">
           <TriangleAlert size={18} />
@@ -102,6 +104,16 @@ export function RevisionComparison({
                 <strong>Comparison pair changed.</strong> Inspect the SI and BL
                 used at each revision. Unchanged field values do not mean the
                 same source files were checked.
+              </p>
+            )}
+            {(diff.integrity.added > 0 || diff.integrity.resolved > 0) && (
+              <p>
+                <strong>Extra safety checks changed.</strong>{" "}
+                {diff.integrity.added > 0 &&
+                  `${diff.integrity.added} new finding${diff.integrity.added === 1 ? "" : "s"} (container numbers, weights or totals). `}
+                {diff.integrity.resolved > 0 &&
+                  `${diff.integrity.resolved} earlier finding${diff.integrity.resolved === 1 ? "" : "s"} no longer shown. `}
+                These are checked separately from the seven details below.
               </p>
             )}
             {diff.referenceChanged && (
@@ -151,7 +163,11 @@ export function RevisionComparison({
       ))}
       {!visible.length && (
         <p className="revision-empty">
-          All seven field values and outcomes are unchanged.
+          All seven field values and outcomes are unchanged
+          {diff.documentPairChanged
+            ? " — but different files were checked"
+            : ""}
+          .
         </p>
       )}
       {diff.counts.unchanged > 0 && (

@@ -7,6 +7,7 @@ import {
 } from "./types";
 import { recomputeRows } from "./normalization";
 import { selectedDocuments } from "./document-selection";
+import { checkDocumentIntegrity } from "./integrity-checks";
 
 export interface FollowUp {
   email_id: string;
@@ -21,6 +22,8 @@ export interface FollowUp {
   updated_at: string;
   created_at: string;
   completed_at: string | null;
+  /** Completed although an extra safety check flagged something, after a person looked. */
+  integrity_confirmed?: boolean;
 }
 const singleLine = (max: number) =>
   z
@@ -52,9 +55,39 @@ export const followUpInput = z
       (v) => v.length >= 2,
       "Enter who is recording this update.",
     ),
+    /** The person looked at the extra safety findings before completing. */
+    integrity_confirmed: z.boolean().optional(),
   })
   .strict();
 export type FollowUpInput = z.infer<typeof followUpInput>;
+
+/**
+ * Independent safety findings (container number check digits, weights,
+ * totals) on a document check. They never change the seven-field result, but
+ * every completion path must see them: batch completion refuses them and an
+ * individual completion needs a person to confirm they looked.
+ */
+export function integrityNeedsConfirmation(result: CaseResult) {
+  return (
+    result.category === "BL_COMPARISON" &&
+    checkDocumentIntegrity(result).requires_attention
+  );
+}
+
+/** Why this email cannot be marked finished yet, in plain words (or null). */
+export function finishBlocker(result: CaseResult): string | null {
+  const blocker = completionBlocker(result);
+  if (blocker)
+    return result.workflow === "discrepancy"
+      ? "The draft BL still has differences — it is finished when a corrected draft matches."
+      : result.workflow === "awaiting_documents" ||
+          result.review_reason === "missing_attachment"
+        ? "The SI or the draft BL is still missing."
+        : blocker;
+  if (integrityNeedsConfirmation(result))
+    return "An extra safety check (container numbers, weights) needs a look first — confirm it in the Follow-up tab.";
+  return null;
+}
 
 /** Completion is a reviewed document check. It never authorizes cargo release. */
 export function completionBlocker(result: CaseResult): string | null {

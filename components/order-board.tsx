@@ -61,8 +61,21 @@ const STEP_ICON: Record<StepState, React.ReactNode> = {
   none: null,
 };
 
-function OrderCard({ order, now }: { order: Order; now: number }) {
+function OrderCard({
+  order,
+  now,
+  trackedId,
+  onTrack,
+  onOpenTracked,
+}: {
+  order: Order;
+  now: number;
+  trackedId?: string;
+  onTrack: (order: Order) => Promise<void>;
+  onOpenTracked?: (id: string) => void;
+}) {
   const [open, setOpen] = useState(false);
+  const [tracking, setTracking] = useState(false);
   const last = order.last_at
     ? formatReceived(new Date(order.last_at).toISOString(), now)
     : null;
@@ -124,16 +137,41 @@ function OrderCard({ order, now }: { order: Order; now: number }) {
           </li>
         ))}
       </ol>
-      <button
-        type="button"
-        className="cg-link cg-small cg-order-toggle"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        {open ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-        {open ? "Hide" : "Show"} the {order.emails.length} email
-        {order.emails.length === 1 ? "" : "s"} about this order
-      </button>
+      <div className="cg-order-foot">
+        <button
+          type="button"
+          className="cg-link cg-small cg-order-toggle"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          {open ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          {open ? "Hide" : "Show"} the {order.emails.length} email
+          {order.emails.length === 1 ? "" : "s"} about this order
+        </button>
+        {trackedId ? (
+          <button
+            type="button"
+            className="cg-link cg-small cg-order-tracked"
+            onClick={() => onOpenTracked?.(trackedId)}
+          >
+            <Check size={15} /> Tracked — owner, deadlines and amendments
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="cg-btn small"
+            disabled={tracking}
+            title="Adds this order to Tracked shipments with its emails, so you can set an owner, confirmed deadlines and amendments."
+            onClick={() => {
+              setTracking(true);
+              void onTrack(order).finally(() => setTracking(false));
+            }}
+          >
+            {tracking ? <Loader2 size={15} className="cg-spin" /> : null}
+            Track this order
+          </button>
+        )}
+      </div>
       {open && (
         <ol className="cg-order-emails">
           {order.emails.map((row) => {
@@ -165,7 +203,12 @@ function OrderCard({ order, now }: { order: Order; now: number }) {
 }
 
 /** Orders built automatically from the inbox — no setup needed. */
-export function OrderBoard() {
+export function OrderBoard({
+  onOpenTracked,
+}: {
+  /** Show one tracked shipment (switches to the Tracked shipments tab). */
+  onOpenTracked?: (id: string) => void;
+} = {}) {
   const [cases, setCases] = useState<CaseSummary[]>([]);
   const [followups, setFollowups] = useState<Record<string, FollowUp>>({});
   const [loading, setLoading] = useState(true);
@@ -174,6 +217,79 @@ export function OrderBoard() {
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(30);
   const [now, setNow] = useState(() => Date.now());
+  const [tracked, setTracked] = useState<Record<string, string>>({});
+  const loadTracked = useCallback(async () => {
+    try {
+      const data = await requestJson<{
+        shipments: { id: string; references: string[] }[];
+      }>("/api/shipments", { cache: "no-store" });
+      const map: Record<string, string> = {};
+      for (const shipment of data.shipments)
+        for (const ref of shipment.references)
+          map[ref.toUpperCase()] ??= shipment.id;
+      setTracked(map);
+    } catch {
+      // Tracking is optional; the automatic orders still work.
+    }
+  }, []);
+  /** Promote an automatic order to a tracked shipment with its emails linked. */
+  async function track(order: Order) {
+    setError("");
+    let actor = "Document desk";
+    try {
+      actor = localStorage.getItem("cg-reviewer-name")?.trim() || actor;
+    } catch {
+      // Private windows may block storage.
+    }
+    if (actor.length < 2) actor = "Document desk";
+    try {
+      const created = await requestJson<{
+        shipment: { id: string; version: number };
+      }>("/api/shipments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          title:
+            `Order ${order.ref}${order.destination ? ` to ${order.destination}` : ""}`.slice(
+              0,
+              180,
+            ),
+          customer: "",
+          carrier: order.carrier.slice(0, 120),
+          references: [order.ref],
+          actor,
+        }),
+      });
+      let shipment = created.shipment;
+      for (const row of order.emails) {
+        if (!row.result) continue;
+        const linked = await requestJson<{
+          shipment: { id: string; version: number };
+        }>("/api/shipments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "link",
+            id: shipment.id,
+            version: shipment.version,
+            case_id: row.email.email_id,
+            case_version: row.result.version,
+            reason: `Same order number ${order.ref} in this email.`,
+            unlink: false,
+            actor,
+          }),
+        });
+        shipment = linked.shipment;
+      }
+      onOpenTracked?.(shipment.id);
+    } catch (e) {
+      setError(
+        `Order ${order.ref} could not be tracked: ${e instanceof Error ? e.message : "please retry."}`,
+      );
+      void loadTracked();
+    }
+  }
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -202,7 +318,8 @@ export function OrderBoard() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
-  }, [load]);
+    void loadTracked();
+  }, [load, loadTracked]);
   const orders = useMemo(
     () => buildOrders(cases, followups, now),
     [cases, followups, now],
@@ -371,7 +488,14 @@ export function OrderBoard() {
       ) : (
         <div className="cg-orders">
           {visible.slice(0, limit).map((order) => (
-            <OrderCard key={order.ref} order={order} now={now} />
+            <OrderCard
+              key={order.ref}
+              order={order}
+              now={now}
+              trackedId={tracked[order.ref.toUpperCase()]}
+              onTrack={track}
+              onOpenTracked={onOpenTracked}
+            />
           ))}
           {visible.length > limit && (
             <div className="cg-list-foot">
