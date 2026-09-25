@@ -1,5 +1,6 @@
 import { effectiveFollowUp, followUpOverdue, type FollowUp } from "./follow-up";
 import { laneFor, type Lane } from "./operations";
+import { FIELD_RISK, byImpact, impactPhrase } from "./field-risk";
 import type { CaseSummary } from "./types";
 
 /**
@@ -53,15 +54,35 @@ const laneReason: Partial<Record<Lane, TodoReason>> = {
   refresh: "unprocessed",
 };
 
+export interface PlanFactor {
+  label: string;
+  points: number;
+}
 export interface Plan {
   bucket: Bucket;
   reason: TodoReason | null;
   level: Level;
   score: number;
   reasons: string[];
+  /** Every scored factor, for "Why this priority?". */
+  factors: PlanFactor[];
   /** Earliest relevant deadline (YYYY-MM-DD or ISO), for display and sorting. */
   deadline: string | null;
   deadline_label: string | null;
+  /** Set when the email left "To do" or "Waiting" because of the conversation. */
+  note: string | null;
+}
+
+/** What the rest of the conversation says about this email. */
+export interface PlanContext {
+  /** Emails in the same conversation, including this one. */
+  conversation_size?: number;
+  /** Someone wrote in this conversation after we started waiting. */
+  replied_after_waiting?: boolean;
+  /** A later draft in this conversation was checked and every detail matches. */
+  superseded_by_match?: boolean;
+  /** An SI request whose order already has a later draft BL. */
+  si_answered?: boolean;
 }
 
 const DAY = 86400000;
@@ -75,26 +96,59 @@ export function receivedTime(row: CaseSummary) {
   return Number.isFinite(value) ? value : null;
 }
 
+/** Words that show real pressure. "ASAP" alone is routine in shipping mail. */
+const STRONG_TERMS = [
+  "urgent",
+  "immediately",
+  "final reminder",
+  "overdue",
+  "risk of rollover",
+  "demurrage / detention",
+  "on hold",
+];
+
+/**
+ * Priority = business impact of the problem + time pressure + how hard the
+ * sender is chasing + how long it has waited. Every point is shown to the
+ * employee as a reason; nothing is hidden in a model.
+ */
 export function planFor(
   row: CaseSummary,
   followup: FollowUp | undefined,
   now = Date.now(),
+  context: PlanContext = {},
 ): Plan {
   const lane = laneFor(row);
   const state = followup ? effectiveFollowUp(followup, row) : null;
   const overdue = !!followup && followUpOverdue(followup, row, now);
   const category = row.result?.category;
-  const reasons: string[] = [];
-  let score = 0;
+  const factors: PlanFactor[] = [];
+  const add = (points: number, label: string) =>
+    factors.push({ points, label });
+  let note: string | null = null;
 
   let bucket: Bucket;
   let reason: TodoReason | null = null;
-  if (overdue || state === "reopened" || state === "open") {
+  const replied = state === "waiting" && !!context.replied_after_waiting;
+  if (overdue || state === "reopened" || state === "open" || replied) {
     bucket = "todo";
     reason = laneReason[lane] ?? "follow_up";
   } else if (state === "waiting") bucket = "waiting";
   else if (lane === "handoff" || state === "completed") bucket = "done";
-  else if (lane === "routed" && category === "SI_REQUEST") {
+  else if (
+    context.superseded_by_match &&
+    (lane === "amend" || lane === "request")
+  ) {
+    bucket = "done";
+    note = "A newer draft in this conversation was checked and matches the SI.";
+  } else if (
+    context.si_answered &&
+    lane === "routed" &&
+    category === "SI_REQUEST"
+  ) {
+    bucket = "done";
+    note = "The draft BL for this order has arrived, so the SI was sent.";
+  } else if (lane === "routed" && category === "SI_REQUEST") {
     bucket = "todo";
     reason = "si_request";
   } else if (lane === "routed" && category === "INVOICE_QUERY") {
@@ -106,38 +160,53 @@ export function planFor(
     reason = laneReason[lane] ?? "unclear";
   }
 
+  // 1. Impact: what goes wrong if nobody acts.
   if (bucket === "todo") {
-    const base: Record<TodoReason, [number, string]> = {
-      differences: [40, "Documents do not match"],
-      missing: [35, "Documents are missing"],
-      si_request: [30, "Customer asks for an SI"],
-      invoice: [22, "Invoice question to answer"],
-      unclear: [30, "Some information is unclear"],
-      unprocessed: [20, "Not checked yet"],
-      follow_up: [30, "Follow-up is open"],
-    };
-    const [points, text] = base[reason!];
-    score += points;
-    reasons.push(text);
-  } else if (bucket === "other") score += category === "SPAM" ? -50 : 5;
+    if (reason === "differences") {
+      const fields = row.result?.defect_fields ?? [];
+      const ordered = byImpact(fields);
+      const worst = ordered[0] ? FIELD_RISK[ordered[0]].weight : 25;
+      add(20 + worst, impactPhrase(fields) || "Documents do not match");
+      if (ordered.length > 1)
+        add(4 * (ordered.length - 1), `${ordered.length} details to correct`);
+    } else {
+      const base: Record<TodoReason, [number, string]> = {
+        differences: [45, "Documents do not match"],
+        missing: [35, "Documents are missing — nothing can be checked"],
+        si_request: [30, "Customer is waiting for an SI"],
+        invoice: [22, "Invoice question to answer"],
+        unclear: [30, "Some information is unclear"],
+        unprocessed: [15, "Not checked yet"],
+        follow_up: [30, "Follow-up is open"],
+      };
+      const [points, text] = base[reason!];
+      add(points, text);
+    }
+    if (replied) add(20, "Sender replied — read the answer");
+  }
 
   let deadline: string | null = null;
   let deadlineLabel: string | null = null;
   if (followup?.due_at && state !== "completed") {
     const days = daysUntil(followup.due_at, now);
     deadline = followup.due_at;
-    deadlineLabel = "Follow-up due";
+    deadlineLabel = state === "waiting" ? "Chase" : "Follow-up due";
     if (overdue) {
-      score += 40;
-      reasons.push("Follow-up is overdue");
-    } else if (days !== null && days <= 1) {
-      score += 25;
-      reasons.push("Follow-up due within a day");
+      add(
+        40,
+        state === "waiting"
+          ? "No answer yet — time to chase"
+          : "Follow-up is overdue",
+      );
+    } else if (days !== null && days <= 1 && bucket === "todo") {
+      add(25, "Follow-up due within a day");
     }
   }
-  const active =
-    bucket === "todo" || (bucket === "other" && category !== "SPAM");
+  // Unchecked email may be spam: its "urgent" wording is not trusted yet.
+  const trusted = !!row.result && category !== "SPAM";
+  const active = trusted && (bucket === "todo" || bucket === "other");
   if (active) {
+    // 2. Time pressure: real dates written in the email.
     const received = receivedTime(row);
     // Deadlines far in the past are history, not a reason to rush now.
     const upcoming = (row.email.insight?.dates ?? [])
@@ -152,81 +221,75 @@ export function planFor(
         deadlineLabel = next.kind;
       }
       const days = next.days!;
-      if (days < 0) {
-        score += 35;
-        reasons.push(`${next.kind} date has passed`);
-      } else if (days <= 1) {
-        score += 35;
-        reasons.push(`${next.kind} ${days === 0 ? "today" : "tomorrow"}`);
-      } else if (days <= 3) {
-        score += 20;
-        reasons.push(`${next.kind} in ${days} days`);
-      } else if (days <= 7) {
-        score += 10;
-        reasons.push(`${next.kind} this week`);
-      }
+      if (days < 0) add(35, `${next.kind} date has passed`);
+      else if (days <= 1)
+        add(35, `${next.kind} ${days === 0 ? "today" : "tomorrow"}`);
+      else if (days <= 3) add(20, `${next.kind} in ${days} days`);
+      else if (days <= 7) add(10, `${next.kind} this week`);
     }
+    // 3. Pressure from the sender, strongest words only.
     const terms = row.email.insight?.urgent_terms ?? [];
-    const pressing = terms.filter((term) =>
-      [
-        "urgent",
-        "ASAP",
-        "immediately",
-        "final reminder",
-        "overdue",
-        "today",
-        "risk of rollover",
-        "demurrage / detention",
-        "on hold",
-      ].includes(term),
-    );
-    if (pressing.length) {
-      score += Math.min(25, 12 + pressing.length * 5);
-      reasons.push(`Sender says: ${pressing.slice(0, 2).join(", ")}`);
-    } else if (terms.includes("cut-off") || terms.includes("deadline")) {
-      score += 8;
-      reasons.push("Mentions a cut-off or deadline");
-    }
+    const pressing = terms.filter((term) => STRONG_TERMS.includes(term));
+    if (pressing.length)
+      add(
+        Math.min(25, 12 + pressing.length * 5),
+        `Sender says: ${pressing.slice(0, 2).join(", ")}`,
+      );
+    else if (terms.includes("reminder")) add(10, "Sender sent a reminder");
+    else if (terms.includes("cut-off") || terms.includes("deadline"))
+      add(8, "Mentions a cut-off or deadline");
+    else if (terms.includes("ASAP")) add(4, "Asked for a quick answer");
+    const size = context.conversation_size ?? 1;
+    if (bucket === "todo" && size >= 3)
+      add(Math.min(15, 3 * size), `${size} emails about this order`);
+    // 4. Waiting time.
     if (received !== null && bucket === "todo") {
       const age = Math.floor((now - received) / DAY);
-      if (age >= 5) {
-        score += 15;
-        reasons.push(`Waiting ${age} days`);
-      } else if (age >= 2) {
-        score += 8;
-        reasons.push(`Waiting ${age} days`);
-      }
+      if (age >= 5) add(15, `Waiting ${age} days`);
+      else if (age >= 2) add(8, `Waiting ${age} days`);
     }
   }
-  if (state === "reopened") {
-    score += 15;
-    reasons.push("Reopened after a change");
-  }
+  if (state === "reopened") add(15, "Reopened after a change");
 
+  const score =
+    factors.reduce((sum, factor) => sum + factor.points, 0) +
+    (bucket === "other" ? (category === "SPAM" ? -50 : 5) : 0);
   const level: Level =
     bucket !== "todo" && bucket !== "other"
       ? "low"
-      : score >= 75
-        ? "urgent"
-        : score >= 50
-          ? "high"
-          : score >= 20
-            ? "normal"
-            : "low";
+      : !trusted && bucket === "other"
+        ? "low"
+        : score >= 75
+          ? "urgent"
+          : score >= 50
+            ? "high"
+            : score >= 20
+              ? "normal"
+              : "low";
   return {
     bucket,
     reason,
     level,
     score,
-    reasons,
+    reasons: factors.map((factor) => factor.label),
+    factors,
     deadline,
     deadline_label: deadlineLabel,
+    note,
   };
 }
 
-export type DateRange = "any" | "today" | "yesterday" | "7d" | "30d" | "custom";
+export type DateRange =
+  | "any"
+  | "24h"
+  | "today"
+  | "yesterday"
+  | "7d"
+  | "30d"
+  | "custom";
 export const DATE_RANGE_LABELS: Record<DateRange, string> = {
   any: "Any date",
+  "24h": "Last 24 hours",
   today: "Today",
   yesterday: "Yesterday",
   "7d": "Last 7 days",
@@ -245,6 +308,8 @@ export function dateWindow(
   today.setHours(0, 0, 0, 0);
   const start = today.getTime();
   switch (range) {
+    case "24h":
+      return { start: now - DAY, end: now + 60000 };
     case "today":
       return { start, end: start + DAY };
     case "yesterday":
@@ -254,16 +319,31 @@ export function dateWindow(
     case "30d":
       return { start: start - 29 * DAY, end: start + DAY };
     case "custom": {
+      // "2026-09-25" (whole day) or "2026-09-25T14:30" (exact time).
       const parse = (value: string) => {
-        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-        return m ? new Date(+m[1], +m[2] - 1, +m[3]).getTime() : NaN;
+        const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?$/.exec(value);
+        if (!m) return { at: NaN, timed: false };
+        return {
+          at: new Date(
+            +m[1],
+            +m[2] - 1,
+            +m[3],
+            m[4] ? +m[4] : 0,
+            m[5] ? +m[5] : 0,
+          ).getTime(),
+          timed: !!m[4],
+        };
       };
       const a = parse(from),
         b = parse(to);
-      if (!Number.isFinite(a) && !Number.isFinite(b)) return null;
+      if (!Number.isFinite(a.at) && !Number.isFinite(b.at)) return null;
       return {
-        start: Number.isFinite(a) ? a : -Infinity,
-        end: Number.isFinite(b) ? b + DAY : Infinity,
+        start: Number.isFinite(a.at) ? a.at : -Infinity,
+        end: Number.isFinite(b.at)
+          ? b.timed
+            ? b.at + 60000
+            : b.at + DAY
+          : Infinity,
       };
     }
     default:
@@ -344,7 +424,7 @@ export function planText(
     "CARGOGUARD - TODAY'S PLAN",
     `Created ${createdAt.toLocaleString()}`,
     `${open.length} emails to do · ${waiting.length} waiting for a reply`,
-    "Order: urgency words, deadlines in the email, problem type, follow-ups and age.",
+    "Order: impact of the problem, deadlines in the email, how hard the sender is chasing, follow-ups and age.",
     "",
     ...open.map(line),
     ...(waiting.length

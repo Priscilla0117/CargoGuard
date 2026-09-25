@@ -74,6 +74,76 @@ export function FollowUpDesk({
   );
   const blocker = completionBlocker(result);
 
+  const who = (followup?.owner ?? person).trim() || "Document desk";
+  /** One-click updates for the common cases; the full form stays below. */
+  async function quick(
+    next: FollowUp["state"],
+    dueAt: Date | null,
+    note: string,
+  ) {
+    if (saving || refreshing || !ready || loadError || changedElsewhere) return;
+    setSaving(true);
+    setError("");
+    setSaved(false);
+    try {
+      const name = who.length >= 2 ? who.slice(0, 80) : "Document desk";
+      const data = await requestJson<{ followup: FollowUp }>(
+        "/api/follow-ups",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: result.email.email_id,
+            case_version: result.version,
+            version: editingVersion,
+            owner: name,
+            shipment_reference: (
+              followup?.shipment_reference ?? reference
+            ).slice(0, 120),
+            due_at: dueAt?.toISOString() ?? null,
+            state: next,
+            note,
+            actor: name,
+          }),
+        },
+      );
+      setState(next);
+      setDue(localInput(data.followup.due_at));
+      setSaved(true);
+      setEditingVersion(data.followup.version);
+      onSaved(data.followup);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save follow-up.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  /** 09:00 after `days` working days (Mon–Fri). */
+  const at = (days: number) => {
+    const date = new Date();
+    let left = days;
+    while (left > 0) {
+      date.setDate(date.getDate() + 1);
+      if (date.getDay() !== 0 && date.getDay() !== 6) left--;
+    }
+    date.setHours(9, 0, 0, 0);
+    return date;
+  };
+  const remind = [
+    { label: "Next working day", date: at(1) },
+    { label: "In 2 working days", date: at(2) },
+    { label: "In a week", date: at(5) },
+  ];
+  const notYet =
+    result.workflow === "discrepancy"
+      ? "Not yet — the draft BL still has differences. It is finished when a corrected draft matches the SI."
+      : result.workflow === "awaiting_documents" ||
+          result.review_reason === "missing_attachment"
+        ? "Not yet — the SI or the draft BL is still missing."
+        : blocker
+          ? `Not yet — ${blocker.charAt(0).toLowerCase()}${blocker.slice(1)}`
+          : "";
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving || refreshing || !ready || loadError || changedElsewhere) return;
@@ -126,10 +196,8 @@ export function FollowUpDesk({
       <div className="follow-up-heading">
         <CalendarClock size={22} />
         <div>
-          <h3>Keep the next action in view</h3>
-          <p>
-            Record responsibility, a confirmed due time and what happens next.
-          </p>
+          <h3>What happens next?</h3>
+          <p>Choose one. CargoGuard moves the email to the right list.</p>
         </div>
         {followup && (
           <span className={`follow-up-badge ${effective}`}>
@@ -172,123 +240,198 @@ export function FollowUpDesk({
           </button>
         </div>
       )}
-      <form onSubmit={submit} onChange={() => setSaved(false)}>
-        <fieldset
-          disabled={
-            saving || refreshing || !ready || !!loadError || changedElsewhere
-          }
-        >
-          <div className="follow-up-grid">
-            <label>
-              Responsible person
-              <input
-                name="owner"
-                required
-                minLength={2}
-                maxLength={80}
-                defaultValue={followup?.owner ?? person}
-                placeholder="Who will follow this up?"
-                autoComplete="off"
-              />
-            </label>
-            <label>
-              Shipment / booking reference <span>Optional</span>
-              <input
-                name="shipment_reference"
-                maxLength={120}
-                defaultValue={followup?.shipment_reference ?? reference}
-                placeholder="Reference confirmed from the source"
-                autoComplete="off"
-              />
-            </label>
-            <label>
-              Follow-up due <span>{zone}</span>
-              <input
-                type="datetime-local"
-                value={due}
-                onChange={(event) => setDue(event.target.value)}
-                aria-describedby="follow-up-time-note"
-              />
-              <small id="follow-up-time-note">
-                Leave blank when no due time is confirmed.
-              </small>
-            </label>
-            <label>
-              Next-action state
-              <select
-                value={state}
-                onChange={(event) =>
-                  setState(event.target.value as FollowUp["state"])
+      <div className="follow-up-quick" aria-label="Quick follow-up">
+        <div>
+          <strong>Waiting for the sender?</strong>
+          <span>Remind me if there is no answer:</span>
+          <div className="follow-up-quick-row">
+            {remind.map((option) => (
+              <button
+                key={option.label}
+                type="button"
+                className="cg-btn"
+                disabled={saving || refreshing || !ready || !!loadError}
+                onClick={() =>
+                  void quick(
+                    "waiting",
+                    option.date,
+                    `Waiting for the sender. Chase on ${option.date.toLocaleDateString()} if there is no answer.`,
+                  )
                 }
               >
-                <option value="open">Working</option>
-                <option value="waiting">Awaiting reply</option>
-                <option value="completed" disabled={!!blocker}>
-                  {result.category === "BL_COMPARISON"
-                    ? "Check completed"
-                    : "Handled — done"}
-                </option>
-              </select>
-              <small>
-                {state === "waiting"
-                  ? "Records a wait; no message is sent."
-                  : "Separate from the seven-field comparison result."}
-              </small>
-            </label>
+                {option.label}
+                <small>
+                  {option.date.toLocaleDateString([], {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                  })}
+                </small>
+              </button>
+            ))}
           </div>
-          <label className="follow-up-note">
-            Next action / handover note
-            <textarea
-              name="note"
-              required
-              minLength={5}
-              maxLength={2000}
-              rows={3}
-              defaultValue={
-                followup?.note ??
-                (markDone && !completionBlocker(result)
-                  ? result.category === "SI_REQUEST"
+        </div>
+        <div>
+          <strong>Finished?</strong>
+          <span>
+            {blocker ? notYet : "Nothing else is needed for this email."}
+          </span>
+          <div className="follow-up-quick-row">
+            <button
+              type="button"
+              className="cg-btn primary"
+              disabled={
+                !!blocker || saving || refreshing || !ready || !!loadError
+              }
+              onClick={() =>
+                void quick(
+                  "completed",
+                  null,
+                  result.category === "SI_REQUEST"
                     ? "SI prepared and sent to the requester."
                     : result.category === "INVOICE_QUERY"
                       ? "Invoice question answered."
-                      : "Handled."
-                  : "")
+                      : "Checked and handled.",
+                )
               }
-              placeholder="For example: revised BL requested externally; check the port and weight when it arrives."
-            />
-          </label>
-          {blocker && (
-            <p className="follow-up-completion-rule">
-              <strong>Completion needs a resolved check.</strong> {blocker}
-            </p>
-          )}
-          <div className="follow-up-save-row">
-            <label>
-              Recorded by
-              <input
-                name="actor"
+            >
+              <Check size={16} /> Mark as done
+            </button>
+            {followup && effective !== "open" && effective !== "reopened" && (
+              <button
+                type="button"
+                className="cg-btn"
+                disabled={saving || refreshing || !ready || !!loadError}
+                onClick={() =>
+                  void quick("open", null, "Back on my to-do list.")
+                }
+              >
+                Back to To do
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+      <details className="cg-details follow-up-more">
+        <summary>More details (person responsible, exact time, note)</summary>
+        <form onSubmit={submit} onChange={() => setSaved(false)}>
+          <fieldset
+            disabled={
+              saving || refreshing || !ready || !!loadError || changedElsewhere
+            }
+          >
+            <div className="follow-up-grid">
+              <label>
+                Responsible person
+                <input
+                  name="owner"
+                  required
+                  minLength={2}
+                  maxLength={80}
+                  defaultValue={followup?.owner ?? person}
+                  placeholder="Who will follow this up?"
+                  autoComplete="off"
+                />
+              </label>
+              <label>
+                Shipment / booking reference <span>Optional</span>
+                <input
+                  name="shipment_reference"
+                  maxLength={120}
+                  defaultValue={followup?.shipment_reference ?? reference}
+                  placeholder="Reference confirmed from the source"
+                  autoComplete="off"
+                />
+              </label>
+              <label>
+                Follow-up due <span>{zone}</span>
+                <input
+                  type="datetime-local"
+                  value={due}
+                  onChange={(event) => setDue(event.target.value)}
+                  aria-describedby="follow-up-time-note"
+                />
+                <small id="follow-up-time-note">
+                  Leave blank when no due time is confirmed.
+                </small>
+              </label>
+              <label>
+                Next-action state
+                <select
+                  value={state}
+                  onChange={(event) =>
+                    setState(event.target.value as FollowUp["state"])
+                  }
+                >
+                  <option value="open">Working</option>
+                  <option value="waiting">Awaiting reply</option>
+                  <option value="completed" disabled={!!blocker}>
+                    {result.category === "BL_COMPARISON"
+                      ? "Check completed"
+                      : "Handled — done"}
+                  </option>
+                </select>
+                <small>
+                  {state === "waiting"
+                    ? "Records a wait; no message is sent."
+                    : "Separate from the seven-field comparison result."}
+                </small>
+              </label>
+            </div>
+            <label className="follow-up-note">
+              Next action / handover note
+              <textarea
+                name="note"
                 required
-                minLength={2}
-                maxLength={80}
-                defaultValue={followup?.actor ?? person}
-                autoComplete="off"
+                minLength={5}
+                maxLength={2000}
+                rows={3}
+                defaultValue={
+                  followup?.note ??
+                  (markDone && !completionBlocker(result)
+                    ? result.category === "SI_REQUEST"
+                      ? "SI prepared and sent to the requester."
+                      : result.category === "INVOICE_QUERY"
+                        ? "Invoice question answered."
+                        : "Handled."
+                    : "")
+                }
+                placeholder="For example: revised BL requested externally; check the port and weight when it arrives."
               />
             </label>
-            <button
-              type="submit"
-              className="button primary"
-              disabled={state === "completed" && !!blocker}
-            >
-              {saving ? (
-                <Loader2 size={16} className="spin" />
-              ) : (
-                <Check size={16} />
-              )}{" "}
-              {saving ? "Saving…" : "Save follow-up"}
-            </button>
-          </div>
-        </fieldset>
-      </form>
+            {blocker && (
+              <p className="follow-up-completion-rule">
+                <strong>Completion needs a resolved check.</strong> {blocker}
+              </p>
+            )}
+            <div className="follow-up-save-row">
+              <label>
+                Recorded by
+                <input
+                  name="actor"
+                  required
+                  minLength={2}
+                  maxLength={80}
+                  defaultValue={followup?.actor ?? person}
+                  autoComplete="off"
+                />
+              </label>
+              <button
+                type="submit"
+                className="button primary"
+                disabled={state === "completed" && !!blocker}
+              >
+                {saving ? (
+                  <Loader2 size={16} className="spin" />
+                ) : (
+                  <Check size={16} />
+                )}{" "}
+                {saving ? "Saving…" : "Save follow-up"}
+              </button>
+            </div>
+          </fieldset>
+        </form>
+      </details>
       {error && (
         <div className="follow-up-notice error" role="alert">
           <span>

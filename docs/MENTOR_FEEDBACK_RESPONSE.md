@@ -193,6 +193,28 @@ email, is there a mismatch, what needs attention* — and nothing more on screen
   colours and buttons on every page, and plain words (no router jargon, no PDF
   coordinates, dates like "Fri 25 Sep").
 
+## Round 5 — closing the loop (after the second review)
+
+What an Averis documentation officer still had to do by hand, and what
+CargoGuard now does for them.
+
+| Gap found | What changed | Where |
+| --- | --- | --- |
+| Replying did not change anything: a "missing documents" email stayed in *To do* after you asked for the documents | Sending from CargoGuard moves the email to **Waiting for reply** (a copied / Gmail / .eml reply asks *"Did you send it?"* once). Answered SI requests, invoice questions and confirmed matches go to **Done**. It comes back to *To do* by itself when **anyone writes again in the same conversation**, or at 09:00 on the next working day if nobody answers. | `components/reply-composer.tsx`, `recordReply` in `components/workbench.tsx`, `lib/conversation.ts` |
+| Priority relied on words like "ASAP", which almost every shipping email contains | Priority is now **impact + time + chasing + age**: a wrong port of discharge (cargo to the wrong port) ranks above a wrong notify party; real dates in the email (cut-off, ETD, payment); strong words only (*final reminder, on hold, demurrage, rollover*) — plain "ASAP" adds almost nothing; how many emails the sender has written about the order; how long it has waited. Unchecked emails get no urgency from their wording, so phishing can never be "Next up". Every case shows **Why is this urgent?** | `lib/priority.ts`, `lib/field-risk.ts` |
+| A difference did not say why it matters | Each mismatch shows **If not corrected: …** (e.g. *a container can be left off the BL — it then cannot be released at destination*) | `components/compare-table.tsx` |
+| The eye still had to scan 7 rows | Details that already match are folded into one green line (*6 other details match — Show them*); only problems are open | `components/compare-table.tsx` |
+| Revised drafts had to be re-read from zero | When a newer draft arrives in the same conversation, CargoGuard compares it with the previous one: **Fixed: consignee, weight · Still wrong: … · New problem: containers**. When a newer draft matches, the older draft moves to Done (*Corrected draft received*); an SI request moves to Done once the draft BL for that order has arrived | `lib/conversation.ts` (`draftProgress`, `planContexts`) |
+| Shipments page was empty until someone created shipments by hand | **Orders** are built automatically from order numbers: one card per order with a 4-step progress line (*Shipping Instruction → Draft BL check → Corrections → BL confirmed*), the next deadline and *Open next email*. A **This week** calendar shows every cut-off, ETD, payment date and reply reminder found in the emails. The manual tracker is one tab away | `lib/orders.ts`, `components/order-board.tsx` |
+| No view of where mistakes come from | Reports → **Who sends drafts with mistakes** (per company: 6 of 10 drafts wrong, most often containers). The case page warns: *Heads-up: 6 of 10 earlier drafts from fujitogrp.com had differences — most often containers* | `lib/sender-insights.ts` |
+| Inbox had tiles *and* tabs *and* filters | The three kinds of work are now a row inside *To do* (Everything · Mismatch · Needs review · Reply needed), so the tabs and their filters are in one place | `components/inbox-view.tsx` |
+| Pressing a button to check new emails | New emails are checked automatically when the inbox opens | `components/workbench.tsx` |
+| Follow-up was a 6-field form | One click: *Waiting for the sender — remind me next working day / in 2 working days / in a week* or *Mark as done*; the full form is under *More details* | `components/follow-up-desk.tsx` |
+| Date filter had no time | *Last 24 hours* added; *Choose dates…* takes a date **and time** | `lib/priority.ts` |
+| SI requests and invoice questions opened on an empty "SI vs BL" tab | They open on the email itself | `components/workbench.tsx` |
+
+Tests: `tests/mentor-round2.test.ts`.
+
 ## How to demo in five minutes
 
 1. Inbox → *Import email* → **Load 28 practice emails**.
@@ -204,8 +226,14 @@ email, is there a mismatch, what needs attention* — and nothing more on screen
 4. Click **Write correction email**: the reply is ready with the exact values.
 5. Open *Email & conversation*: every email about `5RFR-36541`, with numbers
    and deadlines.
-6. Back to the inbox: click the **Mismatch** tile, try *Received → Today*
+6. Back to the inbox: click **Mismatch**, try *Received → Today*
    and *Group conversations*.
+6a. Open *RE: … 5RFR-36541 – REVISED DRAFT BL*: the red card says the
+   carrier fixed three details but introduced a new container mistake.
+6b. On any mismatch click **Write correction email → Download .eml → Yes, I
+   sent it**: the email moves to *Waiting for reply* with a reminder date.
+6c. *Shipments*: order 5RFR-36541 shows its four steps and the *This week*
+   calendar.
 7. *Reports*: the Document checks table lists every checked email with its
    result and what to check.
 8. *Email accounts*: connect Gmail with an app password; new mail arrives by

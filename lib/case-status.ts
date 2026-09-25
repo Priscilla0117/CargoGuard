@@ -7,13 +7,15 @@ export type StatusTone =
   | "unclear"
   | "done"
   | "other"
-  | "unprocessed";
+  | "unprocessed"
+  | "waiting";
 export type PrimaryAction =
   | "reply"
   | "compare"
   | "documents"
   | "category"
-  | "followup";
+  | "followup"
+  | "conversation";
 export interface CaseStatus {
   tone: StatusTone;
   title: string;
@@ -50,6 +52,30 @@ export function caseStatus(result: CaseResult, plan?: Plan): CaseStatus {
       detail: `CargoGuard thinks it is a “${categoryWords(result.category)}” but is not sure. Read the email and confirm the type.`,
       action: { label: "Confirm email type", target: "category" },
       secondary: { label: "Read the email", target: "documents" },
+    };
+  if (plan?.bucket === "waiting") {
+    const due = plan.deadline ? new Date(plan.deadline) : null;
+    const when =
+      due && Number.isFinite(due.getTime())
+        ? ` or on ${due.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} at ${due.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} if nobody answers`
+        : "";
+    return {
+      tone: "waiting",
+      title: "Waiting for the sender's reply",
+      detail: `You have replied${mismatches.length ? ` about ${names(mismatches)}` : ""}. CargoGuard moves this email back to To do as soon as the sender answers${when}.`,
+      action: { label: "Send a reminder", target: "reply" },
+      secondary: { label: "Change or stop waiting", target: "followup" },
+    };
+  }
+  if (plan?.note)
+    return {
+      tone: "done",
+      title:
+        result.category === "SI_REQUEST"
+          ? "Already handled — the draft BL has arrived"
+          : "Corrected draft received",
+      detail: `${plan.note} Open the conversation to see the newer email.`,
+      action: { label: "See the conversation", target: "conversation" },
     };
   if (mismatches.length)
     return {
@@ -130,7 +156,7 @@ export function caseStatus(result: CaseResult, plan?: Plan): CaseStatus {
       tone: "unclear",
       title: "Customer asks for a Shipping Instruction",
       detail:
-        "Prepare and send the SI. When it is done, record it in Follow-up so the email leaves your to-do list.",
+        "Prepare the SI and reply with it. When you reply from here, CargoGuard moves the email to Done.",
       action: { label: "Reply to sender", target: "reply" },
       secondary: { label: "Mark as handled", target: "followup" },
     };
@@ -139,7 +165,7 @@ export function caseStatus(result: CaseResult, plan?: Plan): CaseStatus {
       tone: "unclear",
       title: "Invoice question to answer",
       detail:
-        "Check the invoice with the billing team and reply. Record it in Follow-up when it is answered.",
+        "Check the invoice with the billing team, then reply. When you reply from here, CargoGuard moves the email to Done.",
       action: { label: "Reply to sender", target: "reply" },
       secondary: { label: "Mark as handled", target: "followup" },
     };
@@ -177,4 +203,24 @@ export function rowStatus(row: CaseSummary): {
   if (r.category === "INVOICE_QUERY")
     return { text: "Invoice question", tone: "unclear" };
   return { text: categoryWords(r.category), tone: "other" };
+}
+
+/** Row status that also knows about replies and newer emails in the conversation. */
+export function displayStatus(
+  row: CaseSummary,
+  plan?: Plan,
+): { text: string; tone: StatusTone } {
+  if (plan?.bucket === "waiting")
+    return { text: "Waiting for reply", tone: "waiting" };
+  if (plan?.note)
+    return {
+      text:
+        row.result?.category === "SI_REQUEST"
+          ? "SI already sent"
+          : "Corrected draft received",
+      tone: "done",
+    };
+  if (plan?.bucket === "done" && row.result?.workflow !== "verified")
+    return { text: "Handled", tone: "done" };
+  return rowStatus(row);
 }

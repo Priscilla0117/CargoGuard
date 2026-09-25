@@ -384,7 +384,8 @@ export function copilotAnswer(
     const overdue = open.filter(
       ({ plan }) =>
         plan.reason === "follow_up" ||
-        plan.reasons.includes("Follow-up is overdue"),
+        plan.reasons.includes("Follow-up is overdue") ||
+        plan.reasons.includes("No answer yet — time to chase"),
     );
     const all = [...overdue, ...waiting];
     return {

@@ -60,7 +60,9 @@ function download(name: string, text: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function ShipmentDesk() {
+export function ShipmentDesk({
+  embedded = false,
+}: { embedded?: boolean } = {}) {
   const [board, setBoard] = useState<BoardShipment[]>([]),
     [templates, setTemplates] = useState<SiTemplate[]>([]),
     [inbox, setInbox] = useState<CaseSummary[]>([]),
@@ -248,17 +250,26 @@ export function ShipmentDesk() {
       {c.email.email_id} · {c.email.subject}
     </option>
   ));
+  const Root = embedded ? "section" : "main";
   return (
-    <main
+    <Root
       className="shipment-app"
-      id="main-content"
-      tabIndex={-1}
+      id={embedded ? undefined : "main-content"}
+      tabIndex={embedded ? undefined : -1}
       aria-labelledby="shipment-page-title"
     >
       <header className="shipment-top">
         <div>
-          <h1 id="shipment-page-title">Shipments</h1>
-          <p>Every email, document and follow-up for one shipment, together.</p>
+          {embedded ? (
+            <h2 id="shipment-page-title">Tracked shipments</h2>
+          ) : (
+            <h1 id="shipment-page-title">Shipments</h1>
+          )}
+          <p>
+            {embedded
+              ? "Shipments you set up by hand, with confirmed deadlines, amendments and tasks."
+              : "Every email, document and follow-up for one shipment, together."}
+          </p>
         </div>
         <div className="shipment-top-actions">
           <button
@@ -1356,6 +1367,6 @@ export function ShipmentDesk() {
           )}
         </section>
       </div>
-    </main>
+    </Root>
   );
 }

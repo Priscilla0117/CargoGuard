@@ -1,11 +1,11 @@
 import { AppShell } from "@/components/app-shell";
-import { ShipmentDesk } from "@/components/shipment-desk";
+import { ShipmentsPage } from "@/components/shipments-page";
 import { TeamAccess } from "@/components/team-access";
 export default function ShipmentPage() {
   return (
     <TeamAccess>
       <AppShell active="/shipments">
-        <ShipmentDesk />
+        <ShipmentsPage />
       </AppShell>
     </TeamAccess>
   );
