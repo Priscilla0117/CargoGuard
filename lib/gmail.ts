@@ -216,6 +216,7 @@ export async function gmailList(
   query: string,
   max: number,
   fetcher?: Fetcher,
+  pageToken?: string,
 ) {
   const parsed = z
     .object({
@@ -227,18 +228,62 @@ export async function gmailList(
           }),
         )
         .optional(),
+      nextPageToken: z.string().max(512).optional(),
     })
     .safeParse(
       await gmailApi(
         token,
         "/gmail/v1/users/me/messages",
-        { query: { q: query, maxResults: String(max) } },
+        {
+          query: {
+            q: query,
+            maxResults: String(max),
+            ...(pageToken ? { pageToken } : {}),
+          },
+        },
         fetcher,
       ),
     );
   if (!parsed.success)
     throw new MailProviderError("Gmail message list could not be read.");
-  return parsed.data.messages ?? [];
+  return Object.assign(parsed.data.messages ?? [], {
+    next: parsed.data.nextPageToken ?? null,
+  });
+}
+
+/**
+ * Newest messages first that CargoGuard has not seen yet. Walks Gmail's
+ * pages (newest to oldest) until `max` new messages are found or the search
+ * range ends, so a full first page of known mail never hides older ones.
+ */
+export async function gmailUnseen(
+  token: string,
+  query: string,
+  max: number,
+  isKnown: (keys: string[]) => Promise<Set<string>>,
+  fetcher?: Fetcher,
+  pageLimit = 10,
+) {
+  const found: { id: string; threadId: string }[] = [];
+  let pageToken: string | undefined;
+  let more = false;
+  for (let page = 0; page < pageLimit; page++) {
+    const list = await gmailList(token, query, 100, fetcher, pageToken);
+    const seen = await isKnown(list.map((item) => `gmail:${item.id}`));
+    const fresh = list.filter((item) => !seen.has(`gmail:${item.id}`));
+    for (const item of fresh) {
+      if (found.length < max) found.push(item);
+      else more = true;
+    }
+    if (!list.next) break;
+    if (found.length >= max) {
+      more = true;
+      break;
+    }
+    pageToken = list.next;
+    if (page === pageLimit - 1) more = true;
+  }
+  return { messages: found, more };
 }
 
 export async function gmailRaw(token: string, id: string, fetcher?: Fetcher) {

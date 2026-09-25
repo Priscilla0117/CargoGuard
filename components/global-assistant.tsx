@@ -216,7 +216,7 @@ export function GlobalAssistant({
         >
           <header className="assistant-panel-header">
             <div>
-              <span className="eyebrow">YOUR PLANNING ASSISTANT</span>
+              <span className="eyebrow">YOUR DOCUMENT DESK ASSISTANT</span>
               <DialogTitle>Ask CargoGuard</DialogTitle>
             </div>
             <button
@@ -231,8 +231,9 @@ export function GlobalAssistant({
             id="assistant-panel-description"
             className="assistant-panel-description"
           >
-            Plans your day, finds orders and POs, and shows the emails behind
-            every answer.
+            Plans your day, reads SI and BL values, gets replies ready and
+            explains shipping terms — always showing where the answer comes
+            from.
           </p>
           <CopilotHome
             rows={planned}
@@ -241,7 +242,7 @@ export function GlobalAssistant({
             memory={homeMemory}
             setMemory={setHomeMemory}
             visible={!caseId && !choosing}
-            onOpen={(id) => inspect(id, "comparison")}
+            onOpen={(id, tab) => inspect(id, tab ?? "comparison")}
             onAttach={(question) => {
               setPendingQuestion(
                 question.trim() ? { id: null, text: question } : null,

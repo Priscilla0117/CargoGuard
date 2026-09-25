@@ -1,3 +1,4 @@
+import { checkDocumentIntegrity } from "./integrity-checks";
 import { runtimeBindings } from "@/lib/runtime";
 import { NextResponse } from "next/server";
 import {
@@ -112,11 +113,46 @@ export async function listCaseSummaries(
     )
     .bind(ws)
     .all<{ payload: string; version: number }>();
+  // Matching document checks also carry the independent safety findings
+  // (container check digits, weights), so the inbox never files one under
+  // "Done" while a finding is still open. Only these rows need documents.
+  const flagged = new Set<string>();
+  const evidence = await db
+    .prepare(
+      "SELECT email_id, json_extract(payload, '$.documents') AS documents, json_extract(payload, '$.comparison') AS comparison, json_extract(payload, '$.document_selection') AS selection FROM cases WHERE workspace=? AND json_extract(payload, '$.workflow')='verified' AND json_extract(payload, '$.category')='BL_COMPARISON'",
+    )
+    .bind(ws)
+    .all<{
+      email_id: string;
+      documents: string | null;
+      comparison: string | null;
+      selection: string | null;
+    }>();
+  for (const row of evidence.results) {
+    try {
+      if (
+        checkDocumentIntegrity({
+          documents: JSON.parse(row.documents ?? "[]"),
+          comparison: JSON.parse(row.comparison ?? "[]"),
+          document_selection: row.selection
+            ? JSON.parse(row.selection)
+            : undefined,
+        }).requires_attention
+      )
+        flagged.add(row.email_id);
+    } catch {
+      // Unreadable stored evidence is shown on the case page instead.
+    }
+  }
   return rows.results.map((row) => {
     const { email, ...result } = JSON.parse(row.payload);
     return {
       email: emailSummaryOf(email),
-      result: { ...result, version: row.version },
+      result: {
+        ...result,
+        version: row.version,
+        ...(flagged.has(email.email_id) ? { integrity_attention: true } : {}),
+      },
     };
   });
 }

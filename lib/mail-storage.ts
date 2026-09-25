@@ -24,8 +24,8 @@ import {
 import {
   exchangeGoogleToken,
   gmailDeliver,
-  gmailList,
   gmailProfile,
+  gmailUnseen,
   gmailRaw,
   googleAuthorizeUrl,
   type Fetcher,
@@ -478,22 +478,21 @@ export async function syncMailbox(context: MailContext) {
   let duplicates = 0,
     failed = 0;
   let note = "";
+  let more = false;
   try {
     if (row.provider === "gmail") {
       const token = await googleAccess(context, row);
       const query =
         `in:inbox newer_than:${settings.days}d ${settings.gmail_query}`.trim();
-      const list = await gmailList(
+      const unseen = await gmailUnseen(
         token,
         query,
-        Math.min(100, settings.max_per_sync * 4),
+        settings.max_per_sync,
+        (keys) => knownKeys(context, keys),
         context.fetcher,
       );
-      const keys = list.map((item) => `gmail:${item.id}`);
-      const seen = await knownKeys(context, keys);
-      for (const item of list
-        .filter((m) => !seen.has(`gmail:${m.id}`))
-        .slice(0, settings.max_per_sync)) {
+      more = unseen.more;
+      for (const item of unseen.messages) {
         const key = `gmail:${item.id}`;
         if (!(await reserve(context, key))) continue;
         try {
@@ -538,6 +537,7 @@ export async function syncMailbox(context: MailContext) {
         },
         (keys) => knownKeys(context, keys),
       );
+      more = candidates.more;
       for (const candidate of candidates) {
         if (!(await reserve(context, candidate.key))) continue;
         try {
@@ -573,7 +573,8 @@ export async function syncMailbox(context: MailContext) {
       ? `${imported.length} new email${imported.length === 1 ? "" : "s"} imported`
       : "No new email";
     if (failed) note += ` · ${failed} could not be imported`;
-    return { imported, duplicates, failed, busy: false, note };
+    if (more) note += " · more emails waiting — the next check continues";
+    return { imported, duplicates, failed, busy: false, note, more };
   } catch (error) {
     note =
       error instanceof HttpError

@@ -17,7 +17,8 @@ export type TodoReason =
   | "si_request"
   | "invoice"
   | "unprocessed"
-  | "follow_up";
+  | "follow_up"
+  | "extra_check";
 
 export const BUCKET_LABELS: Record<Bucket, string> = {
   todo: "To do",
@@ -39,6 +40,7 @@ export const TODO_REASON_LABELS: Record<TodoReason, string> = {
   invoice: "Invoice question",
   unprocessed: "Not checked yet",
   follow_up: "Follow-up due",
+  extra_check: "Extra check",
 };
 export const LEVEL_LABELS: Record<Level, string> = {
   urgent: "Urgent",
@@ -134,7 +136,12 @@ export function planFor(
     bucket = "todo";
     reason = laneReason[lane] ?? "follow_up";
   } else if (state === "waiting") bucket = "waiting";
-  else if (lane === "handoff" || state === "completed") bucket = "done";
+  else if (state === "completed") bucket = "done";
+  else if (lane === "handoff" && row.result?.integrity_attention) {
+    // All seven details match, but an independent safety finding is open.
+    bucket = "todo";
+    reason = "extra_check";
+  } else if (lane === "handoff") bucket = "done";
   else if (
     context.superseded_by_match &&
     (lane === "amend" || lane === "request")
@@ -147,7 +154,8 @@ export function planFor(
     category === "SI_REQUEST"
   ) {
     bucket = "done";
-    note = "The draft BL for this order has arrived, so the SI was sent.";
+    note =
+      "A draft BL for this order has arrived — drafts are made from the SI, so this request was answered.";
   } else if (lane === "routed" && category === "SI_REQUEST") {
     bucket = "todo";
     reason = "si_request";
@@ -178,6 +186,7 @@ export function planFor(
         unclear: [30, "Some information is unclear"],
         unprocessed: [15, "Not checked yet"],
         follow_up: [30, "Follow-up is open"],
+        extra_check: [28, "A container number or weight looks wrong"],
       };
       const [points, text] = base[reason!];
       add(points, text);

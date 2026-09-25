@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { errorSession, requireCapability } from "@/lib/auth";
 import { HttpError, readJson } from "@/lib/http";
-import { polishReply, replyAiConfig } from "@/lib/reply-ai";
+import { polishReply, replyAiConfig, writeReply } from "@/lib/reply-ai";
+import { INTENT_LABELS } from "@/lib/reply";
 import { getCase, requireMutation, respond } from "@/lib/storage";
 
 const windowMs = 60 * 60 * 1000;
@@ -47,6 +48,10 @@ export async function POST(request: Request) {
         tone: z.enum(["formal", "friendly", "short"]),
         body: z.string().trim().min(1).max(12000),
         consent: z.literal(true),
+        mode: z.enum(["polish", "write"]).default("polish"),
+        intent: z
+          .enum(Object.keys(INTENT_LABELS) as [string, ...string[]])
+          .optional(),
       })
       .strict()
       .parse(await readJson(request, 64 * 1024));
@@ -57,10 +62,29 @@ export async function POST(request: Request) {
         "AI wording help is limited to 30 uses per hour. Try again later.",
         429,
       );
-    return respond(
-      { body: await polishReply(input.body, input.tone) },
-      session,
-    );
+    if (saved.version !== input.version)
+      throw new HttpError(
+        "This email changed. Reopen it before asking for AI help.",
+        409,
+      );
+    const body =
+      input.mode === "write"
+        ? await writeReply({
+            draft: input.body,
+            tone: input.tone,
+            intent:
+              INTENT_LABELS[
+                (input.intent ?? "blank") as keyof typeof INTENT_LABELS
+              ],
+            email: {
+              from: saved.email.from,
+              subject: saved.email.subject,
+              body: saved.email.body,
+            },
+            summary: saved.summary,
+          })
+        : await polishReply(input.body, input.tone);
+    return respond({ body }, session);
   } catch (error) {
     return respond(
       {

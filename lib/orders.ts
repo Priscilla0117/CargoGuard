@@ -1,4 +1,4 @@
-import { planAll, threadsFor } from "./conversation";
+import { planAll, sameShipment, threadsFor } from "./conversation";
 import { receivedTime, type Level, type Plan } from "./priority";
 import type { FollowUp } from "./follow-up";
 import type { CaseSummary } from "./types";
@@ -82,17 +82,22 @@ export function buildOrders(
     (row.email.insight?.refs.shipment.length === 1
       ? row.email.insight.refs.shipment[0]
       : null);
-  const byThread = new Map<string, string>();
+  // An email without an order number joins an order only when mail headers
+  // or the provider thread prove it belongs there (not a similar subject).
+  const withRef = cases.filter(
+    (row) => row.result?.category !== "SPAM" && !!refOf(row),
+  );
+  const byId = new Map(withRef.map((row) => [row.email.email_id, row]));
   for (const row of cases) {
     if (row.result?.category === "SPAM") continue;
-    const ref = refOf(row);
-    const thread = threads.get(row.email.email_id);
-    if (ref && thread) byThread.set(thread.key, ref);
-  }
-  for (const row of cases) {
-    if (row.result?.category === "SPAM") continue;
-    const thread = threads.get(row.email.email_id);
-    const ref = refOf(row) ?? (thread ? byThread.get(thread.key) : undefined);
+    let ref = refOf(row);
+    if (!ref) {
+      const thread = threads.get(row.email.email_id);
+      const anchor = thread?.ids
+        .map((id) => byId.get(id))
+        .find((other) => !!other && sameShipment(row, other));
+      ref = anchor ? refOf(anchor) : null;
+    }
     if (!ref) continue;
     groups.set(ref, [...(groups.get(ref) ?? []), row]);
   }
@@ -111,7 +116,7 @@ export function buildOrders(
     );
 }
 
-function orderFrom(
+export function orderFrom(
   ref: string,
   rows: CaseSummary[],
   plans: Map<string, Plan>,
@@ -156,13 +161,14 @@ function orderFrom(
         : siOpen
           ? "problem"
           : "none",
+    // Evidence only: a draft BL can only be issued from an SI.
     note: drafts.length
-      ? "Sent"
+      ? "Draft BL received, so the SI was used"
       : siOpen
         ? "Customer is waiting for it"
         : siRequests.length
-          ? "Sent"
-          : "No request yet",
+          ? "Request handled"
+          : "No request in the emails",
   };
   const draft: OrderStep = {
     key: "draft",
@@ -199,17 +205,19 @@ function orderFrom(
         ? "None needed"
         : "—"
       : latest?.result!.workflow === "verified"
-        ? "Carrier corrected the BL"
+        ? "A newer draft matches the SI"
         : waiting
           ? "Waiting for the corrected BL"
           : "Ask for a corrected BL",
   };
   const final: OrderStep = {
     key: "final",
-    label: "BL confirmed",
+    label: "Ready to confirm",
     state: latest?.result!.workflow === "verified" ? "done" : "none",
     note:
-      latest?.result!.workflow === "verified" ? "Ready to confirm" : "Not yet",
+      latest?.result!.workflow === "verified"
+        ? "Latest draft matches the SI"
+        : "Not yet",
   };
 
   const open = sorted.filter((row) => plan(row).bucket === "todo");

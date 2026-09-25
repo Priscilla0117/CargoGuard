@@ -20,6 +20,30 @@ export function threadsFor(cases: CaseSummary[]) {
   );
 }
 
+const headerIds = (row: CaseSummary) =>
+  [row.email.message_id, row.email.in_reply_to, ...(row.email.references ?? [])]
+    .filter((value): value is string => !!value)
+    .map((value) => value.trim().toLowerCase());
+
+/**
+ * Proof that two emails are about the same shipment: the same order number
+ * or BL/booking number, the same mail thread (reply headers or the Gmail
+ * thread). A matching subject alone is only a hint — it may group emails in
+ * the list but can never close or compare work.
+ */
+export function sameShipment(a: CaseSummary, b: CaseSummary) {
+  const ra = a.email.insight?.refs;
+  const rb = b.email.insight?.refs;
+  const shared = (x?: string[], y?: string[]) =>
+    !!x?.length && !!y?.length && x.some((value) => y.includes(value));
+  if (shared(ra?.shipment, rb?.shipment) || shared(ra?.booking, rb?.booking))
+    return true;
+  if (a.email.thread_hint && a.email.thread_hint === b.email.thread_hint)
+    return true;
+  const ids = new Set(headerIds(a));
+  return headerIds(b).some((value) => ids.has(value));
+}
+
 const isDraftCheck = (row: CaseSummary) =>
   row.result?.category === "BL_COMPARISON" &&
   (row.result.workflow === "verified" || row.result.workflow === "discrepancy");
@@ -61,14 +85,20 @@ export function planContexts(
           later !== null &&
           later > at &&
           isDraftCheck(other) &&
-          other.result!.workflow === "verified"
+          other.result!.workflow === "verified" &&
+          sameShipment(row, other)
         );
       });
     // An SI request is answered once a draft BL for the order has come in.
     if (at !== null && row.result?.category === "SI_REQUEST")
       context.si_answered = members.some((other) => {
         const later = receivedTime(other);
-        return later !== null && later > at && isDraftCheck(other);
+        return (
+          later !== null &&
+          later > at &&
+          isDraftCheck(other) &&
+          sameShipment(row, other)
+        );
       });
     contexts.set(id, context);
   }
@@ -124,7 +154,8 @@ export function draftProgress(
         row.email.email_id !== current.email.email_id &&
         isDraftCheck(row) &&
         receivedTime(row) !== null &&
-        receivedTime(row)! < at,
+        receivedTime(row)! < at &&
+        sameShipment(row, current),
     )
     .sort((a, b) => receivedTime(b)! - receivedTime(a)!)[0];
   if (!previous) return null;

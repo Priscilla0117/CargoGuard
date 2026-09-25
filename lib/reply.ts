@@ -214,7 +214,12 @@ export function draftReply(
       checks.push(
         ...listed.map(
           (row) =>
-            `${FIELD_LABELS[row.field]} — SI value copied from ${row.si.evidence}`,
+            `${FIELD_LABELS[row.field]} — SI value copied from ${
+              row.si.evidence
+                .replace(/^Reviewer confirmed; original source: /, "")
+                .replace(/,?\s*y\s*=\s*[\d.]+/gi, "")
+                .trim() || "the SI"
+            }`,
         ),
       );
       if (!mismatches.length)

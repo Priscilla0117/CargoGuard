@@ -8,7 +8,7 @@ import {
 } from "./follow-up";
 import { saveFollowUp } from "./follow-up-storage";
 import { checkDocumentIntegrity } from "./integrity-checks";
-import type { CaseResult, Field } from "./types";
+import { FIELDS, type CaseResult, type Field } from "./types";
 
 export const batchReviewInput = z
   .object({
@@ -48,6 +48,13 @@ export interface BatchOutcome {
   message: string;
 }
 export function batchReviewBlocker(result: CaseResult): string | null {
+  // Batch completion records a finished SI / draft BL check — nothing else.
+  if (
+    result.category !== "BL_COMPARISON" ||
+    result.workflow !== "verified" ||
+    result.comparison.length !== FIELDS.length
+  )
+    return "Only a complete SI / draft BL check can be completed in a batch.";
   const blocked = completionBlocker(result);
   if (blocked) return blocked;
   if (

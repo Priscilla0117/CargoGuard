@@ -22,7 +22,11 @@ import {
   type ReplyTone,
 } from "@/lib/reply";
 import type { CaseResult } from "@/lib/types";
+import { finishBlocker } from "@/lib/follow-up";
 import { requestJson } from "@/lib/client-api";
+
+/** What the employee says happens after a reply. Nothing is assumed. */
+export type ReplyOutcome = "waiting" | "working" | "done";
 
 export interface MailboxState {
   connected: boolean;
@@ -61,7 +65,7 @@ export function ReplyComposer({
   onDone: (message: string) => void;
   onError: (message: string) => void;
   /** Records that the reply went out, so the email leaves "To do". */
-  onReplied?: (how: string) => Promise<boolean>;
+  onReplied?: (how: string, outcome: ReplyOutcome) => Promise<boolean>;
   /** Where the email is now: "todo", "waiting", "done" or "other". */
   status?: string;
 }) {
@@ -81,7 +85,7 @@ export function ReplyComposer({
   const [subject, setSubject] = useState(draft.subject);
   const [body, setBody] = useState(draft.body);
   const [dirty, setDirty] = useState(false);
-  const [busy, setBusy] = useState<"" | "draft" | "send" | "ai">("");
+  const [busy, setBusy] = useState<"" | "draft" | "send" | "ai" | "write">("");
   const [confirmSend, setConfirmSend] = useState(false);
   const [copied, setCopied] = useState(false);
   const [ai, setAi] = useState<{ available: boolean; label: string } | null>(
@@ -89,17 +93,36 @@ export function ReplyComposer({
   );
   const [aiConsent, setAiConsent] = useState(false);
   const [aiNote, setAiNote] = useState("");
-  // After copying / opening Gmail we cannot see the send: ask once.
+  // After a reply leaves (or may have left) CargoGuard, ask what happens next.
   const [askSent, setAskSent] = useState("");
-  const [recording, setRecording] = useState(false);
+  const [sentForSure, setSentForSure] = useState(false);
+  const [recording, setRecording] = useState<ReplyOutcome | "">("");
   const lastDraft = useRef(draft.body);
-  async function recordReply(how: string) {
-    if (!onReplied) return;
-    setRecording(true);
+  const cannotFinish = finishBlocker(result);
+  // The suggestion follows what the reply says: a request waits for the
+  // sender, an acknowledgement keeps the task open, a confirmation finishes.
+  const recommended: ReplyOutcome =
+    intent === "acknowledge"
+      ? "working"
+      : intent === "confirm_match" ||
+          (intent === "blank" &&
+            ["SI_REQUEST", "INVOICE_QUERY", "GENERAL"].includes(
+              result.category,
+            ))
+        ? cannotFinish
+          ? "waiting"
+          : "done"
+        : "waiting";
+  async function recordReply(outcome: ReplyOutcome) {
+    if (!onReplied || !askSent) return;
+    setRecording(outcome);
     try {
-      if (await onReplied(how)) setAskSent("");
+      if (await onReplied(askSent, outcome)) {
+        setAskSent("");
+        setSentForSure(false);
+      }
     } finally {
-      setRecording(false);
+      setRecording("");
     }
   }
 
@@ -187,17 +210,27 @@ export function ReplyComposer({
           : `Draft saved in ${value.where} (${value.account}). Open your mailbox to review and send it.`,
       );
       setConfirmSend(false);
-      if (mode === "send") await recordReply("sent from CargoGuard");
-      else setAskSent("saved as a draft in your mailbox");
+      setSentForSure(mode === "send");
+      setAskSent(
+        mode === "send"
+          ? "sent from CargoGuard"
+          : "saved as a draft in your mailbox",
+      );
     } catch (error) {
       onError(error instanceof Error ? error.message : "Delivery failed.");
     } finally {
       setBusy("");
     }
   }
-  async function improve() {
+  async function improve(mode: "polish" | "write") {
     if (!aiConsent) return;
-    setBusy("ai");
+    if (
+      dirty &&
+      body !== lastDraft.current &&
+      !window.confirm("Replace your edited text with the AI version?")
+    )
+      return;
+    setBusy(mode === "write" ? "write" : "ai");
     setAiNote("");
     try {
       const value = await requestJson<{ body: string }>("/api/reply", {
@@ -209,12 +242,16 @@ export function ReplyComposer({
           tone,
           body,
           consent: true,
+          mode,
+          intent,
         }),
       });
       setBody(value.body);
       setDirty(true);
       setAiNote(
-        "Wording improved by AI. Every value from the checked documents was kept — read it once before sending.",
+        mode === "write"
+          ? "Reply written by AI from the email and the checked documents. CargoGuard confirmed every checked value is kept and nothing new (amounts, dates, links) was added — read it once before sending."
+          : "Wording improved by AI. Every value from the checked documents was kept — read it once before sending.",
       );
     } catch (error) {
       setAiNote(error instanceof Error ? error.message : "AI is unavailable.");
@@ -412,13 +449,27 @@ export function ReplyComposer({
                 checked={aiConsent}
                 onChange={(e) => setAiConsent(e.target.checked)}
               />
-              Allow {ai.label} to read this draft
+              Allow {ai.label} to read this email and the draft
             </label>
             <button
               type="button"
               className="cg-btn"
               disabled={!aiConsent || !!busy || !body.trim()}
-              onClick={() => void improve()}
+              onClick={() => void improve("write")}
+              title="AI writes a full reply that answers the sender, using only facts from the email and the check"
+            >
+              {busy === "write" ? (
+                <Loader2 size={18} className="cg-spin" />
+              ) : (
+                <Sparkles size={18} />
+              )}
+              Write reply with AI
+            </button>
+            <button
+              type="button"
+              className="cg-btn"
+              disabled={!aiConsent || !!busy || !body.trim()}
+              onClick={() => void improve("polish")}
             >
               {busy === "ai" ? (
                 <Loader2 size={18} className="cg-spin" />
@@ -430,31 +481,65 @@ export function ReplyComposer({
           </>
         )}
       </div>
-      {askSent && onReplied && status !== "waiting" && status !== "done" && (
+      {askSent && onReplied && (
         <div className="cg-composer-sent" role="status">
-          <span>
-            Reply {askSent}. <strong>Did you send it?</strong>
-          </span>
-          <button
-            type="button"
-            className="cg-btn primary small"
-            disabled={recording}
-            onClick={() => void recordReply(askSent)}
-          >
-            {recording ? (
-              <Loader2 size={16} className="cg-spin" />
-            ) : (
-              <CheckCircle2 size={16} />
-            )}
-            Yes, I sent it
-          </button>
-          <button
-            type="button"
-            className="cg-btn small ghost"
-            onClick={() => setAskSent("")}
-          >
-            Not yet
-          </button>
+          <p>
+            Reply {askSent}.{" "}
+            <strong>
+              {sentForSure
+                ? "What happens next?"
+                : "Once it is sent, what happens next?"}
+            </strong>
+          </p>
+          <div className="cg-composer-sent-options">
+            {(
+              [
+                [
+                  "waiting",
+                  "Waiting for their answer",
+                  "Leaves To do; comes back when they reply or next working day",
+                ],
+                [
+                  "working",
+                  "Still working on it",
+                  "Stays in To do, e.g. checking with billing",
+                ],
+                [
+                  "done",
+                  "Finished",
+                  cannotFinish ?? "Nothing else is needed — move to Done",
+                ],
+              ] as const
+            ).map(([value, label, hint]) => (
+              <button
+                key={value}
+                type="button"
+                className={`cg-btn ${recommended === value ? "primary" : ""}`}
+                disabled={!!recording || (value === "done" && !!cannotFinish)}
+                title={hint}
+                onClick={() => void recordReply(value)}
+              >
+                {recording === value ? (
+                  <Loader2 size={16} className="cg-spin" />
+                ) : (
+                  <CheckCircle2 size={16} />
+                )}
+                <span>
+                  {label}
+                  <small>{hint}</small>
+                </span>
+              </button>
+            ))}
+          </div>
+          {!sentForSure && (
+            <button
+              type="button"
+              className="cg-link cg-small"
+              onClick={() => setAskSent("")}
+            >
+              I have not sent it yet
+            </button>
+          )}
         </div>
       )}
       <div className="cg-composer-actions">

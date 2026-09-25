@@ -124,13 +124,34 @@ function evidence(
 }
 
 type Candidate = { value: string; raw: string; row: SourceLine };
+/** BL number prefixes that look like container numbers but carry 8 digits. */
+const BL_PREFIX =
+  /^(?:SINF|ONEY|OOLU|EGLV|HLCU|COSU|MAEU|CMDU|YMJA|SIJ[A-Z]|MCLS)/;
+/**
+ * Values that only look like container numbers: an HS code ("HS CODE
+ * 48025700") or a labelled BL / booking number ("B/L No.: SINF93802620").
+ * A real container number has exactly seven digits, so only the longer
+ * look-alikes are skipped; genuine malformed IDs are still reported.
+ */
+function notAContainer(text: string, raw: string, at: number) {
+  const before = text.slice(Math.max(0, at - 40), at);
+  const digits = raw.replace(/^[A-Z]{4}[ -]?/, "");
+  if (/^CODE[ -]?/.test(raw) && /\bHS\s*$/.test(before)) return true;
+  if (digits.length !== 8) return false;
+  return (
+    BL_PREFIX.test(raw) ||
+    /(?:\bB\/?L|BILL OF LADING|BOOKING)\s*(?:NO\.?|NUMBER|#)?\s*[:#]?\s*$/.test(
+      before,
+    )
+  );
+}
 function containerCandidates(rows: SourceLine[]): Candidate[] {
   const found: Candidate[] = [];
   for (const row of rows) {
     // A complete candidate may occur in a table without its heading on that row.
-    for (const match of row.text
-      .toUpperCase()
-      .matchAll(/\b[A-Z]{4}[ -]?[\dOQILSZB?]{6,8}\b/g)) {
+    const upper = row.text.toUpperCase();
+    for (const match of upper.matchAll(/\b[A-Z]{4}[ -]?[\dOQILSZB?]{6,8}\b/g)) {
+      if (notAContainer(upper, match[0], match.index ?? 0)) continue;
       found.push({ value: match[0].replace(/[ -]/g, ""), raw: match[0], row });
     }
     if (!found.some((item) => item.row === row)) {

@@ -13,7 +13,6 @@ import {
   History,
   Inbox,
   Loader2,
-  Mail,
   MessageSquareText,
   MessagesSquare,
   MoreHorizontal,
@@ -26,12 +25,7 @@ import {
   Upload,
   User,
 } from "lucide-react";
-import {
-  emailInsight,
-  latestMessagePart,
-  quotedHistory,
-  type ThreadInfo,
-} from "@/lib/mail-intel";
+import { emailInsight, quotedHistory, type ThreadInfo } from "@/lib/mail-intel";
 import { LEVEL_LABELS, type Plan } from "@/lib/priority";
 import { draftProgress } from "@/lib/conversation";
 import { senderHeadsUp } from "@/lib/sender-insights";
@@ -49,7 +43,11 @@ import {
   type ParsedDocument,
 } from "@/lib/types";
 import { CompareTable, type FieldEdit } from "./compare-table";
-import { ReplyComposer, type MailboxState } from "./reply-composer";
+import {
+  ReplyComposer,
+  type MailboxState,
+  type ReplyOutcome,
+} from "./reply-composer";
 import { DocumentPairSelector } from "./document-pair-selector";
 import { ScanAssist } from "./scan-assist";
 import { EvidenceRecovery } from "./evidence-recovery";
@@ -58,6 +56,7 @@ import { ResolutionDesk } from "./resolution-desk";
 import { FollowUpDesk } from "./follow-up-desk";
 import { DecisionHistory } from "./decision-history";
 import { formatReceived } from "./inbox-view";
+import { EmailMessage } from "./email-message";
 
 export type CaseTab =
   | "compare"
@@ -167,7 +166,7 @@ export interface CaseViewProps {
   ) => void;
   onNotice: (message: string) => void;
   onError: (message: string) => void;
-  onReplied?: (how: string) => Promise<boolean>;
+  onReplied?: (how: string, outcome: ReplyOutcome) => Promise<boolean>;
   error: string;
   followup: {
     value: FollowUp | undefined;
@@ -197,6 +196,7 @@ export function CaseView(props: CaseViewProps) {
   const insight = emailInsight(result.email);
   const refs = insight.refs;
   const canEdit = result.comparison.length > 0;
+  const integrity = canEdit ? checkDocumentIntegrity(result) : null;
   const summary = cases.find(
     (row) => row.email.email_id === result.email.email_id,
   );
@@ -528,6 +528,17 @@ export function CaseView(props: CaseViewProps) {
                 </span>
               </p>
             )}
+            {integrity?.requires_attention && (
+              <details className="cg-details cg-details-alert" open>
+                <summary>
+                  Extra safety check needs a look (container numbers, weights,
+                  totals)
+                </summary>
+                <div>
+                  <IntegrityChecks assessment={integrity} />
+                </div>
+              </details>
+            )}
             {canEdit ? (
               <CompareTable
                 key={`${result.email.email_id}:${result.documents.map((doc) => doc.sha256 ?? doc.name).join(",")}`}
@@ -536,6 +547,15 @@ export function CaseView(props: CaseViewProps) {
                 onReviewerName={props.onReviewerName}
                 canEdit={!running}
                 onSave={props.onSaveEdit}
+                onSaveNext={
+                  props.nextId
+                    ? async (edit, actor, reason) => {
+                        const ok = await props.onSaveEdit(edit, actor, reason);
+                        if (ok && props.nextId) props.onOpenCase(props.nextId);
+                        return ok;
+                      }
+                    : undefined
+                }
                 onSource={props.onSource}
               />
             ) : (
@@ -555,15 +575,13 @@ export function CaseView(props: CaseViewProps) {
                 </div>
               </div>
             )}
-            {canEdit && (
+            {integrity && !integrity.requires_attention && (
               <details className="cg-details">
                 <summary>
                   Extra safety checks (container numbers, weights, totals)
                 </summary>
                 <div>
-                  <IntegrityChecks
-                    assessment={checkDocumentIntegrity(result)}
-                  />
+                  <IntegrityChecks assessment={integrity} />
                 </div>
               </details>
             )}
@@ -593,48 +611,14 @@ export function CaseView(props: CaseViewProps) {
         )}
         {tab === "conversation" && (
           <div className="cg-panel">
-            <section className="cg-card cg-card-pad">
-              <h2 className="cg-section-title">
-                <Mail size={18} /> This email
-              </h2>
-              <dl className="cg-kv" style={{ marginBottom: 14 }}>
-                <dt>From</dt>
-                <dd>{result.email.from}</dd>
-                {!!result.email.to?.length && (
-                  <>
-                    <dt>To</dt>
-                    <dd>{result.email.to.join(", ")}</dd>
-                  </>
-                )}
-                {!!result.email.cc?.length && (
-                  <>
-                    <dt>Cc</dt>
-                    <dd>{result.email.cc.join(", ")}</dd>
-                  </>
-                )}
-                <dt>Received</dt>
-                <dd>
-                  {result.email.received_at
-                    ? new Date(result.email.received_at).toLocaleString()
-                    : "No date recorded"}
-                </dd>
-                <dt>Type</dt>
-                <dd>{categoryWords(result.category)}</dd>
-              </dl>
-              <pre className="cg-email-body">
-                {latestMessagePart(result.email.body).trim() ||
-                  result.email.body}
-              </pre>
-              {latestMessagePart(result.email.body).length <
-                result.email.body.length && (
-                <details className="cg-details">
-                  <summary>Show the full email with quoted replies</summary>
-                  <div>
-                    <pre className="cg-email-body">{result.email.body}</pre>
-                  </div>
-                </details>
-              )}
-            </section>
+            <EmailMessage
+              result={result}
+              onReply={() => go("reply")}
+              onDocument={(doc) => {
+                props.onDocument(doc);
+                onTab("documents");
+              }}
+            />
             <QuotedTimeline result={result} />
             <ConversationSummary
               result={result}

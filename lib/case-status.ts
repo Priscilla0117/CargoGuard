@@ -1,5 +1,6 @@
 import { FIELD_LABELS, type CaseResult, type CaseSummary } from "./types";
 import type { Plan } from "./priority";
+import { checkDocumentIntegrity } from "./integrity-checks";
 
 export type StatusTone =
   | "differences"
@@ -130,6 +131,20 @@ export function caseStatus(result: CaseResult, plan?: Plan): CaseStatus {
         : { label: "Open the documents", target: "documents" },
       secondary: { label: "Ask the sender", target: "reply" },
     };
+  if (
+    result.workflow === "verified" &&
+    result.category === "BL_COMPARISON" &&
+    plan?.bucket !== "done" &&
+    checkDocumentIntegrity(result).requires_attention
+  )
+    return {
+      tone: "unclear",
+      title: "All 7 details match — one extra check needs a look",
+      detail:
+        "A container number, weight or total looks wrong on its own (for example a container number whose check digit does not add up). Look at the “Extra safety check” box on the SI vs BL check tab before confirming.",
+      action: { label: "See the extra check", target: "compare" },
+      secondary: { label: "Send confirmation", target: "reply" },
+    };
   if (result.workflow === "verified")
     return {
       tone: "done",
@@ -156,7 +171,7 @@ export function caseStatus(result: CaseResult, plan?: Plan): CaseStatus {
       tone: "unclear",
       title: "Customer asks for a Shipping Instruction",
       detail:
-        "Prepare the SI and reply with it. When you reply from here, CargoGuard moves the email to Done.",
+        "Prepare the SI and reply with it. After replying, choose “Finished” so the email moves to Done.",
       action: { label: "Reply to sender", target: "reply" },
       secondary: { label: "Mark as handled", target: "followup" },
     };
@@ -165,7 +180,7 @@ export function caseStatus(result: CaseResult, plan?: Plan): CaseStatus {
       tone: "unclear",
       title: "Invoice question to answer",
       detail:
-        "Check the invoice with the billing team, then reply. When you reply from here, CargoGuard moves the email to Done.",
+        "Check the invoice with the billing team, then reply. After replying, choose “Finished” — or “Still working on it” if billing has not answered yet.",
       action: { label: "Reply to sender", target: "reply" },
       secondary: { label: "Mark as handled", target: "followup" },
     };
@@ -197,6 +212,8 @@ export function rowStatus(row: CaseSummary): {
   )
     return { text: "Missing documents", tone: "missing" };
   if (r.workflow === "review") return { text: "Please check", tone: "unclear" };
+  if (r.workflow === "verified" && r.integrity_attention)
+    return { text: "Extra check needed", tone: "unclear" };
   if (r.workflow === "verified")
     return { text: "All details match", tone: "done" };
   if (r.category === "SI_REQUEST") return { text: "Send SI", tone: "unclear" };
@@ -216,11 +233,13 @@ export function displayStatus(
     return {
       text:
         row.result?.category === "SI_REQUEST"
-          ? "SI already sent"
+          ? "Draft BL arrived"
           : "Corrected draft received",
       tone: "done",
     };
-  if (plan?.bucket === "done" && row.result?.workflow !== "verified")
-    return { text: "Handled", tone: "done" };
+  if (plan?.bucket === "done")
+    return row.result?.workflow === "verified"
+      ? { text: "All details match", tone: "done" }
+      : { text: "Handled", tone: "done" };
   return rowStatus(row);
 }

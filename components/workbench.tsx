@@ -34,7 +34,7 @@ import { AiAvailability } from "./ai-availability";
 import { DEFAULT_FILTERS, InboxView, type InboxFilters } from "./inbox-view";
 import { AuditDetail, CaseView, tabFor, type CaseTab } from "./case-view";
 import type { FieldEdit } from "./compare-table";
-import type { MailboxState } from "./reply-composer";
+import type { MailboxState, ReplyOutcome } from "./reply-composer";
 import { ImportDialog, type ImportOutcome } from "./import-dialog";
 import { PlanDialog } from "./plan-dialog";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -43,8 +43,9 @@ import { useCargoTools } from "./cargo-tools";
 import { requestJson, requestInbox, latencySummary } from "@/lib/client-api";
 import { createRequestGate } from "@/lib/request-gate";
 import { mergeCaseSummaries } from "@/lib/case-state";
-import { completionBlocker, type FollowUp } from "@/lib/follow-up";
+import { finishBlocker, type FollowUp } from "@/lib/follow-up";
 import { emailInsight } from "@/lib/mail-intel";
+import { checkDocumentIntegrity } from "@/lib/integrity-checks";
 import type { PolicySnapshot } from "@/lib/policy";
 import type { FollowUpMap, WorkspaceView } from "@/lib/work-queue";
 import { shiftBrief } from "@/lib/operations";
@@ -581,7 +582,23 @@ export default function Workbench({
     inboxRequests.current.cancel();
     inboxController.current?.abort();
     setLoading(false);
-    setCases((prev) => mergeCaseSummaries(prev, results.map(summaryOf)));
+    setCases((prev) =>
+      mergeCaseSummaries(
+        prev,
+        results.map((result) => {
+          const summary = summaryOf(result);
+          // Same flag the server adds to inbox summaries.
+          return result.workflow === "verified" &&
+            result.category === "BL_COMPARISON" &&
+            checkDocumentIntegrity(result).requires_attention
+            ? {
+                ...summary,
+                result: { ...summary.result!, integrity_attention: true },
+              }
+            : summary;
+        }),
+      ),
+    );
   };
   function applyCase(
     data: { result: CaseResult; audit: AuditEvent[] },
@@ -622,19 +639,33 @@ export default function Workbench({
         );
     }
   }
-  /** A reply went out: take the email off "To do" without extra clicks. */
-  async function recordReply(result: CaseResult, how: string) {
+  /** A reply went out: record what the employee says happens next. */
+  async function recordReply(
+    result: CaseResult,
+    how: string,
+    outcome: ReplyOutcome,
+  ) {
     const id = result.email.email_id;
     const current = followups[id];
     const name = (effectiveReviewer || employeeName || "Document desk")
       .trim()
       .slice(0, 80);
     const person = name.length >= 2 ? name : "Document desk";
-    // Answered requests and confirmed matches are finished; everything else
-    // waits for the sender (corrected BL, missing documents, clarification).
-    const finished = !completionBlocker(result);
+    if (outcome === "done") {
+      const blocked = finishBlocker(result);
+      if (blocked) {
+        setCaseError(blocked);
+        return false;
+      }
+    }
     const due = nextWorkingMorning(new Date());
     const refs = emailInsight(result.email).refs;
+    const note =
+      outcome === "done"
+        ? `Reply ${how}. Finished — nothing else is needed.`
+        : outcome === "waiting"
+          ? `Reply ${how}. Waiting for the sender to answer.`
+          : `Reply ${how}. Still working on it.`;
     try {
       const data = await requestJson<{ followup: FollowUp }>(
         "/api/follow-ups",
@@ -645,26 +676,34 @@ export default function Workbench({
             id,
             case_version: result.version,
             version: current?.version ?? 0,
-            owner: person,
-            shipment_reference: (refs.shipment[0] ?? refs.po[0] ?? "").slice(
-              0,
-              120,
-            ),
-            due_at: finished ? null : due.toISOString(),
-            state: finished ? "completed" : "waiting",
-            note: finished
-              ? `Reply ${how}. Nothing else is needed.`
-              : `Reply ${how}. Waiting for the sender to answer.`,
+            owner: current?.owner || person,
+            shipment_reference: (
+              current?.shipment_reference ||
+              refs.shipment[0] ||
+              refs.po[0] ||
+              ""
+            ).slice(0, 120),
+            due_at: outcome === "done" ? null : due.toISOString(),
+            state:
+              outcome === "done"
+                ? "completed"
+                : outcome === "waiting"
+                  ? "waiting"
+                  : "open",
+            note,
             actor: person,
           }),
         },
       );
       setFollowups((all) => ({ ...all, [id]: data.followup }));
       setFollowupFormKey((value) => value + 1);
+      const when = `${due.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} at ${due.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
       setNotice(
-        finished
-          ? "Reply recorded. This email is now in “Done”."
-          : `Moved to “Waiting for reply”. It comes back to To do as soon as the sender answers, or on ${due.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} at ${due.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} if there is no answer.`,
+        outcome === "done"
+          ? "Recorded. This email is now in “Done”."
+          : outcome === "waiting"
+            ? `Moved to “Waiting for reply”. It comes back to To do as soon as the sender answers, or on ${when} if there is no answer.`
+            : `Recorded. It stays in To do with a reminder on ${when}.`,
       );
       return true;
     } catch (e) {
@@ -1543,7 +1582,7 @@ export default function Workbench({
               }}
               onAsk={() => launchAssistant(selected.email.email_id)}
               onUpdated={applyCase}
-              onReplied={(how) => recordReply(selected, how)}
+              onReplied={(how, outcome) => recordReply(selected, how, outcome)}
               onNotice={setNotice}
               onError={setCaseError}
               error={caseError}
