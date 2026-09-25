@@ -4706,4 +4706,9 @@ p.cg-copilot-ai {
 .cg-proposal-values .cg-proposal-suggested { border-color: #639f96; background: #f0f8f6; }
 .cg-proposal-reading { padding-top: 16px; border-top: 1px solid var(--cg-border); }
 .cg-proposal-reading p { margin: 0 0 10px; line-height: 1.5; }
-@media (max-width: 600px) { .cg-proposal-values { grid-template-columns: 1fr; } .cg-proposal-body { padding: 0 16px 16px; } }
+@media (max-width: 600px) {
+  .cg-proposal-values { grid-template-columns: 1fr; }
+  .cg-proposal-body { padding: 0 16px 16px; }
+  .cg-proposal-dialog .cg-dialog-head { flex-direction: column; align-items: stretch; }
+  .cg-proposal-dialog .cg-dialog-head > button { order: -1; align-self: flex-end; }
+}

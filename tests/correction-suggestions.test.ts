@@ -11,11 +11,21 @@ import { draftReply } from "../lib/reply";
 import type { CaseResult } from "../lib/types";
 
 async function fixture(
-  options: { siWeight?: string; blWeight?: string; blConsignee?: string } = {},
+  options: {
+    siWeight?: string;
+    blWeight?: string;
+    blConsignee?: string;
+    blNotify?: string;
+  } = {},
 ) {
-  const source = (kind: string, weight: string, consignee = "BETA LTD") =>
+  const source = (
+    kind: string,
+    weight: string,
+    consignee = "BETA LTD",
+    notify = "SAME AS CONSIGNEE",
+  ) =>
     new TextEncoder().encode(
-      `${kind}\nShipper: ALPHA LTD\nConsignee: ${consignee}\nNotify Party: SAME AS CONSIGNEE\nPort of Loading: SINGAPORE\nPort of Discharge: ROTTERDAM\nContainer Count: 2 x 40HC\nGross Weight: ${weight}`,
+      `${kind}\nShipper: ALPHA LTD\nConsignee: ${consignee}\nNotify Party: ${notify}\nPort of Loading: SINGAPORE\nPort of Discharge: ROTTERDAM\nContainer Count: 2 x 40HC\nGross Weight: ${weight}`,
     );
   return analyze(
     {
@@ -36,6 +46,7 @@ async function fixture(
           "DRAFT BILL OF LADING",
           options.blWeight ?? "43000 KG",
           options.blConsignee,
+          options.blNotify,
         ),
       ),
     ],
@@ -185,6 +196,30 @@ test("a derived notify-party difference proposes its actual consignee correction
   );
   assert.equal(blAmendmentSuggestion(result, "notify_party"), null);
   assert.equal(blAmendmentSuggestion(result, "consignee")?.value, "BETA LTD");
+});
+
+test("equivalent notify-party references request only the underlying consignee amendment", async () => {
+  const result = await fixture({
+    blConsignee: "DIFFERENT LTD",
+    blNotify: "AS PER THE CONSIGNEE.",
+    blWeight: "42000 KG",
+  });
+  assert.equal(
+    result.comparison.find((row) => row.field === "notify_party")!.result,
+    "mismatch",
+  );
+  assert.equal(blAmendmentSuggestion(result, "notify_party"), null);
+  assert.equal(blAmendmentSuggestion(result, "consignee")?.value, "BETA LTD");
+  for (const tone of ["short", "formal", "friendly"] as const) {
+    const draft = draftReply(result, { intent: "request_correction", tone });
+    assert.match(draft.body, /following detail does not match/);
+    assert.match(draft.body, /1\. Consignee/);
+    assert.doesNotMatch(draft.body, /2\./);
+    assert.match(
+      draft.body,
+      /Notify party .*AS PER THE CONSIGNEE\.\W+ will be correct once the above is amended\./,
+    );
+  }
 });
 
 test("unclear source evidence and malformed duplicate rows cannot supply a reading prefill", async () => {

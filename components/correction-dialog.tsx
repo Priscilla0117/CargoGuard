@@ -105,7 +105,7 @@ export function CorrectionDialog({
   const [suggestion] = useState(() =>
     readingSuggestion(result, edit.field, edit.side),
   );
-  const [value, setValue] = useState(() => suggestion?.value ?? edit.value);
+  const [value, setValue] = useState(() => suggestion?.value ?? original);
   const [reason, setReason] = useState(() =>
     suggestion
       ? "Restored the suggested field reading from the original source after review."
