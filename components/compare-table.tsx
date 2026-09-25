@@ -211,6 +211,7 @@ export function CompareTable({
   }
 
   const problems = rows.filter((row) => row.result !== "match").length;
+  const partial = result.review_reason === "unreadable";
   const foldable =
     initiallyMatching.size < rows.length && initiallyMatching.size > 0;
   const folded = foldable && !showMatches;
@@ -224,6 +225,15 @@ export function CompareTable({
   );
   return (
     <section aria-label="Shipping Instruction compared with draft BL">
+      {partial && (
+        <p className="cg-notice" role="status">
+          <CircleHelp size={20} aria-hidden="true" />
+          <span>
+            Partial comparison — unread PDF content may change these values.
+            Review every flagged page in Documents before relying on this check.
+          </span>
+        </p>
+      )}
       <div className="cg-legend" style={{ marginBottom: 10 }}>
         <span>
           <TriangleAlert size={16} color="var(--cg-red)" /> Different — the
@@ -234,7 +244,8 @@ export function CompareTable({
           not be read with certainty
         </span>
         <span>
-          <CheckCircle2 size={16} color="var(--cg-green)" /> Matches
+          <CheckCircle2 size={16} color="var(--cg-green)" />{" "}
+          {partial ? "Readable values match" : "Matches"}
         </span>
       </div>
       <div className="cg-compare" role="table">
@@ -267,7 +278,9 @@ export function CompareTable({
                 ) : (
                   <CheckCircle2 size={14} />
                 )}
-                {RESULT_TEXT[row.result]}
+                {partial && row.result === "match"
+                  ? "Readable values match"
+                  : RESULT_TEXT[row.result]}
               </span>
             </div>
             {(["si", "bl"] as const).map((side) => {
@@ -440,9 +453,11 @@ export function CompareTable({
         />
       )}
       <p className="cg-small cg-muted" style={{ marginTop: 10 }}>
-        {problems
-          ? `${problems} of ${rows.length} details need attention. Correct reading fixes a reading error. If the document itself is wrong, request a revised document in Reply.`
-          : `All ${rows.length} details match. Spaces, punctuation and units are compared sensibly; missing values never count as a match.`}
+        {partial
+          ? "These are provisional results from readable content only. Unread pages must be reviewed before this document can be verified."
+          : problems
+            ? `${problems} of ${rows.length} details need attention. Correct reading fixes a reading error. If the document itself is wrong, request a revised document in Reply.`
+            : `All ${rows.length} details match. Spaces, punctuation and units are compared sensibly; missing values never count as a match.`}
       </p>
     </section>
   );

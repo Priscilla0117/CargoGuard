@@ -150,6 +150,9 @@ interface MailStatus extends MailboxState {
   settings?: { auto_sync: boolean; interval_minutes: number };
   last_sync_at?: string | null;
   last_sync_note?: string | null;
+  last_success_at?: string | null;
+  last_sync_error?: string | null;
+  worker?: { enabled: boolean; running: boolean; state: string };
 }
 function download(name: string, data: string, type = "application/json") {
   const url = URL.createObjectURL(new Blob([data], { type }));
@@ -494,7 +497,8 @@ export default function Workbench({
           setNotice(
             `${value.imported.length} new email${value.imported.length === 1 ? "" : "s"} imported from your mailbox and checked.`,
           );
-        } else if (manual) setNotice(value.busy ? value.note : "No new email.");
+        } else if (manual) setNotice(value.note || "Mailbox check completed.");
+        if (value.failed) setError(value.note);
       } catch (e) {
         if (manual) setError((e as Error).message);
       } finally {
@@ -505,7 +509,7 @@ export default function Workbench({
     [load, loadMail],
   );
   const autoSync =
-    mail?.connected && mail.settings?.auto_sync
+    mail?.connected && mail.settings?.auto_sync && !mail.worker?.enabled
       ? Math.max(2, mail.settings.interval_minutes)
       : 0;
   useEffect(() => {
@@ -517,6 +521,14 @@ export default function Workbench({
       clearInterval(timer);
     };
   }, [autoSync, inboxReady, syncMail]);
+  useEffect(() => {
+    if (!mail?.worker?.enabled || !inboxReady) return;
+    const timer = setInterval(() => {
+      void loadMail();
+      void load();
+    }, 60000);
+    return () => clearInterval(timer);
+  }, [mail?.worker?.enabled, inboxReady, loadMail, load]);
 
   // ----- Derived planning data -----
   const threads = useMemo(() => threadsFor(cases), [cases]);
@@ -1267,12 +1279,22 @@ export default function Workbench({
                   </strong>{" "}
                   {mail.account} ·{" "}
                   {mail.settings?.auto_sync
-                    ? `checks every ${mail.settings.interval_minutes} min`
+                    ? mail.worker?.enabled
+                      ? mail.worker.running
+                        ? `background checks every ${mail.settings.interval_minutes} min`
+                        : "background import needs attention"
+                      : `checks every ${mail.settings.interval_minutes} min while Inbox is open`
                     : "automatic import is off"}
-                  {mail.last_sync_at
-                    ? ` · last check ${new Date(mail.last_sync_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                    : ""}
+                  {mail.last_success_at
+                    ? ` · last successful check ${new Date(mail.last_success_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                    : " · no successful check yet"}
                   {mail.last_sync_note ? ` (${mail.last_sync_note})` : ""}
+                  {mail.last_sync_error && (
+                    <span role="alert">
+                      {" "}
+                      · Needs attention: {mail.last_sync_error}
+                    </span>
+                  )}
                 </span>
                 <button
                   className="cg-btn small"

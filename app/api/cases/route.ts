@@ -92,6 +92,11 @@ const action = z.discriminatedUnion("action", [
     name: z.string().min(1).max(180),
     sha256: z.string().regex(/^[a-f0-9]{64}$/),
     role: z.enum(["SI", "BL"]),
+    reviewed_pages: z
+      .array(z.number().int().min(1).max(5))
+      .min(1)
+      .max(5)
+      .refine((pages) => new Set(pages).size === pages.length),
     actor: z.string().trim().min(2).max(80),
     reason: z.string().trim().min(5).max(2000),
     fields: z.object({
@@ -373,6 +378,8 @@ export async function POST(request: Request) {
     if (input.action === "transcribe") {
       const transcript: Transcript = {
         role: input.role,
+        reviewed_pages: input.reviewed_pages,
+        source_sha256: input.sha256,
         fields: input.fields,
         actor: input.actor,
         reason: input.reason,

@@ -29,6 +29,23 @@ function doc(
 function checks(document: ParsedDocument) {
   return checkDocumentIntegrity({ documents: [document], comparison: [] });
 }
+function recordPdfCoverage(source: ParsedDocument) {
+  source.pdf_coverage = {
+    version: 1,
+    pages: Array.from({ length: source.page_count! }, (_, index) => {
+      const text_items = source.lines.filter((line) =>
+        line.location.startsWith(`Page ${index + 1},`),
+      ).length;
+      return {
+        page: index + 1,
+        text_items,
+        has_images: false,
+        requires_review: !text_items,
+      };
+    }),
+  };
+  return source;
+}
 function list(text: string, count = 1) {
   return doc(
     `Container count: ${count}\nComplete container list:\n${text}\nEnd container list`,
@@ -200,7 +217,9 @@ test("PDF list with absent page source cannot be declared complete", () => {
     ...line,
     location: `Page 1, y=${500 - index * 10}`,
   }));
-  assert.equal(forRule(source, "container_count")[0].status, "not_checked");
+  recordPdfCoverage(source);
+  assert.equal(forRule(source, "source")[0].status, "blocking");
+  assert.equal(checks(source).requires_attention, true);
 });
 test("PDF repeated headers across actual pages are counted once", () => {
   const source = list(
@@ -213,6 +232,7 @@ test("PDF repeated headers across actual pages are counted once", () => {
     ...line,
     location: `Page ${index < 4 ? 1 : 2}, y=${500 - index * 10}`,
   }));
+  recordPdfCoverage(source);
   assert.equal(forRule(source, "container_count")[0].status, "passed");
 });
 test("only the current selected pair contributes findings", () => {
@@ -304,6 +324,8 @@ test("weights cannot be paired across different PDF page/baseline records", () =
       { text: "Max gross weight: 32500 KG", location: "Page 2, y=100" },
     ],
   });
+  recordPdfCoverage(source);
+  assert.ok(forRule(source, "container_capacity").length > 0);
   assert.ok(
     forRule(source, "container_capacity").every(
       (f) => f.status === "not_checked",
@@ -320,6 +342,7 @@ test("same-baseline PDF fragments retain a single source location", () => {
       { text: "Max gross weight: 32500 KG", location: "Page 1, y=100" },
     ],
   });
+  recordPdfCoverage(source);
   const finding = forRule(source, "container_capacity")[0];
   assert.equal(finding.status, "passed");
   assert.equal(finding.evidence[0].location, "Page 1, y=100");

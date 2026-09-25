@@ -8,6 +8,7 @@ import {
 import { recomputeRows } from "./normalization";
 import { comparisonDocuments } from "./document-selection";
 import { checkDocumentIntegrity } from "./integrity-checks";
+import { pdfCoverageIssue } from "./pdf-coverage";
 
 export interface FollowUp {
   email_id: string;
@@ -164,7 +165,12 @@ export function completionBlocker(result: CompletionResult): string | null {
     pair.length !== 2 ||
     si.length !== 1 ||
     bl.length !== 1 ||
-    pair.some((doc) => doc.error || !/^[a-f0-9]{64}$/.test(doc.sha256 ?? "")) ||
+    pair.some(
+      (doc) =>
+        doc.error ||
+        pdfCoverageIssue(doc) ||
+        !/^[a-f0-9]{64}$/.test(doc.sha256 ?? ""),
+    ) ||
     result.comparison.some(
       (r) => r.si.source !== si[0].name || r.bl.source !== bl[0].name,
     )

@@ -17,6 +17,8 @@ import {
   type AuditEvent,
 } from "@/lib/types";
 import { requestJson } from "@/lib/client-api";
+import { suggestScanFields } from "@/lib/ocr";
+import { unresolvedPdfPages } from "@/lib/pdf-coverage";
 
 type Draft = Record<Field, { value: string; page: number; confirmed: boolean }>;
 const emptyDraft = (): Draft =>
@@ -28,14 +30,23 @@ export function ScanAssist({
   doc,
   result,
   onSaved,
+  onReplace,
+  disabled = false,
 }: {
   doc: ParsedDocument;
   result: CaseResult;
   onSaved: (data: { result: CaseResult; audit: AuditEvent[] }) => void;
+  onReplace?: () => void;
+  disabled?: boolean;
 }) {
+  const unresolvedPages = unresolvedPdfPages(doc);
+  const overPageLimit = (doc.page_count ?? 0) > 5;
   const [draft, setDraft] = useState<Draft>(emptyDraft),
     [role, setRole] = useState(""),
     [pages, setPages] = useState<string[]>([]);
+  const [activePage, setActivePage] = useState(unresolvedPages[0] ?? 1),
+    [viewedPages, setViewedPages] = useState<number[]>([]),
+    [reviewedPages, setReviewedPages] = useState<number[]>([]);
   const [busy, setBusy] = useState(false),
     [saving, setSaving] = useState(false),
     [progress, setProgress] = useState(""),
@@ -50,6 +61,20 @@ export function ScanAssist({
   const controller = useRef<AbortController | null>(null);
   const saveInFlight = useRef(false);
   const mounted = useRef(false);
+  const preview = useRef<HTMLDivElement>(null);
+  const pagesToInspect = unresolvedPages.length
+    ? unresolvedPages
+    : pages.map((_, index) => index + 1);
+  const pagesConfirmed =
+    pagesToInspect.length > 0 &&
+    pagesToInspect.every((page) => reviewedPages.includes(page));
+  const fieldsConfirmed = FIELDS.every(
+    (field) =>
+      draft[field].confirmed &&
+      !!draft[field].value.trim() &&
+      draft[field].page >= 1 &&
+      draft[field].page <= pages.length,
+  );
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -58,8 +83,38 @@ export function ScanAssist({
     };
   }, []);
 
-  async function run() {
-    if (controller.current || saveInFlight.current) return;
+  function showPage(page: number) {
+    setActivePage(page);
+    setViewedPages((previous) => [...new Set([...previous, page])]);
+    preview.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function run(mode: "ocr" | "manual") {
+    if (controller.current || saveInFlight.current || disabled || overPageLimit)
+      return;
+    if (
+      pages.length &&
+      !window.confirm(
+        "Start this review again? Unsaved field edits and page confirmations will be cleared.",
+      )
+    )
+      return;
+    // Readable text remains a suggestion even when another page was unreadable.
+    // It must never inherit a previous confirmation or an AI recovery value.
+    const readable = suggestScanFields(
+      { ...doc, recovery: undefined },
+      doc.lines,
+    );
+    const readableDraft = Object.fromEntries(
+      FIELDS.map((field) => [
+        field,
+        {
+          value: readable[field].raw.slice(0, 1500),
+          page: Number(readable[field].evidence.match(/Page (\d+)/)?.[1] ?? 1),
+          confirmed: false,
+        },
+      ]),
+    ) as Draft;
     const abort = new AbortController();
     controller.current = abort;
     let acceptingProgress = true;
@@ -75,7 +130,7 @@ export function ScanAssist({
     const deadline = setTimeout(
       () =>
         abort.abort(
-          "OCR timed out. Retry, or replace this source with a readable text-layer copy.",
+          "Reading timed out. If the original pages loaded, you can finish the review manually. Otherwise retry or replace this source with a readable PDF.",
         ),
       180000,
     );
@@ -85,7 +140,7 @@ export function ScanAssist({
         () =>
           reject(
             new Error(
-              "OCR stopped or timed out. No saved decision was changed. You can retry or replace the source.",
+              "Reading stopped or timed out. No saved decision was changed.",
             ),
           ),
         { once: true },
@@ -94,21 +149,22 @@ export function ScanAssist({
     setBusy(true);
     setError("");
     setSaveError("");
-    setDraft(emptyDraft());
+    setDraft(readableDraft);
     setPages([]);
     setRole("");
+    setReviewedPages([]);
+    setViewedPages([]);
     setEvidence({});
     setOcrPages([]);
     setSuggested(emptyDraft());
     setText("");
-    setProgress("Loading PDF and the local OCR model…");
+    setProgress("Loading original PDF pages…");
     try {
       await Promise.race([
         interrupted,
         (async () => {
-          const [pdfLib, ocrLib, response] = await Promise.all([
+          const [pdfLib, response] = await Promise.all([
             import("unpdf"),
-            import("tesseract.js"),
             fetch(
               `/api/document?id=${encodeURIComponent(result.email.email_id)}&name=${encodeURIComponent(doc.name)}&revision=${result.version}`,
               { signal: abort.signal },
@@ -125,7 +181,9 @@ export function ScanAssist({
               "This PDF is empty. Use Replace / revised documents to upload a readable original. The case remains in review.",
             );
           if (bytes.length > 5 * 1024 * 1024)
-            throw new Error("Scan assistance supports PDFs up to 5 MB.");
+            throw new Error(
+              "This review supports PDFs up to 5 MB. Replace this source with a readable text-layer PDF; partial review cannot clear the case.",
+            );
           const hash = Array.from(
             new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
             (b) => b.toString(16).padStart(2, "0"),
@@ -173,6 +231,20 @@ export function ScanAssist({
           }
           abort.signal.throwIfAborted();
           setPages(images);
+          const firstPage = unresolvedPages[0] ?? 1;
+          setActivePage(firstPage);
+          setViewedPages([firstPage]);
+          if (mode === "manual") {
+            acceptingProgress = false;
+            setProgress(
+              "Original pages ready. Check each unread page, then confirm all seven fields and their source pages. Readable text is prefilled where available.",
+            );
+            return;
+          }
+          // Only load the OCR dependency after rendering succeeds. A worker or
+          // model failure must leave a usable, source-bound manual review.
+          const ocrLib = await import("tesseract.js");
+          abort.signal.throwIfAborted();
           worker = await ocrLib.createWorker("eng", 1, {
             workerPath: `${location.origin}/ocr/worker.min.js`,
             corePath: `${location.origin}/ocr`,
@@ -183,7 +255,7 @@ export function ScanAssist({
             errorHandler: () => {
               if (!active()) return;
               abort.abort(
-                "The local OCR worker failed. Retry when the OCR assets are available, or replace the source with a readable copy.",
+                "Local OCR could not run. The original pages are available below for manual review, or you can replace the source with a readable copy.",
               );
             },
             logger: (m) => {
@@ -231,14 +303,23 @@ export function ScanAssist({
               },
             ]),
           ) as Draft;
-          setDraft(nextDraft);
+          setDraft(
+            Object.fromEntries(
+              FIELDS.map((field) => [
+                field,
+                readableDraft[field].value.trim()
+                  ? readableDraft[field]
+                  : nextDraft[field],
+              ]),
+            ) as Draft,
+          );
           setSuggested(nextDraft);
           setEvidence(support);
           setOcrPages(recognized);
           setText(recognizedText);
           acceptingProgress = false;
           setProgress(
-            "OCR suggestions ready. Check every field against the original page before saving.",
+            "OCR suggestions ready. Readable text suggestions were kept. Inspect every unread page and resolve any conflicting values before confirming all seven fields.",
           );
         })(),
       ]);
@@ -252,14 +333,14 @@ export function ScanAssist({
             ? typeof abort.signal.reason === "string"
               ? abort.signal.reason
               : "OCR stopped. No saved decision was changed. Retry when ready."
-            : "OCR failed. No saved decision was changed. Retry a temporary failure or replace the source.",
+            : "Reading could not complete. No saved decision was changed.",
         );
         setError(
           abort.signal.aborted
             ? typeof abort.signal.reason === "string"
               ? `${abort.signal.reason} No saved decision was changed.`
               : "OCR stopped. No saved decision was changed. Retry when ready."
-            : `OCR could not complete: ${(e as Error).message || "The PDF or OCR worker could not be read."} Retry a temporary failure; use Replace / revised documents for an empty, corrupt or unreadable source. The case remains in review.`,
+            : `Reading could not complete: ${(e as Error).message || "The PDF or OCR worker could not be read."} If original pages are shown below, you can review them manually. Otherwise retry or replace the source. The case remains in review.`,
         );
       }
     } finally {
@@ -278,8 +359,10 @@ export function ScanAssist({
     if (
       saveInFlight.current ||
       controller.current ||
+      disabled ||
       !role ||
-      !FIELDS.every((field) => draft[field].confirmed)
+      !pagesConfirmed ||
+      !fieldsConfirmed
     )
       return;
     saveInFlight.current = true;
@@ -301,6 +384,7 @@ export function ScanAssist({
           sha256: doc.sha256,
           role,
           fields: draft,
+          reviewed_pages: [...reviewedPages].sort((a, b) => a - b),
           actor: fd.get("actor"),
           reason: fd.get("reason"),
         }),
@@ -325,30 +409,85 @@ export function ScanAssist({
   }
   return (
     <section className="scan-assist">
-      <h3>Scan recovery · human-confirmed OCR</h3>
+      <h3>Review unread PDF content</h3>
       <p>
-        The OCR model runs in your browser. Document images are not sent to an
-        external AI provider. English, up to 5 pages; first use downloads the
-        model from this site. Suggestions are never automatically approved.
+        {unresolvedPages.length > 0 && (
+          <>
+            Check {unresolvedPages.length === 1 ? "page" : "pages"}{" "}
+            <strong>{unresolvedPages.join(", ")}</strong>: content on these
+            pages could not be verified from readable text.{" "}
+          </>
+        )}
+        Inspect the originals for additional or conflicting shipping details,
+        then confirm all seven fields. Readable text and OCR are suggestions;
+        neither approves this document.
       </p>
+      {!!unresolvedPages.length && (
+        <ul
+          className="scan-page-reasons"
+          aria-label="Why these pages need review"
+        >
+          {unresolvedPages.map((page) => (
+            <li key={page}>
+              <strong>Page {page}:</strong>{" "}
+              {(Array.isArray(doc.pdf_coverage?.pages)
+                ? doc.pdf_coverage.pages.find((entry) => entry?.page === page)
+                    ?.reason
+                : undefined) ??
+                "The original page needs visual inspection before its values can be confirmed."}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="scan-limits">
+        Local OCR reads English in your browser. Document images are not sent to
+        an external AI provider; first use downloads the model from this site.
+        You can also review the pages manually without running OCR. Both paths
+        support PDFs up to 5 pages and 5 MB.
+      </p>
+      {overPageLimit && (
+        <p className="alert warning" role="status">
+          This PDF has {doc.page_count} pages. Replace it with a readable
+          text-layer PDF containing the complete document. Reviewing only the
+          first five pages cannot clear the case.
+        </p>
+      )}
       <div className="scan-actions">
         <button
           className="button secondary"
-          disabled={busy || saving}
-          onClick={run}
+          disabled={busy || saving || disabled || overPageLimit}
+          onClick={() => void run("ocr")}
         >
           {error
             ? "Retry OCR"
             : pages.length
               ? "Run OCR again"
-              : "Read scan with local OCR"}
+              : "Get local OCR suggestions"}
         </button>
+        {!pages.length && (
+          <button
+            className="button secondary"
+            disabled={busy || saving || disabled || overPageLimit}
+            onClick={() => void run("manual")}
+          >
+            Review pages manually
+          </button>
+        )}
+        {onReplace && (
+          <button
+            className="button secondary"
+            disabled={busy || saving || disabled}
+            onClick={onReplace}
+          >
+            Replace with a readable PDF
+          </button>
+        )}
         {busy && (
           <button
             className="button secondary"
             onClick={() => controller.current?.abort()}
           >
-            Stop OCR
+            Stop reading
           </button>
         )}
       </div>
@@ -367,29 +506,119 @@ export function ScanAssist({
           particular attention. All seven fields still require confirmation.
         </p>
       )}
-      {!!pages.length && !busy && !error && (
+      {!!pages.length && !busy && (
         <>
-          <details className="scan-original-pages">
-            <summary>Inspect all original pages ({pages.length})</summary>
-            <div className="scan-pages">
-              {pages.map((src, i) => (
-                <figure key={i}>
-                  <figcaption>
-                    Original page {i + 1} · {doc.name}
-                  </figcaption>
-                  {/* Canvas-derived local images must not go through a remote image optimizer. */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={src} alt={`Original scan, page ${i + 1}`} />
-                </figure>
-              ))}
+          {error && (
+            <p className="alert warning">
+              Manual review is available: the original PDF pages were loaded and
+              checked against the saved source. Enter only values you can read
+              clearly. If anything is unreadable or contradictory, leave it
+              unconfirmed and request a readable replacement.
+            </p>
+          )}
+          <div className="scan-original-pages" ref={preview}>
+            <h4>1. Inspect the original pages</h4>
+            <div
+              className="scan-page-navigation"
+              role="group"
+              aria-label="Original PDF pages"
+            >
+              {pages.map((_, index) => {
+                const page = index + 1;
+                return (
+                  <button
+                    type="button"
+                    className="button secondary"
+                    key={page}
+                    aria-pressed={activePage === page}
+                    onClick={() => showPage(page)}
+                  >
+                    Page {page}
+                    {pagesToInspect.includes(page) ? " · review needed" : ""}
+                  </button>
+                );
+              })}
             </div>
-          </details>
+            <figure className="scan-page-preview">
+              <figcaption>
+                Original page {activePage} of {pages.length} · {doc.name}
+                {" · "}
+                <a
+                  target="_blank"
+                  rel="noreferrer"
+                  href={`/api/document?id=${encodeURIComponent(result.email.email_id)}&name=${encodeURIComponent(doc.name)}&revision=${result.version}#page=${activePage}`}
+                >
+                  Open this page to zoom
+                </a>
+              </figcaption>
+              {/* Canvas-derived local images must not go through a remote image optimizer. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={pages[activePage - 1]}
+                alt={`Original PDF, page ${activePage}`}
+              />
+            </figure>
+            <fieldset
+              className="scan-page-checklist"
+              disabled={saving || disabled}
+            >
+              <legend>Confirm each page that needs review</legend>
+              <p>
+                Open each listed page before confirming. Check for extra
+                quantities, addresses, amendments or conflicting values, even
+                when the seven fields are already filled in below.
+              </p>
+              {pagesToInspect.map((page) => (
+                <div className="scan-page-check" key={page}>
+                  <button
+                    type="button"
+                    className="button secondary"
+                    onClick={() => showPage(page)}
+                  >
+                    View page {page}
+                  </button>
+                  <label>
+                    <input
+                      type="checkbox"
+                      disabled={!viewedPages.includes(page)}
+                      checked={reviewedPages.includes(page)}
+                      onChange={(event) => {
+                        setReviewedPages((previous) =>
+                          event.target.checked
+                            ? [...new Set([...previous, page])]
+                            : previous.filter((value) => value !== page),
+                        );
+                        // Removing page assurance also withdraws field assurance.
+                        if (!event.target.checked)
+                          setDraft(
+                            (previous) =>
+                              Object.fromEntries(
+                                FIELDS.map((field) => [
+                                  field,
+                                  { ...previous[field], confirmed: false },
+                                ]),
+                              ) as Draft,
+                          );
+                      }}
+                    />
+                    I inspected page {page} for additional or conflicting values
+                  </label>
+                </div>
+              ))}
+            </fieldset>
+          </div>
           <form onSubmit={save}>
+            <h4>2. Confirm the seven authoritative values</h4>
+            <p>
+              Use the original page as evidence. Do not guess, resolve a
+              contradiction without clarification, or confirm a value you cannot
+              read. Each field needs its own source page and confirmation.
+            </p>
             <label>
               Confirm document role
               <select
                 required
-                disabled={saving}
+                disabled={saving || disabled}
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
               >
@@ -408,7 +637,7 @@ export function ScanAssist({
                 return Number(!!attention(b)) - Number(!!attention(a));
               })
               .map((field) => (
-                <fieldset key={field} disabled={saving}>
+                <fieldset key={field} disabled={saving || disabled}>
                   <legend>{FIELD_LABELS[field]}</legend>
                   {evidence[field] && (
                     <div className="scan-recognition">
@@ -422,7 +651,7 @@ export function ScanAssist({
                       >
                         {draft[field].value !== suggested[field].value ||
                         draft[field].page !== suggested[field].page
-                          ? "Edited by reviewer — the original OCR score does not describe this edited value."
+                          ? "The value or page differs from the OCR suggestion. The OCR score does not describe the value below."
                           : evidence[field]!.mean === null
                             ? "Recognition score unavailable — inspect the original page."
                             : `Source-word recognition: ${evidence[field]!.mean}/100 mean; ${evidence[field]!.lowest}/100 lowest (${evidence[field]!.wordCount} words).`}
@@ -434,6 +663,16 @@ export function ScanAssist({
                           evidence[field]!.lowest! < 80 &&
                           " Low recognition signal — check carefully."}
                       </p>
+                      {suggested[field].value.trim() &&
+                        draft[field].value.trim() !==
+                          suggested[field].value.trim() && (
+                          <p className="scan-alternative">
+                            OCR suggested on page {suggested[field].page}:{" "}
+                            <q>{suggested[field].value}</q>. Compare both
+                            against the original; a difference may be an OCR
+                            error or a conflict that needs clarification.
+                          </p>
+                        )}
                       {evidence[field]!.regions.map((region, i) => {
                         const original = ocrPages.find(
                           (page) => page.page === region.page,
@@ -501,7 +740,8 @@ export function ScanAssist({
                       Source page
                       <select
                         value={draft[field].page}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          showPage(Number(e.target.value));
                           setDraft({
                             ...draft,
                             [field]: {
@@ -509,12 +749,12 @@ export function ScanAssist({
                               page: Number(e.target.value),
                               confirmed: false,
                             },
-                          })
-                        }
+                          });
+                        }}
                       >
                         {pages.map((_, i) => (
                           <option key={i} value={i + 1}>
-                            {i + 1}
+                            Page {i + 1}
                           </option>
                         ))}
                       </select>
@@ -546,14 +786,14 @@ export function ScanAssist({
                 name="actor"
                 minLength={2}
                 maxLength={80}
-                disabled={saving}
+                disabled={saving || disabled}
               />
             </label>
             <label>
               Reason / source confirmation
               <textarea
                 required
-                disabled={saving}
+                disabled={saving || disabled}
                 name="reason"
                 minLength={5}
                 maxLength={2000}
@@ -568,14 +808,28 @@ export function ScanAssist({
             )}
             <button
               disabled={
-                saving || !role || !FIELDS.every((f) => draft[f].confirmed)
+                saving ||
+                disabled ||
+                !role ||
+                !pagesConfirmed ||
+                !fieldsConfirmed
               }
               className="button primary full"
             >
               {saving
                 ? "Saving confirmed transcription…"
-                : "Save all seven confirmed fields & recompute"}
+                : "Save page review and seven fields · recheck"}
             </button>
+            <p className="scan-confirmation-status" role="status">
+              {
+                pagesToInspect.filter((page) => reviewedPages.includes(page))
+                  .length
+              }
+              /{pagesToInspect.length} required pages inspected ·{" "}
+              {FIELDS.filter((field) => draft[field].confirmed).length}/7 fields
+              confirmed. Saving reruns the comparison; it does not approve or
+              change the original PDF.
+            </p>
           </form>
           <details>
             <summary>Inspect unconfirmed OCR text</summary>

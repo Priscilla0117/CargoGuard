@@ -1,6 +1,6 @@
 {
   "name": "cargoguard-averis",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -10,6 +10,7 @@
     "dev": "next dev --webpack",
     "build": "node scripts/stage-ocr.mjs && next build --webpack",
     "start": "node scripts/start-node.mjs",
+    "worker:mail": "node --import tsx scripts/mail-worker.ts",
     "build:workers": "node scripts/run-framework.mjs build",
     "dev:workers": "node scripts/run-framework.mjs dev",
     "db:migrate": "node --import tsx scripts/migrate-node.ts",

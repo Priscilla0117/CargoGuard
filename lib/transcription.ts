@@ -10,6 +10,7 @@ import {
 } from "./types";
 import { HttpError } from "./http";
 import { requireCurrentEngine } from "./review-guard";
+import { pdfCoverageIssue, unresolvedPdfPages } from "./pdf-coverage";
 
 export interface Transcript {
   role: "SI" | "BL";
@@ -17,13 +18,19 @@ export interface Transcript {
   actor: string;
   reason: string;
   confirmed_at: string;
+  /** Original pages explicitly inspected, including every unread/image page. */
+  reviewed_pages?: number[];
+  source_sha256?: string;
 }
 
 export function canTranscribe(doc: ParsedDocument) {
   return (
     doc.format === "pdf" &&
     !!doc.sha256 &&
-    (!!doc.transcription || !!doc.error?.startsWith("Image-only scan:"))
+    doc.type !== "OTHER" &&
+    (!!doc.transcription ||
+      !!doc.error?.startsWith("Image-only scan:") ||
+      (!!doc.pdf_coverage && !!doc.error?.startsWith("Unread PDF content:")))
   );
 }
 
@@ -31,15 +38,25 @@ export function transcribeDocument(
   doc: ParsedDocument,
   transcript: Transcript,
 ): ParsedDocument {
+  if (doc.type === "OTHER")
+    throw new HttpError(
+      "This source is a recognized invoice or other non-comparison document. Scan confirmation cannot turn it into an SI or draft BL. Upload the actual shipping documents.",
+      422,
+    );
   if (!canTranscribe(doc))
     throw new HttpError(
-      "Only readable image-only PDFs can use scan confirmation. Replace corrupted or unsupported files.",
+      "Only readable PDFs with pages requiring visual review can use scan confirmation. Replace corrupted or unsupported files.",
       422,
     );
   if (!doc.page_count)
     throw new HttpError(
       "Reprocess this case to validate the scan page count before confirming it.",
       409,
+    );
+  if (["SI", "BL"].includes(doc.type) && doc.type !== transcript.role)
+    throw new HttpError(
+      "The selected role conflicts with the original document heading. Review or replace the source.",
+      422,
     );
   if (
     doc.page_count > 5 ||
@@ -53,16 +70,37 @@ export function transcribeDocument(
       "Every source page must exist; scan confirmation supports at most five pages.",
       422,
     );
+  if (transcript.source_sha256 && transcript.source_sha256 !== doc.sha256)
+    throw new HttpError(
+      "The confirmed pages belong to a different source. Review the current original.",
+      409,
+    );
+  const reviewed = transcript.reviewed_pages;
+  if (
+    !reviewed ||
+    new Set(reviewed).size !== reviewed.length ||
+    reviewed.some(
+      (page) => !Number.isInteger(page) || page < 1 || page > doc.page_count!,
+    ) ||
+    unresolvedPdfPages(doc).some((page) => !reviewed.includes(page))
+  )
+    throw new HttpError(
+      "Inspect and confirm every flagged original page before saving the authoritative values.",
+      422,
+    );
   const result: ParsedDocument = {
     ...doc,
     type: transcript.role,
     error: undefined,
     method: "Human-confirmed scan transcription",
-    transcription: transcript,
-    lines: FIELDS.map((field) => ({
-      text: `${FIELD_LABELS[field] === "Containers" ? "Container count" : FIELD_LABELS[field]}: ${transcript.fields[field].value}`,
-      location: `Page ${transcript.fields[field].page}; ${FIELD_LABELS[field]}; human-confirmed`,
-    })),
+    transcription: {
+      ...transcript,
+      source_sha256: doc.sha256,
+      reviewed_pages: [...reviewed],
+    },
+    // Keep all original readable evidence, including superseded values. extract()
+    // reads the separately audited authoritative transcript without deleting it.
+    lines: doc.lines,
   };
   // Use the same dependency-aware normalization as machine extraction and edits.
   const fields = extract(result);
@@ -73,6 +111,8 @@ export function transcribeDocument(
         422,
       );
   }
+  const coverageIssue = pdfCoverageIssue(result);
+  if (coverageIssue) throw new HttpError(coverageIssue, 422);
   return result;
 }
 
