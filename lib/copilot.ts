@@ -170,7 +170,7 @@ export function friendlyDate(value: string) {
     month: "short",
   });
 }
-function item({ row, plan }: Planned): CopilotItem {
+export function copilotItem({ row, plan }: Planned): CopilotItem {
   const status = displayStatus(row, plan);
   const dateInReasons = plan.reasons.some((reason) =>
     /due|cut-off|etd|eta|payment|deadline|overdue|follow-up/i.test(reason),
@@ -207,6 +207,7 @@ function list(rows: Planned[], limit = 6) {
   };
 }
 const byPriority = (a: Planned, b: Planned) => comparePlanned(a, b, "priority");
+const item = copilotItem;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 function dayWindow(now: number, from: number, to: number) {
   const start = new Date(now);
