@@ -84,7 +84,10 @@ assert.deepEqual(exported.data, expected);
 await fs.mkdir("work/validation", { recursive: true });
 // Retain the actual HTTP output for independent answer-key scoring afterwards.
 // This is offline QA evidence, never runtime input or a public answer endpoint.
-await fs.writeFile("work/validation/http-submission.json", JSON.stringify(exported.data, null, 2));
+await fs.writeFile(
+  "work/validation/http-submission.json",
+  JSON.stringify(exported.data, null, 2),
+);
 checks++;
 check(
   (await call("/api/inbox", null, other)).data.cases.every(
@@ -107,9 +110,29 @@ const correction = {
 const corrected = await call("/api/cases", correction);
 check(
   corrected.r.status === 200 &&
-    corrected.data.result.defect_fields.includes("gross_weight_kg"),
-  "correction recomputes",
+    corrected.data.result.status === "NEEDS_REVIEW" &&
+    corrected.data.result.workflow === "review",
+  "unsupported typed correction requires source review",
 );
+const correctedWeight = corrected.data.result.comparison.find(
+  (row) => row.field === "gross_weight_kg",
+);
+const originalWeightSource = one.data.result.documents.find(
+  (doc) => doc.name === correctedWeight.bl.source,
+);
+check(
+  correctedWeight.result === "uncertain" &&
+    correctedWeight.bl.raw === "1 KG" &&
+    correctedWeight.bl.normalized === null &&
+    correctedWeight.bl.correction?.state === "unresolved" &&
+    correctedWeight.bl.correction.source_sha256 ===
+      originalWeightSource.sha256 &&
+    !!correctedWeight.bl.extraction_issue &&
+    corrected.data.result.policy_assessment.covered === false,
+  "unsupported value is retained with source fingerprint but cannot become a verified fact or policy exception",
+);
+assert.deepEqual(corrected.data.result.documents, one.data.result.documents);
+checks++;
 check(
   (await call("/api/cases", correction)).r.status === 409,
   "stale correction rejected",

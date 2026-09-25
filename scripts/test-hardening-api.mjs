@@ -128,6 +128,7 @@ let u = await upload(form());
 assert.equal(u.status, 200, JSON.stringify(u.data));
 let r = u.data.result,
   id = r.email.email_id;
+const originalBl = r.documents.find((document) => document.type === "BL");
 check(
   r.workflow === "verified",
   "misleading subject and compound counts verify correctly",
@@ -166,10 +167,32 @@ check(
 );
 response = await review("consignee", "NEW IMPORT LTD");
 r = response.data.result;
+const editedConsignee = r.comparison.find((row) => row.field === "consignee");
+const dependentNotify = r.comparison.find(
+  (row) => row.field === "notify_party",
+);
 check(
-  r.defect_fields.includes("consignee") &&
-    r.defect_fields.includes("notify_party"),
-  "consignee edit recomputes dependent notify party",
+  response.status === 200 &&
+    r.status === "NEEDS_REVIEW" &&
+    r.workflow === "review" &&
+    editedConsignee.result === "uncertain" &&
+    editedConsignee.bl.raw === "NEW IMPORT LTD" &&
+    editedConsignee.bl.normalized === null &&
+    editedConsignee.bl.correction?.state === "unresolved" &&
+    editedConsignee.bl.correction.source_sha256 === originalBl.sha256 &&
+    !!editedConsignee.bl.extraction_issue,
+  "unsupported consignee stays source-bound and unresolved instead of becoming a shipment fact",
+);
+check(
+  dependentNotify.result === "uncertain" &&
+    dependentNotify.bl.raw === "SAME AS CONSIGNEE" &&
+    dependentNotify.bl.normalized === null &&
+    /consignee needs confirmation/.test(dependentNotify.bl.issue ?? ""),
+  "dependent notify party becomes uncertain when its referenced consignee is unresolved",
+);
+assert.deepEqual(
+  r.documents.find((document) => document.name === originalBl.name),
+  originalBl,
 );
 const route = await call({
   action: "route",
@@ -180,10 +203,20 @@ const route = await call({
   reason: "Confirm current routing without discarding field corrections",
 });
 r = route.data.result;
+const routedConsignee = r.comparison.find((row) => row.field === "consignee");
+const routedNotify = r.comparison.find((row) => row.field === "notify_party");
 check(
-  r.defect_fields.includes("consignee") &&
-    r.category_override === "BL_COMPARISON",
-  "same-category confirmation preserves corrections",
+  route.status === 200 &&
+    r.status === "NEEDS_REVIEW" &&
+    r.workflow === "review" &&
+    r.category_override === "BL_COMPARISON" &&
+    routedConsignee.bl.raw === "NEW IMPORT LTD" &&
+    routedConsignee.bl.normalized === null &&
+    routedConsignee.bl.correction?.state === "unresolved" &&
+    routedConsignee.bl.correction.source_sha256 === originalBl.sha256 &&
+    routedNotify.result === "uncertain" &&
+    routedNotify.bl.normalized === null,
+  "same-category confirmation preserves unsupported edits and their dependent review blockers",
 );
 const before = (await get(id)).data.audit.length;
 const race = await Promise.all([
@@ -315,6 +348,7 @@ const fields = Object.fromEntries(
 );
 const transcript = {
   action: "transcribe",
+  reviewed_pages: [1],
   id: "email_512",
   version: scan.version,
   name: scan.documents[0].name,

@@ -125,7 +125,7 @@ export function normalizeValue(field: Field, raw: string): NormalizedValue {
       const match = part
         .trim()
         .match(
-          /^(\d+)\s*(?:(?:containers?|units?)|(?:x|×)\s*(?:20|40|45)\s*(?:['′’]|ft|feet|foot)?\s*(?:hc|hq|gp|dc|dv|ot|rf|reefer|fcl|std)?)?$/i,
+          /^(\d+)\s*(?:(?:containers?|units?)|(?:x|×)\s*(?:20|40|45)\s*(?:['′’]|ft|feet|foot)?\s*(?:hc|hq|gp|dc|dv|ot|rf|reefer|fcl|std)?(?:\s+(?:containers?|units?))?)?$/i,
         );
       if (
         !match ||
@@ -190,15 +190,25 @@ export function normalizeValue(field: Field, raw: string): NormalizedValue {
       issue:
         "Multiple possible company names appear in this party field. Confirm the intended party from the source; identical ambiguity in both documents is not a match.",
     };
-  return {
-    value: value
-      .toUpperCase()
-      .replace(/&/g, " AND ")
-      .replace(/[|;\n\r]/g, " ")
-      .replace(/[.,]/g, "")
-      .replace(/\s+/g, " ")
-      .trim(),
-  };
+  const normalized = value
+    .toUpperCase()
+    .replace(/&/g, " AND ")
+    .replace(/[|;\n\r]/g, " ")
+    .replace(/[.,]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (field.startsWith("port_of_")) {
+    const port = portReference(normalized);
+    // Validate each source before equality: identical contradictory statements
+    // on both documents are still unsafe. Unknown aliases are not guessed.
+    if (port?.expected && port.code !== port.expected)
+      return {
+        value: null,
+        issue:
+          "The port name and location code do not agree. Confirm both from the source before completing the check.",
+      };
+  }
+  return { value: normalized };
 }
 
 export function normalize(field: Field, raw: string) {
@@ -213,7 +223,33 @@ const portCodes: Record<string, string> = {
   SHANGHAI: "CNSHA",
   ROTTERDAM: "NLRTM",
   "HONG KONG": "HKHKG",
+  SAVANNAH: "USSAV",
+  HOUSTON: "USHOU",
 };
+// New aliases checked against the official UNECE 2025-1 release:
+// https://unlocode.unece.org/publications/
+// US,SAV,Savannah,GA,1--4----,AI and US,HOU,Houston,TX,1-345---,AI.
+// Country-qualified names are explicit aliases; arbitrary suffixes are retained.
+const portAliases: Record<string, string> = Object.fromEntries(
+  ["SAVANNAH", "HOUSTON"].flatMap((name) =>
+    ["US", "USA", "UNITED STATES", "UNITED STATES OF AMERICA"].map(
+      (country) => [`${name} ${country}`, name],
+    ),
+  ),
+);
+function portReference(value: string) {
+  const match = value.match(/^(.+?)\s*\(\s*([A-Z]{2})\s*([A-Z0-9]{3})\s*\)$/);
+  if (!match) return null;
+  const name = portAliases[match[1].trim()] ?? match[1].trim();
+  const code = match[2] + match[3];
+  return {
+    name,
+    code,
+    // Keep the established Shanghai alias for compatibility. Its maritime use
+    // differs from the current directory and is not a validation authority.
+    expected: name === "SHANGHAI" ? undefined : portCodes[name],
+  };
+}
 export function equivalent(
   field: Field,
   a: string | number | null,
@@ -228,10 +264,10 @@ export function equivalent(
   )
     return false;
   const canonical = (value: string) => {
-    const match = value.match(/^(.+?)\s*\(([A-Z]{2}[A-Z0-9]{3})\)$/);
-    return match && portCodes[match[1].trim()] === match[2]
-      ? match[1].trim()
-      : value;
+    const port = portReference(value);
+    return port && portCodes[port.name] === port.code
+      ? port.name
+      : (portAliases[value] ?? value);
   };
   return canonical(a) === canonical(b);
 }

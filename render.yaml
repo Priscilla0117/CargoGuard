@@ -15,6 +15,8 @@ services:
         value: "1"
       - key: CARGO_AUTH_MODE
         value: team
+      - key: CARGO_MAIL_WORKER_ENABLED
+        value: "true"
       - key: CARGO_INCLUDE_SAMPLE_DATA
         value: "false"
       # Render supplies RENDER_EXTERNAL_URL as the trusted public origin.

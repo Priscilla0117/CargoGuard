@@ -2,6 +2,7 @@ import { classify } from "./classifier";
 import { routingReviewGate } from "./routing-features";
 import { selectedDocuments } from "./document-selection";
 import { recoveryExtracted } from "./recovery-schema";
+import { pdfCoverageIssue } from "./pdf-coverage";
 import { withPolicy, DEFAULT_POLICY, type PolicySnapshot } from "./policy";
 import {
   FIELDS,
@@ -349,6 +350,27 @@ function deriveStrictResult(
   base: CaseResult,
   rows: ComparisonRow[],
 ): CaseResult {
+  const sources = new Set(
+    rows.flatMap((row) => [row.si.source, row.bl.source]),
+  );
+  const unread = base.documents
+    .filter((doc) => sources.has(doc.name))
+    .map((doc) => {
+      const issue = pdfCoverageIssue(doc);
+      return issue ? `${doc.name}: ${issue}` : null;
+    })
+    .filter(Boolean);
+  if (unread.length)
+    return {
+      ...base,
+      comparison: rows,
+      status: "NEEDS_REVIEW",
+      workflow: "review",
+      review_reason: "unreadable",
+      has_defect: false,
+      defect_fields: [],
+      summary: unread.join(" "),
+    };
   const uncertain = rows.filter((r) => r.result === "uncertain"),
     defects = rows.filter((r) => r.result === "mismatch").map((r) => r.field);
   if (uncertain.length)
@@ -549,14 +571,26 @@ function analyzeCore(
       "The SI and draft BL are both required. Request the missing document before comparing.",
     );
   }
-  if (documents.some((d) => d.error))
-    return review(
-      "unreadable",
-      documents
-        .filter((d) => d.error)
-        .map((d) => `${d.name}: ${d.error}`)
-        .join(" "),
-    );
+  if (documents.some((d) => d.error || pdfCoverageIssue(d))) {
+    const si = documents.filter((doc) => doc.type === "SI");
+    const bl = documents.filter((doc) => doc.type === "BL");
+    return {
+      ...review(
+        "unreadable",
+        documents
+          .filter((d) => d.error || pdfCoverageIssue(d))
+          .map((d) => `${d.name}: ${d.error ?? pdfCoverageIssue(d)}`)
+          .join(" "),
+      ),
+      comparison:
+        si.length === 1 &&
+        bl.length === 1 &&
+        si[0].lines.length &&
+        bl[0].lines.length
+          ? compareFields(extract(si[0]), extract(bl[0]))
+          : [],
+    };
+  }
   // One SI, one draft BL and only recognised non-shipping extras (commercial
   // invoice, packing list, certificate): compare the pair automatically and
   // say so, unless an extra document states a different weight or count.

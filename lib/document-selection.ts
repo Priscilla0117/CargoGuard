@@ -1,5 +1,6 @@
 import type { DocumentSelection, ParsedDocument } from "./types";
 import { HttpError } from "./http";
+import { pdfCoverageIssue } from "./pdf-coverage";
 
 /** A human may choose a pair, but may not invent a role or bypass unreadability. */
 export function selectedDocuments(
@@ -15,7 +16,7 @@ export function selectedDocuments(
         "Selected source changed. Reopen the case and choose the current documents.",
         409,
       );
-    if (doc.error || doc.type !== side.toUpperCase())
+    if (doc.error || pdfCoverageIssue(doc) || doc.type !== side.toUpperCase())
       throw new HttpError(
         "Choose a readable, identified SI and draft BL. Confirm scan or AI-recovered evidence first if necessary.",
         422,
@@ -53,7 +54,10 @@ export function comparisonDocuments(
     si.length !== 1 ||
     bl.length !== 1 ||
     documents.some(
-      (doc) => doc.error || !["SI", "BL", "OTHER"].includes(doc.type),
+      (doc) =>
+        doc.error ||
+        pdfCoverageIssue(doc) ||
+        !["SI", "BL", "OTHER"].includes(doc.type),
     )
   )
     throw new HttpError(

@@ -101,7 +101,18 @@ test("a changed port is still caught with or without codes", async () => {
     SI({ pod: "SAVANNAH, US (USSAV)" }),
     BL({ pod: "SAVANNAH, US (USHOU)" }),
   );
-  assert.deepEqual(flagged(codes), ["port_of_discharge"]);
+  // A known name with a contradictory code is invalid source evidence, even
+  // before comparing it with the SI. Keep it visible as an uncertain field.
+  assert.equal(codes.status, "NEEDS_REVIEW");
+  assert.equal(
+    codes.comparison.find((row) => row.field === "port_of_discharge")?.result,
+    "uncertain",
+  );
+  assert.match(
+    codes.comparison.find((row) => row.field === "port_of_discharge")?.bl
+      .issue ?? "",
+    /port name and location code do not agree/,
+  );
 });
 
 for (const blank of [

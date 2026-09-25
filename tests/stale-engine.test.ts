@@ -171,6 +171,7 @@ test("all manual mutation routes reject old engines without writes; Run inbox re
       {
         ...common,
         action: "transcribe",
+        reviewed_pages: [1],
         name: "scan.pdf",
         sha256: "a".repeat(64),
         role: "SI",

@@ -146,13 +146,21 @@ export async function processEmail(
         return {
           ...doc,
           error:
+            doc.error ??
             "Previously confirmed recovery no longer matches the parsed source. Review or replace the document again.",
         };
       }
     }
-    return original?.transcription && canTranscribe(doc)
-      ? transcribeDocument(doc, original.transcription)
-      : doc;
+    if (original?.transcription && canTranscribe(doc)) {
+      try {
+        return transcribeDocument(doc, original.transcription);
+      } catch {
+        // Older confirmations did not attest to every unread page. Keep the
+        // source reviewable; never turn a failed recheck into cached clearance.
+        return doc;
+      }
+    }
+    return doc;
   });
   docs = await applyLabelRules(docs, labelRules);
   let result = analyze(

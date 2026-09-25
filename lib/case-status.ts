@@ -1,6 +1,7 @@
 import { FIELD_LABELS, type CaseResult, type CaseSummary } from "./types";
 import type { Plan } from "./priority";
 import { checkDocumentIntegrity } from "./integrity-checks";
+import { pdfCoverageIssue, unresolvedPdfPages } from "./pdf-coverage";
 
 export type StatusTone =
   | "differences"
@@ -78,6 +79,21 @@ export function caseStatus(result: CaseResult, plan?: Plan): CaseStatus {
       detail: `${plan.note} Open the conversation to see the newer email.`,
       action: { label: "See the conversation", target: "conversation" },
     };
+  if (result.review_reason === "unreadable") {
+    const unread = result.documents.find((doc) => pdfCoverageIssue(doc));
+    const pages = unread ? unresolvedPdfPages(unread) : [];
+    return {
+      tone: "unclear",
+      title: pages.length
+        ? "Some PDF pages still need review"
+        : "A document could not be read",
+      detail: pages.length
+        ? `Inspect ${pages.length === 1 ? "page" : "pages"} ${pages.join(", ")} and confirm the authoritative values. The comparison below uses only the readable content and is not a completed check.`
+        : "Open the document to read it with text recognition, or ask the sender for a clearer copy.",
+      action: { label: "Open the document", target: "documents" },
+      secondary: { label: "Ask for a clear copy", target: "reply" },
+    };
+  }
   if (mismatches.length)
     return {
       tone: "differences",
@@ -107,15 +123,6 @@ export function caseStatus(result: CaseResult, plan?: Plan): CaseStatus {
       detail:
         "The attachments could not be matched to one SI and one draft BL automatically.",
       action: { label: "Choose documents", target: "documents" },
-    };
-  if (result.review_reason === "unreadable")
-    return {
-      tone: "unclear",
-      title: "A document could not be read",
-      detail:
-        "Open the document to read it with text recognition, or ask the sender for a clearer copy.",
-      action: { label: "Open the document", target: "documents" },
-      secondary: { label: "Ask for a clear copy", target: "reply" },
     };
   if (uncertain.length || result.workflow === "review")
     return {

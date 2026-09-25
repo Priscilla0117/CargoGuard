@@ -1,5 +1,6 @@
 import { equivalent, normalize } from "./normalization";
 import type { CaseResult, ParsedDocument, SourceLine } from "./types";
+import { pdfCoverageIssue } from "./pdf-coverage";
 
 /** Independent advisories never change the organiser's seven-field comparison. */
 export const INTEGRITY_RULE_VERSION = "1.0.0";
@@ -373,6 +374,18 @@ export function checkDocumentIntegrity(
     );
   for (const doc of documents) {
     const rows = sourceRows(doc);
+    const coverageIssue = pdfCoverageIssue(doc);
+    if (coverageIssue) {
+      add(
+        doc,
+        "source",
+        "blocking",
+        "Original PDF pages need review",
+        coverageIssue,
+        rows.slice(0, 1),
+      );
+      continue;
+    }
     if (
       doc.error ||
       !/^[a-f0-9]{64}$/i.test(doc.sha256 ?? "") ||

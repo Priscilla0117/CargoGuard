@@ -39,12 +39,26 @@ const child = spawn(
   ],
   { stdio: "inherit", windowsHide: true, cwd: projectRoot },
 );
+const worker =
+  process.env.CARGO_AUTH_MODE === "team" &&
+  process.env.CARGO_MAIL_WORKER_ENABLED === "true"
+    ? spawn(process.execPath, ["--import", "tsx", "scripts/mail-worker.ts"], {
+        stdio: ["inherit", "inherit", "inherit", "ipc"],
+        windowsHide: true,
+        cwd: projectRoot,
+      })
+    : null;
 let shuttingDown = false;
 function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
   child.kill("SIGTERM");
-  const deadline = setTimeout(() => child.kill("SIGKILL"), 10000);
+  if (worker?.connected) worker.send({ type: "shutdown" }, () => {});
+  else worker?.kill("SIGTERM");
+  const deadline = setTimeout(() => {
+    child.kill("SIGKILL");
+    worker?.kill("SIGKILL");
+  }, 10000);
   deadline.unref();
 }
 for (const signal of ["SIGTERM", "SIGINT"]) process.on(signal, shutdown);
@@ -59,9 +73,28 @@ child.on("error", () => {
     "The web server could not start. Check the Node installation and production build.",
   );
   process.exitCode = 1;
+  shutdown();
   if (process.connected) process.disconnect();
 });
 child.on("exit", (code) => {
-  process.exitCode = shuttingDown ? 0 : (code ?? 1);
+  const expected = shuttingDown;
+  shutdown();
+  process.exitCode = expected ? (process.exitCode ?? 0) : (code ?? 1);
   if (process.connected) process.disconnect();
+});
+worker?.on("error", () => {
+  console.error(
+    "Background email intake could not start. Restarting the service is required.",
+  );
+  process.exitCode = 1;
+  shutdown();
+});
+worker?.on("exit", () => {
+  if (!shuttingDown) {
+    console.error(
+      "Background email intake stopped unexpectedly. Restarting the service is required.",
+    );
+    process.exitCode = 1;
+    shutdown();
+  }
 });
