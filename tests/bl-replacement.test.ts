@@ -285,6 +285,7 @@ test("source-bound SI scan confirmation survives a BL-only replacement", async (
   );
   const transcript: Transcript = {
     role: "SI",
+    reviewed_pages: [1],
     fields: Object.fromEntries(
       FIELDS.map((field, i) => [field, { value: values[i], page: 1 }]),
     ) as Transcript["fields"],
@@ -308,7 +309,7 @@ test("source-bound SI scan confirmation survives a BL-only replacement", async (
     reviewer,
   );
   assert.equal(result.status, "OK");
-  assert.deepEqual(result.documents[0].transcription, transcript);
+  assert.deepEqual(result.documents[0].transcription, si.transcription);
   assert.equal(result.documents[1].transcription, undefined);
 });
 

@@ -32,6 +32,11 @@ import {
   type GoogleTokens,
 } from "./gmail";
 import { requireMutation, storage } from "./storage";
+import {
+  requireMailboxIntake,
+  type MailboxAuthority,
+} from "./mail-intake-auth";
+import { mailWorkerStatus } from "./mail-worker-config";
 
 export interface MailContext {
   workspace: string;
@@ -42,6 +47,7 @@ export interface MailContext {
   config: MailConfig;
   request: Request;
   fetcher?: Fetcher;
+  background?: MailboxAuthority;
 }
 interface ConnectionRow {
   provider: MailProvider;
@@ -51,6 +57,8 @@ interface ConnectionRow {
   version: number;
   last_sync_at: string | null;
   last_sync_note: string | null;
+  last_success_at: string | null;
+  last_sync_error: string | null;
   updated_at: string;
   sync_cursor: string | null;
 }
@@ -89,7 +97,7 @@ export async function mailRequest(
 export async function connection(context: MailContext) {
   return context.db
     .prepare(
-      "SELECT provider,account,encrypted_secret,settings,version,last_sync_at,last_sync_note,updated_at,sync_cursor FROM mail_connections WHERE workspace=? AND user_id=?",
+      "SELECT provider,account,encrypted_secret,settings,version,last_sync_at,last_sync_note,last_success_at,last_sync_error,updated_at,sync_cursor FROM mail_connections WHERE workspace=? AND user_id=?",
     )
     .bind(context.workspace, context.userId)
     .first<ConnectionRow>();
@@ -131,6 +139,9 @@ export async function mailStatus(context: MailContext) {
     settings: settingsOf(row),
     last_sync_at: row?.last_sync_at ?? null,
     last_sync_note: row?.last_sync_note ?? null,
+    last_success_at: row?.last_success_at ?? null,
+    last_sync_error: row?.last_sync_error ?? null,
+    worker: await mailWorkerStatus(context.db),
     imported: Number(imported ?? 0),
   };
 }
@@ -144,7 +155,7 @@ async function saveConnection(
   const previous = await connection(context);
   await context.db
     .prepare(
-      "INSERT INTO mail_connections(workspace,user_id,provider,account,encrypted_secret,settings,version,updated_at) VALUES(?,?,?,?,?,?,1,?) ON CONFLICT(workspace,user_id) DO UPDATE SET provider=excluded.provider,account=excluded.account,encrypted_secret=excluded.encrypted_secret,settings=excluded.settings,version=mail_connections.version+1,last_sync_note=NULL,sync_cursor=NULL,sync_lease=NULL,sync_lease_until=NULL,updated_at=excluded.updated_at",
+      "INSERT INTO mail_connections(workspace,user_id,provider,account,encrypted_secret,settings,version,updated_at) VALUES(?,?,?,?,?,?,1,?) ON CONFLICT(workspace,user_id) DO UPDATE SET provider=excluded.provider,account=excluded.account,encrypted_secret=excluded.encrypted_secret,settings=excluded.settings,version=mail_connections.version+1,last_sync_at=NULL,last_success_at=NULL,last_sync_error=NULL,last_sync_note=NULL,sync_cursor=NULL,sync_lease=NULL,sync_lease_until=NULL,updated_at=excluded.updated_at",
     )
     .bind(
       context.workspace,
@@ -341,7 +352,9 @@ export async function googleAccess(context: MailContext, row: ConnectionRow) {
     { refresh: tokens.refresh_token },
     context.fetcher,
   );
-  await context.db
+  if (context.background)
+    await requireMailboxIntake(context.db, context.background);
+  const refreshed = await context.db
     .prepare(
       "UPDATE mail_connections SET encrypted_secret=?,version=version+1,updated_at=? WHERE workspace=? AND user_id=? AND version=?",
     )
@@ -357,6 +370,13 @@ export async function googleAccess(context: MailContext, row: ConnectionRow) {
       row.version,
     )
     .run();
+  if (refreshed.meta.changes !== 1)
+    throw new HttpError(
+      "Mailbox connection changed during token refresh. Retry the check.",
+      409,
+    );
+  row.version++;
+  if (context.background) context.background.connectionVersion = row.version;
   return tokens.access_token;
 }
 export async function imapSecret(context: MailContext, row: ConnectionRow) {
@@ -375,6 +395,29 @@ async function importRaw(
   thread?: string,
   receivedAt?: string,
 ) {
+  if (context.background) {
+    const { importMailboxMessage } = await import("./upload-intake");
+    const response = await importMailboxMessage(context.background, {
+      raw,
+      importKey,
+      thread,
+      receivedAt,
+    });
+    const value = (await response.json()) as {
+      result?: { email?: { email_id?: string } };
+      duplicate?: boolean;
+      error?: string;
+    };
+    if (!response.ok || !value.result?.email?.email_id)
+      throw new HttpError(
+        value.error ?? "The mailbox message could not be imported.",
+        response.status || 502,
+      );
+    return {
+      case_id: value.result.email.email_id,
+      duplicate: !!value.duplicate,
+    };
+  }
   const form = new FormData();
   form.set(
     "eml",
@@ -473,6 +516,8 @@ async function settle(
 }
 
 export async function syncMailbox(context: MailContext) {
+  if (context.background)
+    await requireMailboxIntake(context.db, context.background);
   const row = await connection(context);
   if (!row) throw new HttpError("Connect a mailbox first.", 409);
   const settings = settingsOf(row);
@@ -509,7 +554,7 @@ export async function syncMailbox(context: MailContext) {
   // Fenced lease: a late worker cannot release or overwrite a newer worker.
   const lease = await context.db
     .prepare(
-      "UPDATE mail_connections SET last_sync_note='Checking for new email…',last_sync_at=?,sync_lease=?,sync_lease_until=? WHERE workspace=? AND user_id=? AND account=? AND (sync_lease IS NULL OR sync_lease_until<?)",
+      "UPDATE mail_connections SET last_sync_note='Checking for new email…',last_sync_at=?,sync_lease=?,sync_lease_until=? WHERE workspace=? AND user_id=? AND account=? AND version=? AND (sync_lease IS NULL OR sync_lease_until<?)",
     )
     .bind(
       at,
@@ -518,6 +563,7 @@ export async function syncMailbox(context: MailContext) {
       context.workspace,
       context.userId,
       row.account,
+      row.version,
       at,
     )
     .run();
@@ -529,12 +575,17 @@ export async function syncMailbox(context: MailContext) {
       busy: true,
       note: "A check is already running.",
     };
+  if (context.background) context.background.lease = leaseId;
   const imported: string[] = [];
   let duplicates = 0,
     failed = 0;
   let note = "";
   let more = false;
+  let succeeded = false;
+  let syncError: string | null = null;
   const renew = async () => {
+    if (context.background)
+      await requireMailboxIntake(context.db, context.background);
     const changed = await context.db
       .prepare(
         "UPDATE mail_connections SET sync_lease_until=? WHERE workspace=? AND user_id=? AND sync_lease=?",
@@ -686,21 +737,28 @@ export async function syncMailbox(context: MailContext) {
         : "No new email";
     if (failed) note += ` · ${failed} could not be imported`;
     if (more) note += " · more emails waiting — the next check continues";
+    succeeded = failed === 0;
+    if (failed)
+      syncError = `${failed} email${failed === 1 ? "" : "s"} could not be imported. Review the mailbox and retry.`;
     return { imported, duplicates, failed, busy: false, note, more };
   } catch (error) {
     note =
       error instanceof HttpError
         ? error.message
         : "Mailbox check failed. It will be retried.";
+    syncError = note;
     throw error;
   } finally {
     await context.db
       .prepare(
-        "UPDATE mail_connections SET last_sync_note=?,last_sync_at=?,sync_cursor=?,sync_lease=NULL,sync_lease_until=NULL WHERE workspace=? AND user_id=? AND sync_lease=?",
+        "UPDATE mail_connections SET last_sync_note=?,last_sync_at=?,last_success_at=CASE WHEN ?=1 THEN ? ELSE last_success_at END,last_sync_error=?,sync_cursor=?,sync_lease=NULL,sync_lease_until=NULL WHERE workspace=? AND user_id=? AND sync_lease=?",
       )
       .bind(
         note.slice(0, 300) || "Mailbox check failed.",
         now(),
+        succeeded ? 1 : 0,
+        now(),
+        syncError,
         nextCursor ? JSON.stringify(nextCursor) : null,
         context.workspace,
         context.userId,

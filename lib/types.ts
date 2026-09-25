@@ -75,6 +75,17 @@ export interface ParsedDocument {
   method: string;
   sha256?: string;
   page_count?: number;
+  /** Every original PDF page is inspected; readable text alone is not coverage. */
+  pdf_coverage?: {
+    version: 1;
+    pages: {
+      page: number;
+      text_items: number;
+      has_images: boolean;
+      requires_review: boolean;
+      reason?: string;
+    }[];
+  };
   /** Attachment retained, but deliberately not read for a confirmed other route. */
   deferred?: boolean;
   transcription?: import("./transcription").Transcript;
@@ -190,7 +201,7 @@ export interface AuditEvent {
   detail: string;
   created_at: string;
 }
-export const PIPELINE_VERSION = "3.4.0";
+export const PIPELINE_VERSION = "3.5.0";
 export function emailSummaryOf(email: Email): CaseSummary["email"] {
   const { email_id, from, subject, attachments } = email;
   const summary: EmailSummary = { email_id, from, subject, attachments };

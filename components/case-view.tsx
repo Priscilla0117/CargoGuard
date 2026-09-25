@@ -32,6 +32,7 @@ import { senderHeadsUp } from "@/lib/sender-insights";
 import { FIELD_RISK } from "@/lib/field-risk";
 import { caseStatus, categoryWords, displayStatus } from "@/lib/case-status";
 import { canTranscribe } from "@/lib/transcription";
+import { pdfCoverageIssue, unresolvedPdfPages } from "@/lib/pdf-coverage";
 import { checkDocumentIntegrity } from "@/lib/integrity-checks";
 import type { FollowUp } from "@/lib/follow-up";
 import {
@@ -251,7 +252,13 @@ export function CaseView(props: CaseViewProps) {
     );
     if (target === "category") props.onConfirmCategory();
     else if (target === "compare") go("compare");
-    else go(target as CaseTab);
+    else if (target === "documents" && result.review_reason === "unreadable") {
+      const unread = result.documents.find(
+        (doc) => pdfCoverageIssue(doc) || doc.error,
+      );
+      if (unread) props.onDocument(unread);
+      go("documents");
+    } else go(target as CaseTab);
   }
 
   const threadRows = thread
@@ -953,9 +960,9 @@ function DocumentsPanel(
   const { result } = props;
   const docs = result.documents;
   const current =
-    props.document && docs.some((doc) => doc.name === props.document!.name)
-      ? props.document
-      : docs[0];
+    docs.find((doc) => doc.name === props.document?.name) ?? docs[0];
+  const unreadPages =
+    current && pdfCoverageIssue(current) ? unresolvedPdfPages(current) : [];
   return (
     <div className="cg-panel">
       <DocumentPairSelector
@@ -1027,9 +1034,12 @@ function DocumentsPanel(
                   className="cg-btn small"
                   target="_blank"
                   rel="noreferrer"
-                  href={`/api/document?id=${encodeURIComponent(result.email.email_id)}&name=${encodeURIComponent(current.name)}&revision=${result.version}`}
+                  href={`/api/document?id=${encodeURIComponent(result.email.email_id)}&name=${encodeURIComponent(current.name)}&revision=${result.version}${unreadPages.length ? `#page=${unreadPages[0]}` : ""}`}
                 >
-                  Open original <ExternalLink size={15} />
+                  {unreadPages.length
+                    ? `Open original · page ${unreadPages[0]}`
+                    : "Open original"}{" "}
+                  <ExternalLink size={15} />
                 </a>
               </div>
               {canTranscribe(current) && (
@@ -1037,15 +1047,19 @@ function DocumentsPanel(
                   key={`${result.email.email_id}-${current.name}-${result.version}`}
                   doc={current}
                   result={result}
+                  disabled={props.busy || props.running}
+                  onReplace={() =>
+                    props.onReplace(current.type === "BL" ? "bl" : "all")
+                  }
                   onSaved={(data) =>
                     props.onUpdated(
                       data,
-                      "Scan text confirmed and saved. The check was run again.",
+                      "Page review and source values saved. The check was run again.",
                     )
                   }
                 />
               )}
-              {current.error ? (
+              {current.error && (
                 <div className="cg-notice warn">
                   <AlertTriangle size={18} />
                   <p>{current.error}</p>
@@ -1057,8 +1071,16 @@ function DocumentsPanel(
                     Try reading again
                   </button>
                 </div>
-              ) : (
+              )}
+              {current.lines.some((line) => line.text.trim()) && (
                 <div className="source-paper">
+                  {current.error && current.format === "pdf" && (
+                    <p className="scan-partial-source" role="note">
+                      Readable text only. This does not include all PDF content;
+                      inspect the unread pages above before confirming any
+                      values.
+                    </p>
+                  )}
                   {current.lines
                     .filter((line) => line.text.trim())
                     .map((line, index) => {

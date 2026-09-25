@@ -35,6 +35,9 @@ interface Status {
   settings?: Settings;
   last_sync_at?: string | null;
   last_sync_note?: string | null;
+  last_success_at?: string | null;
+  last_sync_error?: string | null;
+  worker?: { enabled: boolean; running: boolean; state: string };
   imported?: number;
 }
 
@@ -212,12 +215,34 @@ export function MailDesk() {
                   ? "Google sign-in (Gmail)"
                   : "Email and app password"}
               </dd>
-              <dt>Last check</dt>
+              <dt>Last successful check</dt>
+              <dd>
+                {status.last_success_at
+                  ? new Date(status.last_success_at).toLocaleString()
+                  : "No successful check recorded yet"}
+              </dd>
+              <dt>Latest attempt</dt>
               <dd>
                 {status.last_sync_at
                   ? new Date(status.last_sync_at).toLocaleString()
                   : "Not yet"}
                 {status.last_sync_note ? ` — ${status.last_sync_note}` : ""}
+              </dd>
+              {status.last_sync_error && (
+                <>
+                  <dt>Needs attention</dt>
+                  <dd role="alert">{status.last_sync_error}</dd>
+                </>
+              )}
+              <dt>Automatic import</dt>
+              <dd>
+                {!status.settings?.auto_sync
+                  ? "Automatic import is off for this mailbox. You can still check manually."
+                  : status.worker?.enabled
+                    ? status.worker.running
+                      ? "Background service is running. It checks email even when your browser is closed."
+                      : "Background service is not ready. Check manually now and ask an administrator to check the service."
+                    : "Checks while the Inbox is open. An administrator can enable background import for team accounts."}
               </dd>
               <dt>Imported so far</dt>
               <dd>{status.imported ?? 0} emails</dd>
@@ -265,7 +290,9 @@ export function MailDesk() {
                       setSettings({ ...settings, auto_sync: e.target.checked })
                     }
                   />
-                  Check for new email automatically while CargoGuard is open
+                  {status.worker?.enabled
+                    ? "Check for new email automatically, including when my browser is closed"
+                    : "Check for new email automatically while the Inbox is open"}
                 </label>
                 <div className="cg-grid-2">
                   <label className="cg-field">

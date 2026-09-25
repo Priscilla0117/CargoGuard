@@ -67,7 +67,7 @@ CARGO_MAIL_IMAP_ENABLED=true            # false hides option B
 
 ## Automatic import
 
-While CargoGuard is open it checks every 5 minutes (configurable 2–120), for
+Automatic import checks every 5 minutes (configurable 2–120), for
 mail from the last 7 days, at most 10 messages per check. Every message goes
 through the normal checks. Mailbox imports have a durable identity scoped to
 the connected account, so interrupted attempts reopen the committed case even
@@ -78,19 +78,44 @@ Gmail/IMAP receipt timestamps determine the received day; the sender's Date
 header is retained separately as `sent_at`. Importing a standalone `.eml`
 continues to use its Date header because no provider receipt is available.
 
-Apply migration `0013_mail_reliability.sql` before starting this release.
+Apply all migrations, including `0013_mail_reliability.sql` and
+`0014_mail_worker.sql`, before starting this release (`npm start` does this).
 Expired import leases can be reclaimed; lease tokens fence late workers and
 the case import identity prevents a crash between case creation and receipt
 recording from creating a second case. Original attached files remain intact.
 
-This is **browser-triggered polling**, not an unattended background service.
-It stops when no signed-in browser is checking. A Node cron process or
-Cloudflare scheduled Worker cannot safely reuse the browser-session upload
-route without a dedicated service identity and intake authorization boundary.
-Neither has been installed or activated by this change. Before adding one,
-validate connection ownership against active team membership, give it only
-intake authority, retain these leases/cursors, and exercise logout, revocation,
-deployment restart, quotas, and cursor expiry in the target runtime.
+**Team background import:** set `CARGO_AUTH_MODE=team` and
+`CARGO_MAIL_WORKER_ENABLED=true`, then use `npm start`. The Node startup process
+supervises both the website and an intake-only worker. The Render template
+includes this flag. Connect a mailbox and leave its **Automatic import** option
+on. The worker continues checking after the browser closes or the employee
+signs out; signing out is not a request to disconnect an already authorized
+mailbox. Turning automatic import off, disconnecting the mailbox or revoking
+team membership stops further intake. Changing membership or mailbox settings
+invalidates work already underway before it can save a new case.
+
+The worker uses a dedicated server intake function, never a stored browser
+cookie. It verifies active membership, the exact connection and an expiring
+lease before importing and again before saving. It only imports messages:
+drafting and sending remain explicit employee actions. The existing SQL
+cursors, receipts and fenced leases survive process restarts and overlapping
+checks. Missing setup leaves the worker waiting; failed connections retain a
+visible error and retry on the next configured interval. No provider secrets
+or message contents are written to its diagnostic logs.
+
+**Setup → Email accounts** shows the last successful check separately from the
+latest attempt and its error. It also shows whether the background service has
+a recent heartbeat. If it needs attention, staff can check manually while an
+administrator restores the service. `npm run worker:mail` runs the same worker
+as a separately supervised Node process after migrations; do not enable this
+in addition to the startup worker unless multiple workers are intentional.
+
+Without this explicit flag, or in anonymous demo mode, automatic checks run
+only while the Inbox is open. A sleeping/stopped host cannot process email;
+deploy to an always-on service for continuous intake. This is bounded mailbox
+polling, not a distributed document-processing queue. Live OAuth/threading,
+provider quotas, deployment restart and real mailbox acceptance still require
+testing in the intended environment.
 
 ## Replies
 
@@ -131,7 +156,9 @@ tracking, and only after confirmed submission. Drafts, acknowledgements, and
 unknown sends do not start waiting. If tracking fails after submission, check
 status to retry tracking; CargoGuard does not send the message again.
 
-Mocked checks cover backlog continuation beyond 1,000 messages, abandoned
+Mocked checks cover browser-free scheduling and loop restart, access revocation
+during intake, disabled connections, separate success/error timestamps,
+backlog continuation beyond 1,000 messages, abandoned
 imports, duplicate and concurrent submissions, database failure after provider
 acceptance, stale evidence, SMTP uncertainty, and Gmail reconciliation. They
 do not validate live OAuth, provider threading, SMTP acceptance/delivery, or

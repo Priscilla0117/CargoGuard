@@ -366,6 +366,7 @@ test("confirming a replacement scan preserves another source's correction ledger
   assert.equal(replaced.comparison.length, 0);
   const transcript: Transcript = {
     role: "BL",
+    reviewed_pages: [1],
     ...reviewer,
     confirmed_at: new Date().toISOString(),
     fields: {

@@ -352,6 +352,11 @@ export async function deliverReply(
   >,
 ) {
   const input = replyInput.parse(rawInput);
+  if (context.background)
+    throw new HttpError(
+      "The background intake service cannot draft or send email.",
+      403,
+    );
   const row = await connection(context);
   if (!row) throw new HttpError("Connect Gmail or another mailbox first.", 409);
   const id = input.operation_id;
