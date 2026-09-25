@@ -8,6 +8,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { requestJson } from "@/lib/client-api";
+import { sensitiveFindings, sensitiveMessage } from "@/lib/assistant-privacy";
 import type { CaseResult } from "@/lib/types";
 import type { AssistantFact, AssistantReply } from "@/lib/assistant";
 import {
@@ -180,6 +181,13 @@ export function CaseAssistant({
         (!consent || !preview?.enabled || !preview.availability.allowed))
     )
       return;
+    // Typed secrets never leave the browser, not even for a preview.
+    const secrets = sensitiveFindings(question);
+    if (secrets.length) {
+      setError(sensitiveMessage(secrets));
+      setConsent(false);
+      return;
+    }
     controller.current?.abort();
     controller.current = new AbortController();
     const current = ++sequence.current;

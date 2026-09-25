@@ -1,6 +1,7 @@
 import { errorSession, requireCapability } from "@/lib/auth";
 import { z } from "zod";
 import { refersToAnotherCase } from "@/lib/assistant-navigation";
+import { sensitiveFindings, sensitiveMessage } from "@/lib/assistant-privacy";
 import { HttpError, readJson } from "@/lib/http";
 import { requireMutation, respond, getCase, storage } from "@/lib/storage";
 import { recoveryConfig } from "@/lib/recovery-provider";
@@ -73,6 +74,9 @@ export async function POST(request: Request) {
     session = await requireCapability(request, "operate");
     requireMutation(request);
     const input = inputSchema.parse(await readJson(request, 6000));
+    const secrets = sensitiveFindings(input.question);
+    if (secrets.length)
+      throw new HttpError(sensitiveMessage(secrets, "server"), 422);
     if (refersToAnotherCase(input.question, input.id))
       throw new HttpError(
         "Your question names a different case. Use Change case to select it first. Questions cannot combine shipments; no AI request was sent.",
