@@ -1,7 +1,14 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { CalendarClock, Check, Loader2, RefreshCw } from "lucide-react";
+import {
+  CheckCircle2,
+  Check,
+  Hourglass,
+  Loader2,
+  Lock,
+  RefreshCw,
+} from "lucide-react";
 import { requestJson } from "@/lib/client-api";
 import {
   completionBlocker,
@@ -40,6 +47,7 @@ export function FollowUpDesk({
   person = "",
   reference = "",
   markDone = false,
+  onOpenReply,
 }: {
   result: CaseResult;
   followup?: FollowUp;
@@ -56,6 +64,8 @@ export function FollowUpDesk({
   reference?: string;
   /** Opened from "Mark as handled": pre-select done when allowed. */
   markDone?: boolean;
+  /** Open the Reply tab, where requests are sent and recorded. */
+  onOpenReply?: () => void;
 }) {
   const effective = followup ? effectiveFollowUp(followup, result) : "open";
   const [state, setState] = useState<FollowUp["state"]>(() =>
@@ -220,15 +230,30 @@ export function FollowUpDesk({
     }
   }
 
+  const busy = saving || refreshing || !ready || !!loadError;
+  const waitingUntil =
+    followup?.state === "waiting" &&
+    effective === "waiting" &&
+    followup.due_at &&
+    Number.isFinite(new Date(followup.due_at).getTime())
+      ? new Date(followup.due_at)
+      : null;
+  const remindHint = existingRequest
+    ? ""
+    : !requestConfirmed
+      ? "Send or record the request first to set a reminder."
+      : requestNote.trim().length < 5
+        ? "Say what you asked for to set a reminder."
+        : "";
+
   return (
-    <section className="follow-up-desk" aria-label="Case follow-up">
-      <div className="follow-up-heading">
-        <CalendarClock size={22} />
+    <section className="follow-up-desk fu" aria-label="Case follow-up">
+      <header className="fu-head">
         <div>
-          <h3>What happens next?</h3>
+          <h3>Next step</h3>
           <p>
-            Record the next action. Reminders appear in the inbox; no email is
-            sent here.
+            Keep track of this email until it is finished. Nothing is sent from
+            here.
           </p>
         </div>
         {followup && (
@@ -236,7 +261,7 @@ export function FollowUpDesk({
             {FOLLOW_UP_LABELS[effective]}
           </span>
         )}
-      </div>
+      </header>
       {effective === "reopened" && (
         <p className="follow-up-reopened">
           <RefreshCw size={16} />
@@ -273,129 +298,175 @@ export function FollowUpDesk({
           </button>
         </div>
       )}
-      <div className="follow-up-quick" aria-label="Quick follow-up">
-        <div>
-          <strong>Waiting for the sender?</strong>
+      <div className="fu-cards">
+        <section className="fu-card" aria-labelledby="fu-wait-title">
+          <div className="fu-card-head">
+            <Hourglass size={18} aria-hidden="true" />
+            <h4 id="fu-wait-title">Waiting for a reply</h4>
+          </div>
+          {waitingUntil && (
+            <p className="fu-ok">
+              <Check size={15} aria-hidden="true" />
+              <span>
+                Back in To do on{" "}
+                {waitingUntil.toLocaleString([], {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}{" "}
+                if there is no reply.
+              </span>
+            </p>
+          )}
           {existingRequest ? (
-            <p>
-              A request is recorded at{" "}
-              {new Date(followup!.request!.at).toLocaleString()} (
-              {followup!.request!.channel === "mail"
-                ? "provider-confirmed send"
-                : "recorded externally"}
-              ).
+            <p className="fu-ok">
+              <Check size={15} aria-hidden="true" />
+              <span>
+                Request recorded{" "}
+                {new Date(followup!.request!.at).toLocaleString([], {
+                  day: "numeric",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}{" "}
+                ·{" "}
+                {followup!.request!.channel === "mail"
+                  ? "sent from CargoGuard"
+                  : "sent outside CargoGuard"}
+              </span>
             </p>
           ) : (
-            <p>
-              Send a request from Reply, or record the request you already sent
-              elsewhere.
+            <>
+              <p className="fu-text">
+                Send your request from{" "}
+                {onOpenReply ? (
+                  <button
+                    type="button"
+                    className="cg-link-button"
+                    onClick={onOpenReply}
+                  >
+                    Reply
+                  </button>
+                ) : (
+                  <strong>Reply</strong>
+                )}
+                . It is recorded here automatically.
+              </p>
+              <label className="cg-check fu-check">
+                <input
+                  type="checkbox"
+                  checked={requestConfirmed}
+                  onChange={(event) =>
+                    setRequestConfirmed(event.target.checked)
+                  }
+                />
+                <span>I already sent it another way (email, phone, chat)</span>
+              </label>
+              {requestConfirmed && (
+                <label className="fu-field">
+                  What did you ask for?
+                  <input
+                    value={requestNote}
+                    onChange={(event) => setRequestNote(event.target.value)}
+                    maxLength={1000}
+                    placeholder="For example: revised BL with the corrected discharge port"
+                  />
+                </label>
+              )}
+            </>
+          )}
+          <div className="fu-remind">
+            <span className="fu-label" id="fu-remind-label">
+              Remind me if there is no reply
+            </span>
+            <div
+              className="fu-options"
+              role="group"
+              aria-labelledby="fu-remind-label"
+            >
+              {remind.map((option) => (
+                <button
+                  key={option.label}
+                  type="button"
+                  disabled={busy || !canWait || changedElsewhere}
+                  onClick={() =>
+                    void quick(
+                      "waiting",
+                      option.date,
+                      `Waiting for the sender. Chase on ${option.date.toLocaleDateString()} if there is no answer.`,
+                    )
+                  }
+                >
+                  <strong>{option.label}</strong>
+                  <small>
+                    {option.date.toLocaleDateString([], {
+                      weekday: "short",
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </small>
+                </button>
+              ))}
+            </div>
+            {remindHint && <p className="fu-hint">{remindHint}</p>}
+          </div>
+        </section>
+        <section className="fu-card" aria-labelledby="fu-done-title">
+          <div className="fu-card-head">
+            <CheckCircle2 size={18} aria-hidden="true" />
+            <h4 id="fu-done-title">Finished</h4>
+          </div>
+          {blocker ? (
+            <p className="fu-blocked">
+              <Lock size={15} aria-hidden="true" />
+              <span>{notYet}</span>
+            </p>
+          ) : (
+            <p className="fu-text">
+              Closes this follow-up. Shipment tasks are tracked separately.
             </p>
           )}
-          <label className="cg-check">
-            <input
-              type="checkbox"
-              checked={requestConfirmed}
-              onChange={(event) => setRequestConfirmed(event.target.checked)}
-            />
-            I already sent a request outside CargoGuard
-          </label>
-          {requestConfirmed && (
-            <label>
-              What did you request?
-              <input
-                value={requestNote}
-                onChange={(event) => setRequestNote(event.target.value)}
-                maxLength={1000}
-                placeholder="For example: revised BL with the corrected discharge port"
-              />
-            </label>
-          )}
-          <span>
-            Choose when it should return to To do if there is no answer:
-          </span>
-          <div className="follow-up-quick-row">
-            {remind.map((option) => (
-              <button
-                key={option.label}
-                type="button"
-                className="cg-btn"
-                disabled={
-                  saving ||
-                  refreshing ||
-                  !ready ||
-                  !!loadError ||
-                  !canWait ||
-                  changedElsewhere
-                }
-                onClick={() =>
-                  void quick(
-                    "waiting",
-                    option.date,
-                    `Waiting for the sender. Chase on ${option.date.toLocaleDateString()} if there is no answer.`,
-                  )
-                }
-              >
-                {option.label}
-                <small>
-                  {option.date.toLocaleDateString([], {
-                    weekday: "short",
-                    day: "numeric",
-                    month: "short",
-                  })}
-                </small>
-              </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <strong>Finished?</strong>
-          <span>
-            {blocker
-              ? notYet
-              : "This closes the recorded email follow-up. Linked shipment tasks are separate."}
-          </span>
           {!blocker && needsIntegrity && (
-            <label className="cg-check follow-up-integrity">
+            <label className="cg-check fu-check follow-up-integrity">
               <input
                 type="checkbox"
                 checked={integrityChecked}
                 onChange={(e) => setIntegrityChecked(e.target.checked)}
               />
-              I looked at the extra safety findings (container numbers, weights)
-              on the SI vs BL check tab
+              <span>
+                I looked at the extra safety findings (container numbers,
+                weights) on the SI vs BL check tab
+              </span>
             </label>
           )}
-          <div className="follow-up-quick-row">
-            <button
-              type="button"
-              className="cg-btn primary"
-              disabled={
-                !!blocker ||
-                integrityBlocked ||
-                saving ||
-                refreshing ||
-                !ready ||
-                !!loadError
-              }
-              onClick={() =>
-                void quick(
-                  "completed",
-                  null,
-                  result.category === "SI_REQUEST"
-                    ? "SI prepared and sent to the requester."
-                    : result.category === "INVOICE_QUERY"
-                      ? "Invoice question answered."
-                      : "Checked and handled.",
-                )
-              }
-            >
-              <Check size={16} /> Mark as done
-            </button>
+          <div className="fu-actions">
+            {!blocker && (
+              <button
+                type="button"
+                className="cg-btn primary"
+                disabled={integrityBlocked || busy}
+                onClick={() =>
+                  void quick(
+                    "completed",
+                    null,
+                    result.category === "SI_REQUEST"
+                      ? "SI prepared and sent to the requester."
+                      : result.category === "INVOICE_QUERY"
+                        ? "Invoice question answered."
+                        : "Checked and handled.",
+                  )
+                }
+              >
+                <Check size={16} /> Mark as done
+              </button>
+            )}
             {followup && effective !== "open" && effective !== "reopened" && (
               <button
                 type="button"
                 className="cg-btn"
-                disabled={saving || refreshing || !ready || !!loadError}
+                disabled={busy}
                 onClick={() =>
                   void quick("open", null, "Back on my to-do list.")
                 }
@@ -404,10 +475,10 @@ export function FollowUpDesk({
               </button>
             )}
           </div>
-        </div>
+        </section>
       </div>
       <details className="cg-details follow-up-more">
-        <summary>More details (person responsible, exact time, note)</summary>
+        <summary>More options: who is responsible, exact time, note</summary>
         <form onSubmit={submit} onChange={() => setSaved(false)}>
           <fieldset
             disabled={
