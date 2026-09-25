@@ -1,8 +1,12 @@
+import {
+  authenticatedActor,
+  errorSession,
+  requireCapability,
+} from "@/lib/auth";
 import { z } from "zod";
 import { policyRules, previewPolicy, type PolicySnapshot } from "@/lib/policy";
 import {
   storage,
-  workspace,
   requireMutation,
   respond,
   getPolicy,
@@ -20,8 +24,9 @@ const action = z.discriminatedUnion("action", [
   }),
 ]);
 export async function GET(request: Request) {
-  const s = workspace(request);
+  let s = errorSession(request);
   try {
+    s = await requireCapability(request, "read");
     const history = (
       await storage()
         .DB.prepare(
@@ -31,7 +36,9 @@ export async function GET(request: Request) {
         .all<{ payload: string }>()
     ).results.map((r) => JSON.parse(r.payload));
     return respond({ policy: await getPolicy(s.id), history }, s);
-  } catch {
+  } catch (error) {
+    if (error instanceof HttpError)
+      return respond({ error: error.message }, s, error.status);
     return respond(
       { error: "Policy storage is unavailable. Retry shortly." },
       s,
@@ -40,10 +47,13 @@ export async function GET(request: Request) {
   }
 }
 export async function POST(request: Request) {
-  let s = workspace(request);
+  let s = errorSession(request);
   try {
-    s = requireMutation(request);
+    s = await requireCapability(request, "admin");
+    requireMutation(request);
     const input = action.parse(await readJson(request));
+    if (input.action === "activate")
+      input.actor = authenticatedActor(request, input.actor);
     const db = storage().DB;
     if (input.action === "preview") {
       const policy = await getPolicy(s.id),

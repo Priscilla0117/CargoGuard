@@ -1,0 +1,45 @@
+/** All durable features in this release must be migrated before accepting work. */
+export const RUNTIME_TABLES = [
+  "cargo_migrations",
+  "cases",
+  "events",
+  "result_revisions",
+  "policies",
+  "policy_previews",
+  "attachment_blobs",
+  "recovery_proposals",
+  "recovery_attempts",
+  "assistant_replies",
+  "case_follow_ups",
+  "follow_up_revisions",
+  "team_installation",
+  "team_users",
+  "team_memberships",
+  "team_sessions",
+  "team_login_limits",
+  "team_events",
+  "shipments",
+  "shipment_revisions",
+  "operational_notifications",
+  "label_rules",
+  "label_rule_revisions",
+  "microsoft_connections",
+  "microsoft_oauth_states",
+  "microsoft_dispatches",
+  "microsoft_imports",
+  "microsoft_audit",
+  "si_templates",
+  "si_template_revisions",
+  "microsoft_notification_outbox",
+  "mail_connections",
+  "mail_oauth_states",
+  "mail_imports",
+  "mail_operations",
+  "mail_worker_state",
+] as const;
+
+// SQLite compiles every table reference but returns no customer records. One
+// bounded round trip detects a partially upgraded deployment, even an empty one.
+export const RUNTIME_SCHEMA_PROBE = RUNTIME_TABLES.map(
+  (table) => `SELECT 1 FROM ${table} WHERE 0`,
+).join(" UNION ALL ");

@@ -18,7 +18,8 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "./ui/dialog";
 import { CaseAssistant, type AssistantMemory } from "./case-assistant";
-import { AssistantHome, type HomeMemory } from "./assistant-home";
+import { CopilotHome, EMPTY_COPILOT, type CopilotMemory } from "./copilot-home";
+import type { Planned } from "@/lib/copilot";
 import { requestJson } from "@/lib/client-api";
 import {
   assistantAvailability,
@@ -32,6 +33,8 @@ import {
 
 export function GlobalAssistant({
   cases,
+  planned,
+  now,
   workspaceReady,
   initialCaseId,
   onOpenCase,
@@ -40,6 +43,8 @@ export function GlobalAssistant({
   setMemories,
 }: {
   cases: CaseSummary[];
+  planned: Planned[];
+  now: number;
   workspaceReady: boolean;
   initialCaseId: string | null;
   onOpenCase: (id: string, tab: string) => void;
@@ -51,10 +56,7 @@ export function GlobalAssistant({
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(8);
   const [choosing, setChoosing] = useState(false);
-  const [homeMemory, setHomeMemory] = useState<HomeMemory>({
-    question: "",
-    turns: [],
-  });
+  const [homeMemory, setHomeMemory] = useState<CopilotMemory>(EMPTY_COPILOT);
   const [pendingQuestion, setPendingQuestion] = useState<{
     id: string | null;
     text: string;
@@ -214,8 +216,13 @@ export function GlobalAssistant({
         >
           <header className="assistant-panel-header">
             <div>
-              <span className="eyebrow">A HELPING HAND FOR YOUR WORKDAY</span>
               <DialogTitle>Ask CargoGuard</DialogTitle>
+              <p
+                id="assistant-panel-description"
+                className="assistant-panel-description"
+              >
+                Answers from your saved emails and documents.
+              </p>
             </div>
             <button
               className="icon-button"
@@ -225,26 +232,21 @@ export function GlobalAssistant({
               <X size={22} />
             </button>
           </header>
-          <p
-            id="assistant-panel-description"
-            className="assistant-panel-description"
-          >
-            Clear answers. Traceable evidence. You stay in control.
-          </p>
-          <AssistantHome
-            cases={cases}
+          <CopilotHome
+            rows={planned}
+            now={now}
             workspaceReady={workspaceReady}
             memory={homeMemory}
             setMemory={setHomeMemory}
             visible={!caseId && !choosing}
-            onAttach={(question, id) => {
+            onOpen={(id, tab) => inspect(id, tab ?? "comparison")}
+            onAttach={(question) => {
               setPendingQuestion(
-                question.trim() ? { id: id ?? null, text: question } : null,
+                question.trim() ? { id: null, text: question } : null,
               );
               setQuery("");
               setLimit(8);
-              if (id) selectCase(id);
-              else setChoosing(true);
+              setChoosing(true);
             }}
           />
           {choosing ? (

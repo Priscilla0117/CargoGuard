@@ -1,7 +1,14 @@
 import type { NextConfig } from "next";
+import { outlookFraming } from "./lib/microsoft-manifest";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["@libsql/client", "libsql", "unpdf"],
+  serverExternalPackages: [
+    "@libsql/client",
+    "libsql",
+    "unpdf",
+    "imapflow",
+    "nodemailer",
+  ],
   poweredByHeader: false,
   async headers() {
     return [
@@ -10,8 +17,15 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "same-origin" },
-          { key: "X-Frame-Options", value: "DENY" },
         ],
+      },
+      {
+        source: "/((?!outlook/?$).*)",
+        headers: [{ key: "X-Frame-Options", value: "DENY" }],
+      },
+      {
+        source: "/outlook",
+        headers: outlookFraming(process.env.CARGO_MS_ADDIN_ENABLED === "true"),
       },
     ];
   },

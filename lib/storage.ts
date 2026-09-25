@@ -1,3 +1,5 @@
+import { checkDocumentIntegrity } from "./integrity-checks";
+import { completionBlocker } from "./follow-up";
 import { runtimeBindings } from "@/lib/runtime";
 import { NextResponse } from "next/server";
 import {
@@ -5,9 +7,12 @@ import {
   type CaseResult,
   type CaseSummary,
   type AuditEvent,
+  emailSummaryOf,
 } from "./types";
 import { HttpError, sameRequestOrigin } from "./http";
 import { DEFAULT_POLICY, withPolicy, type PolicySnapshot } from "./policy";
+import { requestWorkspace, requireAuthOrigin } from "./auth";
+import { workspaceUploadLimit } from "./workspace-mode";
 type Bindings = { DB: D1Database; BUCKET: R2Bucket };
 export function storage() {
   const e = runtimeBindings() as Bindings;
@@ -16,10 +21,7 @@ export function storage() {
   return e;
 }
 export function workspace(request: Request) {
-  const value = request.headers
-    .get("cookie")
-    ?.match(/(?:^|;\s*)cargo_workspace=([a-f0-9-]{36})(?:;|$)/)?.[1];
-  return { id: value ?? crypto.randomUUID(), fresh: !value };
+  return requestWorkspace(request);
 }
 export function respond(
   data: unknown,
@@ -40,6 +42,7 @@ export function respond(
   return r;
 }
 export function requireMutation(request: Request) {
+  requireAuthOrigin(request);
   // Next's internal URL can use localhost while the actual Host is 127.0.0.1.
   // Render terminates HTTPS at its proxy; use its trusted configured public URL.
   if (
@@ -98,6 +101,7 @@ export interface CaseWrite {
   detail: string;
 }
 /** Strip email body, source text and seven-field evidence before remote transfer.
+ * The body is read only to derive a short snippet, references and date signals.
  * Full case payloads remain available through the workspace-scoped detail API.
  */
 export async function listCaseSummaries(
@@ -106,13 +110,50 @@ export async function listCaseSummaries(
 ): Promise<CaseSummary[]> {
   const rows = await db
     .prepare(
-      "SELECT json_remove(payload, '$.documents', '$.comparison', '$.email.body') AS payload, version FROM cases WHERE workspace=? ORDER BY email_id",
+      "SELECT json_remove(payload, '$.documents', '$.comparison', '$.retained_corrections') AS payload, json_array_length(payload, '$.comparison') AS comparison_count, version FROM cases WHERE workspace=? ORDER BY email_id",
     )
     .bind(ws)
-    .all<{ payload: string; version: number }>();
+    .all<{ payload: string; version: number; comparison_count: number }>();
+  // Matching document checks also carry the independent safety findings
+  // (container check digits, weights), so the inbox never files one under
+  // "Done" while a finding is still open. Only these rows need documents.
+  const flagged = new Set<string>();
+  const completion = new Map<string, string | null>();
+  const evidence = await db
+    .prepare(
+      "SELECT email_id, payload, version FROM cases WHERE workspace=? AND json_extract(payload, '$.workflow')='verified' AND json_extract(payload, '$.category')='BL_COMPARISON'",
+    )
+    .bind(ws)
+    .all<{
+      email_id: string;
+      payload: string;
+      version: number;
+    }>();
+  for (const row of evidence.results) {
+    try {
+      const result = { ...JSON.parse(row.payload), version: row.version } as CaseResult;
+      completion.set(row.email_id, completionBlocker(result));
+      if (checkDocumentIntegrity(result).requires_attention)
+        flagged.add(row.email_id);
+    } catch {
+      completion.set(row.email_id, "Open and recheck the stored source evidence before completing this work.");
+    }
+  }
   return rows.results.map((row) => {
     const { email, ...result } = JSON.parse(row.payload);
-    return { email, result: { ...result, version: row.version } };
+    const blocker = completion.has(email.email_id) ? completion.get(email.email_id)! :
+      result.workflow === "verified" || row.comparison_count > 0
+        ? "Open and recheck the current source evidence before completing this work."
+        : completionBlocker({ ...result, email, version: row.version, documents: [], comparison: [] });
+    return {
+      email: emailSummaryOf(email),
+      result: {
+        ...result,
+        version: row.version,
+        integrity_attention: flagged.has(email.email_id),
+        completion_blocker: blocker,
+      },
+    };
   });
 }
 export async function saveCases(
@@ -131,7 +172,9 @@ export async function saveCases(
       !w.result.source_replaced &&
       !w.result.category_override &&
       !w.result.document_selection &&
-      !w.result.documents.some((d) => d.transcription || d.recovery) &&
+      !w.result.documents.some(
+        (d) => d.transcription || d.recovery || d.label_rules,
+      ) &&
       ["PROCESSED", "REPROCESSED", "UPLOADED"].includes(w.action)
         ? "automatic"
         : "reviewed";
@@ -139,7 +182,7 @@ export async function saveCases(
       w.expected === 0
         ? db
             .prepare(
-              "INSERT INTO cases(workspace,email_id,payload,version,updated_at) SELECT ?,?,?,?,? WHERE (? NOT GLOB 'upload_*' OR (SELECT COUNT(*) FROM cases WHERE workspace=? AND email_id GLOB 'upload_*') < 30) ON CONFLICT(workspace,email_id) DO NOTHING",
+              "INSERT INTO cases(workspace,email_id,payload,version,updated_at) SELECT ?,?,?,?,? WHERE (? NOT GLOB 'upload_*' OR (SELECT COUNT(*) FROM cases WHERE workspace=? AND email_id GLOB 'upload_*') < ?) ON CONFLICT(workspace,email_id) DO NOTHING",
             )
             .bind(
               ws,
@@ -149,6 +192,7 @@ export async function saveCases(
               now,
               w.result.email.email_id,
               ws,
+              workspaceUploadLimit(),
             )
         : db
             .prepare(
@@ -276,7 +320,7 @@ export async function saveCase(
   if (!saved.results.length) {
     if (expected === 0 && r.email.email_id.startsWith("upload_"))
       throw new HttpError(
-        "This demo allows 30 uploaded cases per workspace.",
+        `This workspace has reached its limit of ${workspaceUploadLimit()} imported cases. Ask your administrator to review capacity.`,
         429,
       );
     throw new HttpError(

@@ -30,6 +30,7 @@ const transcript: Transcript = {
   actor: "Regression tester",
   reason: "Checked all values against the original synthetic scan",
   confirmed_at: "2026-09-20T00:00:00Z",
+  reviewed_pages: [1],
 };
 const scan: ParsedDocument = {
   name: "scan.pdf",
@@ -40,6 +41,12 @@ const scan: ParsedDocument = {
   method: "PDF text and layout",
   sha256: "a".repeat(64),
   page_count: 1,
+  pdf_coverage: {
+    version: 1,
+    pages: [
+      { page: 1, text_items: 0, has_images: true, requires_review: true },
+    ],
+  },
 };
 const email: Email = {
   email_id: "scan-test",
@@ -158,6 +165,6 @@ test("scan reprocessing keeps human-confirmed data only for identical bytes", as
   );
   assert.deepEqual(
     result.documents.find((d) => d.name === document.name)?.transcription,
-    transcript,
+    prev.documents.find((d) => d.name === document.name)?.transcription,
   );
 });

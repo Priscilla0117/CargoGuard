@@ -1,0 +1,17 @@
+From: Billing Dept <billing@invoice-payments-demo.top>
+To: billing@april-demo.com
+Subject: INVOICE OVERDUE!!! Pay now to avoid legal action
+Date: Sat, 19 Sep 2026 17:20:00 +0000
+Message-ID: <ft_25.fieldtest@cargoguard-demo.invalid>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="cg-ft_25-boundary"
+
+--cg-ft_25-boundary
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: base64
+
+WW91ciBpbnZvaWNlIGlzIG92ZXJkdWUuIENsaWNrIHRoZSBzZWN1cmUgbGluayBiZWxvdyBhbmQg
+ZW50ZXIgeW91ciBiYW5rIGRldGFpbHMgdG8gcGF5IGltbWVkaWF0ZWx5LCBvdGhlcndpc2UgbGVn
+YWwgYWN0aW9uIHdpbGwgc3RhcnQgdG9kYXkuDQoNCmh0dHA6Ly9wYXktbm93LmV4YW1wbGUuaW52
+YWxpZA==
+--cg-ft_25-boundary--

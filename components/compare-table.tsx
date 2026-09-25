@@ -1,0 +1,463 @@
+"use client";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  CircleHelp,
+  FileText,
+  Pencil,
+  TriangleAlert,
+  UserCheck,
+} from "lucide-react";
+import { CorrectionDialog, type FieldEdit } from "./correction-dialog";
+import { BLCorrectionDialog } from "./bl-correction-dialog";
+import { blAmendmentSuggestion } from "@/lib/correction-suggestions";
+import { FIELD_RISK } from "@/lib/field-risk";
+import {
+  FIELD_LABELS,
+  type CaseResult,
+  type ComparisonRow,
+  type Field,
+} from "@/lib/types";
+
+export type { FieldEdit };
+
+const tokenize = (value: string) =>
+  value.split(/(\s+|[,;:/()\-.])/).filter((part) => part !== "");
+const key = (token: string) => token.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+/** Mark the words in `value` that do not appear in `other`. */
+export function highlightDifferences(value: string, other: string) {
+  const counts = new Map<string, number>();
+  for (const token of tokenize(other)) {
+    const k = key(token);
+    if (k) counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  return tokenize(value).map((token) => {
+    const k = key(token);
+    if (!k) return { text: token, changed: false };
+    const left = counts.get(k) ?? 0;
+    if (left > 0) {
+      counts.set(k, left - 1);
+      return { text: token, changed: false };
+    }
+    return { text: token, changed: true };
+  });
+}
+
+/** One-line excerpt around the first difference, for summaries. */
+export function DiffSnippet({
+  value,
+  other,
+}: {
+  value: string;
+  other: string;
+}) {
+  const flat = (text: string) => text.replace(/\s*\n\s*/g, ", ").trim();
+  const parts = highlightDifferences(flat(value), flat(other));
+  if (!parts.length) return <em>(empty)</em>;
+  const first = parts.findIndex((part) => part.changed);
+  const total = parts.reduce((n, part) => n + part.text.length, 0);
+  let from = 0,
+    to = parts.length;
+  if (total > 60 && first >= 0) {
+    from = Math.max(0, first - 6);
+    to = Math.min(parts.length, first + 10);
+    // Start and end on whole words ("P.O. BOX", not ".O. BOX").
+    while (from > 0 && !/^[\s,;]+$/.test(parts[from - 1].text)) from--;
+    while (to < parts.length && !/^[\s,;]+$/.test(parts[to].text)) to++;
+  } else if (total > 60) to = Math.min(parts.length, 16);
+  return (
+    <>
+      {from > 0 && "… "}
+      {parts
+        .slice(from, to)
+        .map((part, index) =>
+          part.changed ? <mark key={index}>{part.text}</mark> : part.text,
+        )}
+      {to < parts.length && " …"}
+    </>
+  );
+}
+
+function HighlightedValue({ value, other }: { value: string; other: string }) {
+  const parts = highlightDifferences(value, other);
+  // When nothing overlaps, highlighting every word adds noise: show plain text.
+  if (parts.every((part) => part.changed || !key(part.text)))
+    return <>{value}</>;
+  return (
+    <>
+      {parts.map((part, index) =>
+        part.changed ? <mark key={index}>{part.text}</mark> : part.text,
+      )}
+    </>
+  );
+}
+
+/** "Page 1, y=692" -> "Page 1": coordinates stay in the tooltip. */
+function plainEvidence(evidence: string) {
+  const text = evidence
+    .replace(/^Reviewer confirmed; original source: /, "")
+    .replace(/,?\s*y\s*=\s*[\d.]+/gi, "")
+    .trim();
+  return text || "See in document";
+}
+
+const RESULT_TEXT: Record<ComparisonRow["result"], string> = {
+  match: "Matches",
+  mismatch: "Different",
+  uncertain: "Please check",
+};
+const RESULT_HINT: Record<ComparisonRow["result"], string> = {
+  match: "The SI and the draft BL say the same.",
+  mismatch: "The highlighted words are not in the other document.",
+  uncertain:
+    "Could not be read with certainty. Open the document to confirm the value.",
+};
+const ORDER: Record<ComparisonRow["result"], number> = {
+  mismatch: 0,
+  uncertain: 1,
+  match: 2,
+};
+
+export function CompareTable({
+  result,
+  reviewerName,
+  canEdit,
+  onSave,
+  onSaveNext,
+  onSource,
+  onReviewerName,
+  onRequestCorrection,
+}: {
+  result: CaseResult;
+  reviewerName: string;
+  canEdit: boolean;
+  onSave: (edit: FieldEdit, actor: string, reason: string) => Promise<boolean>;
+  /** Save, then open the next email in the list. */
+  onSaveNext?: (
+    edit: FieldEdit,
+    actor: string,
+    reason: string,
+  ) => Promise<boolean>;
+  onSource: (source: string, location: string) => void;
+  onReviewerName: (name: string) => void;
+  onRequestCorrection?: () => void;
+}) {
+  const [editing, setEditing] = useState<FieldEdit | null>(null);
+  const [amendField, setAmendField] = useState<Field | null>(null);
+  const proposals = useMemo(
+    () =>
+      new Set(
+        result.comparison
+          .filter((row) => blAmendmentSuggestion(result, row.field))
+          .map((row) => row.field),
+      ),
+    [result],
+  );
+  const [flash, setFlash] = useState<string>("");
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+    },
+    [],
+  );
+  // Problems first, but keep the order stable while the employee works so a
+  // corrected row stays where they are looking (and is highlighted).
+  const [order] = useState(() =>
+    [...result.comparison]
+      .sort(
+        (a, b) =>
+          ORDER[a.result] - ORDER[b.result] ||
+          Object.keys(FIELD_LABELS).indexOf(a.field) -
+            Object.keys(FIELD_LABELS).indexOf(b.field),
+      )
+      .map((row) => row.field),
+  );
+  // Details that already matched when the case opened are folded away so the
+  // eye goes to the problems. Rows fixed during this visit stay visible.
+  const [initiallyMatching] = useState(
+    () =>
+      new Set(
+        result.comparison
+          .filter((row) => row.result === "match")
+          .map((row) => row.field),
+      ),
+  );
+  const [showMatches, setShowMatches] = useState(false);
+  const rows = useMemo(
+    () =>
+      [
+        ...order,
+        ...result.comparison
+          .map((row) => row.field)
+          .filter((field) => !order.includes(field)),
+      ]
+        .map((field) => result.comparison.find((row) => row.field === field))
+        .filter((row): row is ComparisonRow => !!row),
+    [order, result.comparison],
+  );
+  async function save(
+    edit: FieldEdit,
+    actor: string,
+    reason: string,
+    next: boolean,
+  ) {
+    const handler = next && onSaveNext ? onSaveNext : onSave;
+    const ok = await handler(edit, actor, reason);
+    if (ok && !next) {
+      setEditing(null);
+      setFlash(`${edit.field}-${edit.side}`);
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+      flashTimer.current = setTimeout(() => setFlash(""), 2600);
+    }
+    return ok;
+  }
+
+  const problems = rows.filter((row) => row.result !== "match").length;
+  const partial = result.review_reason === "unreadable";
+  const foldable =
+    initiallyMatching.size < rows.length && initiallyMatching.size > 0;
+  const folded = foldable && !showMatches;
+  const shown = folded
+    ? rows.filter(
+        (row) => !(initiallyMatching.has(row.field) && row.result === "match"),
+      )
+    : rows;
+  const hidden = rows.filter(
+    (row) => initiallyMatching.has(row.field) && row.result === "match",
+  );
+  return (
+    <section aria-label="Shipping Instruction compared with draft BL">
+      {partial && (
+        <p className="cg-notice" role="status">
+          <CircleHelp size={20} aria-hidden="true" />
+          <span>
+            Partial comparison — unread PDF content may change these values.
+            Review every flagged page in Documents before relying on this check.
+          </span>
+        </p>
+      )}
+      {shown.some((row) => row.result === "mismatch") && (
+        <p className="cg-compare-hint">
+          <mark>Highlighted</mark> words are not in the other document.
+        </p>
+      )}
+      <div className="cg-compare" role="table">
+        <div className="cg-compare-head" role="row">
+          <div role="columnheader">Detail</div>
+          <div role="columnheader">
+            Shipping Instruction (SI)
+            <small>The reference</small>
+          </div>
+          <div role="columnheader">
+            Draft Bill of Lading (BL)
+            <small>The document being checked</small>
+          </div>
+        </div>
+        {shown.map((row) => (
+          <div
+            key={row.field}
+            role="row"
+            className={`cg-compare-row ${row.result}`}
+          >
+            <div className="cg-field-name" role="rowheader">
+              {FIELD_LABELS[row.field]}
+              <span
+                className={`cg-pill ${row.result === "mismatch" ? "red" : row.result === "uncertain" ? "blue" : "green"}`}
+                title={RESULT_HINT[row.result]}
+              >
+                {row.result === "mismatch" ? (
+                  <TriangleAlert size={14} />
+                ) : row.result === "uncertain" ? (
+                  <CircleHelp size={14} />
+                ) : (
+                  <CheckCircle2 size={14} />
+                )}
+                {partial && row.result === "match"
+                  ? "Readable values match"
+                  : RESULT_TEXT[row.result]}
+              </span>
+            </div>
+            {(["si", "bl"] as const).map((side) => {
+              const value = row[side];
+              const other = row[side === "si" ? "bl" : "si"];
+              const edited = value.method.startsWith("Human correction");
+              return (
+                <div
+                  key={side}
+                  role="cell"
+                  data-side={
+                    side === "si" ? "Shipping Instruction (SI)" : "Draft BL"
+                  }
+                  className={`cg-value ${flash === `${row.field}-${side}` ? "cg-flash" : ""}`}
+                >
+                  <>
+                    <p
+                      className={`cg-value-text ${value.raw ? "" : "missing-value"}`}
+                    >
+                      {!value.raw ? (
+                        "Not found in the document"
+                      ) : row.result === "mismatch" ? (
+                        <HighlightedValue value={value.raw} other={other.raw} />
+                      ) : (
+                        value.raw
+                      )}
+                    </p>
+                    {value.issue && (
+                      <p className="cg-value-issue">{value.issue}</p>
+                    )}
+                    {row.result === "mismatch" &&
+                      side === "bl" &&
+                      value.raw.trim().toUpperCase() ===
+                        other.raw.trim().toUpperCase() && (
+                        <p className="cg-value-issue">
+                          Same words on both documents — it differs because the
+                          consignee it refers to differs.
+                        </p>
+                      )}
+                    {edited && (
+                      <span className="cg-edited">
+                        <UserCheck size={13} /> Reading updated by a reviewer
+                      </span>
+                    )}
+                    <div className="cg-value-tools">
+                      {value.source && (
+                        <button
+                          type="button"
+                          className="cg-source"
+                          onClick={() => onSource(value.source, value.evidence)}
+                          title={`Show where this value comes from (${value.evidence})`}
+                          aria-label={`See the ${side === "si" ? "SI" : "draft BL"} ${FIELD_LABELS[row.field].toLowerCase()} in the document: ${plainEvidence(value.evidence)}`}
+                        >
+                          <FileText size={14} aria-hidden="true" />
+                          {plainEvidence(value.evidence)}
+                        </button>
+                      )}
+                      {canEdit && (
+                        <button
+                          type="button"
+                          className="cg-fix-reading"
+                          onClick={() =>
+                            setEditing({
+                              field: row.field,
+                              side,
+                              value: value.raw,
+                            })
+                          }
+                          aria-label={`Fix how CargoGuard read the ${FIELD_LABELS[row.field].toLowerCase()} in the ${side === "si" ? "SI" : "draft BL"}`}
+                          title="Use this only when CargoGuard misread the document"
+                        >
+                          <Pencil size={13} aria-hidden="true" /> Fix reading
+                        </button>
+                      )}
+                    </div>
+                  </>
+                </div>
+              );
+            })}
+            {row.result === "mismatch" && (
+              <div className="cg-row-foot" role="note">
+                <p className="cg-row-risk">
+                  <span className="cg-row-risk-label">Why it matters</span>
+                  {FIELD_RISK[row.field].risk}
+                </p>
+                {canEdit && proposals.has(row.field) && onRequestCorrection && (
+                  <button
+                    type="button"
+                    className="cg-btn small cg-row-action"
+                    onClick={() => setAmendField(row.field)}
+                    aria-label={`Review the correction for ${FIELD_LABELS[row.field].toLowerCase()}`}
+                  >
+                    Review correction{" "}
+                    <ArrowRight size={15} aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+        {foldable && (
+          <button
+            type="button"
+            className="cg-compare-fold"
+            aria-expanded={!folded}
+            onClick={() => setShowMatches(!showMatches)}
+          >
+            <CheckCircle2 size={18} color="var(--cg-green)" />
+            <span>
+              {folded ? (
+                <>
+                  <strong>
+                    {hidden.length} other detail{hidden.length === 1 ? "" : "s"}{" "}
+                    match
+                  </strong>{" "}
+                  ({hidden.map((row) => FIELD_LABELS[row.field]).join(", ")})
+                </>
+              ) : (
+                <strong>Hide the details that match</strong>
+              )}
+            </span>
+            <span className="cg-spacer" />
+            {folded ? "Show them" : "Hide"}
+            {folded ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+          </button>
+        )}
+      </div>
+      {amendField && onRequestCorrection && (
+        <BLCorrectionDialog
+          result={result}
+          field={amendField}
+          onClose={() => setAmendField(null)}
+          onReading={() => {
+            const row = result.comparison.find(
+              (item) => item.field === amendField,
+            );
+            if (row)
+              setEditing({ field: amendField, side: "bl", value: row.bl.raw });
+            setAmendField(null);
+          }}
+          onRequest={() => {
+            setAmendField(null);
+            onRequestCorrection();
+          }}
+        />
+      )}
+      {editing && (
+        <CorrectionDialog
+          key={`${result.version}-${editing.field}-${editing.side}`}
+          result={result}
+          edit={editing}
+          reviewerName={reviewerName}
+          onReviewerName={onReviewerName}
+          onCancel={() => setEditing(null)}
+          onReadingHelp={() => {
+            const source = result.comparison.find(
+              (row) => row.field === editing.field,
+            )?.[editing.side];
+            if (source?.source) {
+              setEditing(null);
+              onSource(source.source, source.evidence);
+            }
+          }}
+          onSave={(edit, actor, reason) => save(edit, actor, reason, false)}
+          onSaveNext={
+            onSaveNext
+              ? (edit, actor, reason) => save(edit, actor, reason, true)
+              : undefined
+          }
+        />
+      )}
+      <p className="cg-small cg-muted" style={{ marginTop: 10 }}>
+        {partial
+          ? "These are provisional results from readable content only. Unread pages must be reviewed before this document can be verified."
+          : problems
+            ? "Draft BL wrong? Review correction asks the sender for a revised BL. CargoGuard misread a value? Use Fix reading."
+            : `All ${rows.length} details match. Spaces, punctuation and units are compared sensibly; missing values never count as a match.`}
+      </p>
+    </section>
+  );
+}

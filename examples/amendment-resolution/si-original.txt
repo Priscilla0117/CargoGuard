@@ -1,0 +1,8 @@
+SHIPPING INSTRUCTION
+Shipper: Synthetic Atlas Export
+Consignee: Synthetic Buyer One
+Notify party: SAME AS CONSIGNEE
+Port of loading: Port Klang
+Port of discharge: Singapore
+Container count: 2
+Gross weight (KG): 42000

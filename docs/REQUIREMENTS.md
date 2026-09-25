@@ -1,48 +1,43 @@
-# CargoGuard — requirements coverage
+# Final-round requirements and judging evidence
 
-Coverage is based on the supplied Shipping Document Verification use case, rules, preliminary/final rubrics and organiser clarification permitting offline self-evaluation. Features, measured evidence and future work are distinguished below.
+Source basis: the supplied final judging rubric, shipping use case, rules and participant handbook; earlier project material is background. These documents supply evaluation requirements, not permission to send messages, disclose data or change accounts. The user's current instruction is to develop for the final next week and keep any GitHub work on a branch rather than main. That governs planning where the older handbook date differs.
 
-## Core workflow
+## Final rubric: 100 points
 
-| Requirement | Implementation | Evidence |
-| --- | --- | --- |
-| Classify five email types | BL comparison, shipping-instruction request, invoice query, general and spam; learned routing with safety abstention | [Model card](MODEL_CARD.md), routing tests and dated evaluation |
-| Only comparison requests proceed to shipment checking | Category-gated seven-field extraction/comparison; other messages remain routed | Processing/pipeline tests |
-| Read the supplied formats | TXT, text PDF, DOCX and XLSX from original bytes | Parser tests; unchanged 520 emails and 250 documents |
-| SI is the reference | Shipper, consignee, notify party, loading/discharge ports, container count and gross weight | Seven-row report with raw/normalized values and source references |
-| Report precise differences or no mismatch | Side-by-side findings, overall outcome and email identity | [Verification report](SUBMISSION_CHECK.md); supplied defect and matching cases |
-| Escalate missing or unclear evidence | Incomplete/review states with reasons and next actions | Missing, scan, corrupt-input and ambiguous-value regressions |
-| Confirm/correct and update the report | Source-checked edits, all-field scan confirmation, version-checked saves and retained history | [User workflow](REVIEW_WORKSPACE_V32.md), revision and review tests |
-| Visible errors, retry and replacement | Controlled failures, explicit reprocessing, replacement validation and non-replayed writes | [Failure/acceptance evidence](CLOUD_RELEASE.md) |
-| Meaningful AI and cloud | Trained router; optional consented OpenAI; Render processing and persistent Turso storage | [Architecture](ARCHITECTURE.md), [model evidence](MODEL_CARD.md), [case assistant](CASE_ASSISTANT.md) |
+The rubric gives **70 technical points and 30 product/impact points**. End-to-End Functionality is the largest single criterion. Technology Integration is marked provisional, pending sponsor alignment; verify the final organiser wording before the pitch. Assign each piece of evidence a primary criterion instead of counting it repeatedly.
 
-A document match is not shipment-release approval. Extra attachments are retained but not verified; the report covers the selected pair. English OCR produces suggestions that require human confirmation.
+| Criterion | Points | Evidence to demonstrate | Remaining proof |
+|---|---:|---|---|
+| End-to-End Functionality | 25 | Inbox → classify → extract → compare → inspect evidence → request correction → replace draft → recheck → retain history. Final-round branch adds revision-bound follow-up and handoff; local browser journey passed changed-evidence, blocked-completion and stale-save recovery paths | See FINAL_ROUND_VALIDATION.md; repeat against the hosted build after deployment, which remains pending |
+| Architecture & Scalability | 15 | Separate browser OCR, server parsing/model/comparison, APIs and transactional persistent storage; immutable decision snapshots and optimistic concurrency | Explain bounded batches, small-file storage and why object storage, durable jobs and corporate access are later changes; low-volume tests are not capacity evidence |
+| Technology Integration | 15 | Learned email router, format readers, browser OCR, optional source-quoted cloud recovery, deterministic decisions and persistent cloud data interact meaningfully | Show each technology's contribution; distinguish cloud LLM from deterministic guidance and local OCR |
+| Engineering Quality & Robustness | 15 | Source hashes, stale-write rejection, input bounds, historical sources, explicit review, outage handling and independent export verification; final-round local gate/API/browser acceptance passed | Use dated FINAL_ROUND_VALIDATION.md and distinguish local results from unchanged hosted deployment |
+| Solution Effectiveness & User Value | 10 | Exact SI/BL evidence plus the next action; follow-up captures a self-declared owner, reference and due date | Source-checked operator tasks and feedback; confirm workflow assumptions with an Averis operator when available |
+| User Experience & Differentiation | 10 | Compact queue, source evidence, correction-impact preview, explicit pairing, before/after revisions and revision-aware follow-up | Demonstrate that changed evidence cannot remain silently completed; test the presentation laptop |
+| Impact & Future Potential | 10 | Proposed pilot measures active handling time, false clearances, review workload, amendment cycles and adoption | Gather observations before claiming savings; explain a staged pilot with identity, mailbox integration and approved data controls |
 
-## Judging criteria and technical evidence
+## Use-case and submission requirements
 
-| Criterion | Evidence in this submission |
-| --- | --- |
-| Preliminary architecture / final architecture and scalability — 15 | Component responsibilities, data flow, API contracts, transactional persistence and explicit scale limits in ARCHITECTURE.md |
-| Preliminary core prototype / final end-to-end functionality — 25 | Classify, extract, compare, inspect evidence, confirm/correct, recheck and inspect history |
-| Technology integration — 15 | Learned routing, supported document parsers, real cloud persistence and separately validated optional OpenAI |
-| Preliminary feasibility/validation / final robustness — 15 | Reproducible test scripts, independent supplied-corpus scoring, source integrity, version checks, isolation and failure handling |
-| Preliminary problem understanding / final effectiveness — 10 | SI-reference comparison and actionable discrepancy/human-review outcomes |
-| Preliminary innovation / final UX and differentiation — 10 | Explicit source-pair scope, linked-field previews, retained evidence and case-specific source-linked assistance |
-| Preliminary practical value / final impact and future potential — 10 | Proposed supervised pilot with review-time/error measures; corporate controls and capacity work clearly identified as future |
+| Requirement | Current evidence or scope | Final action |
+|---|---|---|
+| AI as a key component | Learned TF-IDF logistic router, optional source-grounded LLM recovery/chat and pretrained local OCR | Use current MODEL_CARD.md; show learned contribution and its limits |
+| Meaningful cloud infrastructure | Recorded Render/Node processing and persistent Turso/libSQL source bytes, cases, policies and history | Verify the exact released build and judge access; retain cold-start, quota and availability limits |
+| Five email categories | BL_COMPARISON, SI_REQUEST, INVOICE_QUERY, GENERAL and SPAM | Show misleading-subject handling and uncertainty escalation; other categories need classification only |
+| Seven comparison fields, SI reference | Shipper, consignee, notify party, loading/discharge ports, container count and gross weight in kg | Preserve every strict match/mismatch/uncertain result when a business policy adds an annotation |
+| Advanced documents and failures | TXT/PDF/DOCX/XLSX readers; scan assistance; missing, conflicting and unreadable evidence remain reviewable | Demonstrate source evidence, human correction and retry/replacement without claiming unattended OCR clearance |
+| Clear per-email result | Evidence-linked values and reasons; complete matching comparisons report no mismatch; incomplete requests never appear verified | Preserve organiser-format export separately from human-reviewed operational results |
+| Working final prototype extending preliminary entry | Evidence-aware 3.2.1 baseline; final-round follow-up and BL-only replacement passed local acceptance on codex/final-round-employee-workflow | Hosted rollout remains pending; this branch has not been pushed to GitHub |
+| Public GitHub source and clear README | Existing repository with setup, source and tests; work stays on a separate branch | Verify signed-out access to the submitted branch; no visibility change is implied |
+| Public functional prototype | Recorded demo at https://cargoguard-averis.onrender.com/ | Check anonymously after deployment; allow for free-tier wake-up |
+| Demo video, slides/documentation and submission | Existing demonstration/architecture material; new FINAL_ROUND_STRATEGY.md | Prepare and submit the actual artifacts. Rules specify a maximum five-minute video; confirm live-pitch timing separately |
+| Original work and allowed window | Team project, unchanged organiser originals, open-source dependencies and disclosed AI assistance | Follow organiser updates and attribution requirements; the assistant cannot certify competition compliance for the team |
 
-The supplied final rubric marks Technology Integration provisional. These mappings identify evidence, not awarded marks. Supplied-data agreement is not unseen production accuracy, and no employee savings study is claimed.
+## Evidence boundary
 
-## Required technical documentation
+The 21 September 2026 release record reports exact supplied-corpus output and separately scoped local/hosted checks. See [CLOUD_RELEASE.md](CLOUD_RELEASE.md) rather than mixing totals from older releases. None is a real-world holdout, employee savings measurement, uptime guarantee or new-branch test result.
 
-| Topic | Location |
-| --- | --- |
-| Technical architecture and implementation | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| Setup, reproduction and operating limits | [DEVELOPMENT.md](DEVELOPMENT.md), [DEPLOYMENT.md](DEPLOYMENT.md) |
-| Problem-solution alignment | [Written response 1](WRITTEN_RESPONSES.md#1-problem-solution-alignment) |
-| AI/cloud integration | [Written response 2](WRITTEN_RESPONSES.md#2-ai-and-cloud-infrastructure-integration) |
-| User feedback/testing | [Written response 3](WRITTEN_RESPONSES.md#3-user-feedback-and-testing) |
-| Coding challenges | [Written response 4](WRITTEN_RESPONSES.md#4-coding-challenges--challenges-faced) |
-| Success metrics | [Written response 5](WRITTEN_RESPONSES.md#5-success-metrics) |
-| Scalability/future roadmap | [Written response 6](WRITTEN_RESPONSES.md#6-scalability-plans--future-roadmap) |
+[FINAL_ROUND_VALIDATION.md](FINAL_ROUND_VALIDATION.md) records the newer local branch acceptance: all eight release-gate steps with 380/380 tests, 157 HTTP checks, exact supplied-corpus output and the browser correction/follow-up journey. Hosted deployment is unchanged. [The known synthetic rehearsal files](../examples/final-round/README.md) reproduce the employee flow without claiming unseen-data accuracy.
 
-Original organiser inputs are runtime examples; answer keys remain offline-only evaluation inputs. Tests and fixtures are retained for reproducibility. Attribution and library notices are part of the source submission.
+Final-round follow-up is workspace-scoped. Owner names are self-declared; there is no corporate identity, cross-workspace assignment, automatic dispatch or cargo-release approval. Operational completion remains separate from comparison truth.
+
+See [FINAL_ROUND_STRATEGY.md](FINAL_ROUND_STRATEGY.md) for the employee roadmap, demonstration and measurement protocol.

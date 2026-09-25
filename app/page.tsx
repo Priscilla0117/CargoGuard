@@ -1,2 +1,3 @@
 import Workbench from "@/components/workbench";
-export default function Home() { return <Workbench />; }
+import { TeamAccess } from "@/components/team-access";
+export default function Home() { return <TeamAccess><Workbench /></TeamAccess>; }

@@ -1,4 +1,10 @@
+import {
+  authenticatedActor,
+  errorSession,
+  requireCapability,
+} from "@/lib/auth";
 import { emails, bundleBytes } from "@/lib/bundle";
+import { includeSampleData } from "@/lib/workspace-mode";
 import {
   analyze,
   deriveResult,
@@ -17,7 +23,6 @@ import {
   saveCase,
   saveCases,
   audit,
-  workspace,
   respond,
   requireMutation,
   listCases,
@@ -29,11 +34,14 @@ import {
   type CaseWrite,
 } from "@/lib/storage";
 import { mapLimited, processEmail } from "@/lib/processing";
+import { loadLabelRules } from "@/lib/label-rule-storage";
 import { z } from "zod";
 import { readJson, HttpError, revisionNumber } from "@/lib/http";
 import { applyTranscript, type Transcript } from "@/lib/transcription";
 import { correctField } from "@/lib/corrections";
 import { selectedDocuments } from "@/lib/document-selection";
+import { requireCurrentEngine } from "@/lib/review-guard";
+import { retainSourceCorrections } from "@/lib/source-corrections";
 const transcriptField = z.object({
   value: z.string().trim().min(1).max(1500),
   page: z.number().int().min(1).max(5),
@@ -84,6 +92,11 @@ const action = z.discriminatedUnion("action", [
     name: z.string().min(1).max(180),
     sha256: z.string().regex(/^[a-f0-9]{64}$/),
     role: z.enum(["SI", "BL"]),
+    reviewed_pages: z
+      .array(z.number().int().min(1).max(5))
+      .min(1)
+      .max(5)
+      .refine((pages) => new Set(pages).size === pages.length),
     actor: z.string().trim().min(2).max(80),
     reason: z.string().trim().min(5).max(2000),
     fields: z.object({
@@ -98,11 +111,17 @@ const action = z.discriminatedUnion("action", [
   }),
 ]);
 export async function GET(request: Request) {
-  const s = workspace(request),
-    url = new URL(request.url);
+  let s = errorSession(request);
+  const url = new URL(request.url);
   try {
+    s = await requireCapability(request, "read");
     if (url.searchParams.get("export") === "1") {
       const mode = url.searchParams.get("mode") ?? "baseline";
+      if (mode === "baseline" && !includeSampleData())
+        throw new HttpError(
+          "Organiser benchmark export is disabled in this workspace. Use the reviewed evidence export for your imported records.",
+          409,
+        );
       if (!["baseline", "reviewed"].includes(mode))
         throw new HttpError("Unknown export mode.");
       const all =
@@ -177,13 +196,19 @@ export async function GET(request: Request) {
   }
 }
 export async function POST(request: Request) {
-  let s = workspace(request);
+  let s = errorSession(request);
   try {
-    s = requireMutation(request);
+    s = await requireCapability(request, "operate");
+    requireMutation(request);
     const payload = await readJson(request);
     const input = action.parse(payload);
+    if (input.action !== "process") {
+      await requireCapability(request, "review");
+      input.actor = authenticatedActor(request, input.actor);
+    }
     if (input.action === "process") {
       const policy = await getPolicy(s.id, input.policyVersion);
+      const labelRules = await loadLabelRules(s.id);
       const started = performance.now(),
         saved = new Map(
           (await getCases(s.id, input.ids)).map((r) => [r.email.email_id, r]),
@@ -191,7 +216,11 @@ export async function POST(request: Request) {
       const jobs = input.ids.map((id) => ({
         id,
         previous: saved.get(id),
-        email: saved.get(id)?.email ?? emails.find((e) => e.email_id === id),
+        email:
+          saved.get(id)?.email ??
+          (includeSampleData()
+            ? emails.find((e) => e.email_id === id)
+            : undefined),
       }));
       if (jobs.some((j) => !j.email)) throw new HttpError("Unknown email ID.");
       const cached: CaseResult[] = [],
@@ -220,12 +249,13 @@ export async function POST(request: Request) {
             job.previous,
             !!input.skipSaved,
             policy,
+            labelRules,
           );
           writes.push({
             result,
             expected: job.previous?.version ?? 0,
             action: job.previous ? "REPROCESSED" : "PROCESSED",
-            actor: "CargoGuard",
+            actor: authenticatedActor(request, "CargoGuard"),
             detail: JSON.stringify({
               summary: result.summary,
               pipeline: PIPELINE_VERSION,
@@ -282,6 +312,7 @@ export async function POST(request: Request) {
     const previous = await getCase(s.id, input.id);
     if (!previous || previous.version !== input.version)
       throw new HttpError("Case changed. Refresh it before saving.", 409);
+    requireCurrentEngine(previous);
     if (input.action === "select_documents") {
       if (previous.category !== "BL_COMPARISON")
         throw new HttpError(
@@ -312,7 +343,7 @@ export async function POST(request: Request) {
           "This pair is already selected. Existing corrections have been retained.",
           422,
         );
-      const result = {
+      const result = retainSourceCorrections(previous, {
         ...analyze(
           previous.email,
           previous.documents,
@@ -323,7 +354,7 @@ export async function POST(request: Request) {
         ),
         reviewed: true,
         source_replaced: previous.source_replaced,
-      };
+      });
       const updated = await saveCase(
         s.id,
         result,
@@ -336,7 +367,7 @@ export async function POST(request: Request) {
             .filter((d) => ![input.si, input.bl].includes(d.name))
             .map((d) => d.name),
           previousSelection: previous.document_selection,
-          correctionsReset: previous.reviewed === true,
+          retainedCorrections: result.retained_corrections?.length ?? 0,
         }),
       );
       return respond(
@@ -347,6 +378,8 @@ export async function POST(request: Request) {
     if (input.action === "transcribe") {
       const transcript: Transcript = {
         role: input.role,
+        reviewed_pages: input.reviewed_pages,
+        source_sha256: input.sha256,
         fields: input.fields,
         actor: input.actor,
         reason: input.reason,
@@ -376,18 +409,38 @@ export async function POST(request: Request) {
       );
     }
     if (input.action === "route") {
-      let result: CaseResult = {
-        ...analyze(
-          previous.email,
-          previous.documents,
-          previous.duration_ms,
-          input.category,
-          previous.policy,
-          previous.document_selection,
-        ),
-        reviewed: true,
-        source_replaced: previous.source_replaced,
-      };
+      let result: CaseResult =
+        previous.documents.some((doc) => doc.deferred) &&
+        input.category === "BL_COMPARISON"
+          ? await processEmail(
+              previous.email,
+              async (path) =>
+                bundleBytes(path) ??
+                (await storage()
+                  .BUCKET.get(
+                    `${s.id}/${previous.email.email_id}/${path.split("/").pop()}`,
+                  )
+                  .then(async (object) =>
+                    object ? new Uint8Array(await object.arrayBuffer()) : null,
+                  )),
+              { ...previous, category_override: input.category },
+              true,
+              previous.policy ?? (await getPolicy(s.id)),
+              await loadLabelRules(s.id),
+            )
+          : {
+              ...analyze(
+                previous.email,
+                previous.documents,
+                previous.duration_ms,
+                input.category,
+                previous.policy,
+                previous.document_selection,
+              ),
+              reviewed: true,
+              source_replaced: previous.source_replaced,
+            };
+      result = retainSourceCorrections(previous, { ...result, reviewed: true });
       if (
         input.category === previous.category &&
         previous.comparison.length &&
