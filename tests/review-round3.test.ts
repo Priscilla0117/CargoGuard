@@ -350,7 +350,8 @@ test("Ask CargoGuard explains an order's progress and who sends mistakes", async
   const order = copilotAnswer("What about 5RFR-36541?", planned, NOW);
   assert.equal(order.intent, "reference");
   assert.match(order.text, /fixed port of discharge; new problem: consignee/);
-  assert.ok(order.facts.some((fact) => fact.label === "Progress"));
+  assert.equal(order.steps?.length, 4);
+  assert.ok(order.steps?.some((step) => step.state === "problem"));
   const quality = copilotAnswer(
     "Who sends drafts with mistakes?",
     planned,

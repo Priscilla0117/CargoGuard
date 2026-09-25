@@ -24,6 +24,7 @@ export function BLCorrectionDialog({
   if (!suggestion || !row) return null;
   const siUrl = revisionSourceUrl(result, suggestion.source);
   const blUrl = revisionSourceUrl(result, row.bl.source);
+  const label = FIELD_LABELS[field].toLowerCase();
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent
@@ -31,66 +32,79 @@ export function BLCorrectionDialog({
         className="cg-dialog cg-proposal-dialog"
         aria-describedby="cg-proposal-intro"
       >
-        <div className="cg-dialog-head">
+        <div className="cg-proposal-head">
           <div>
             <DialogTitle asChild>
-              <h2>Review correction to {FIELD_LABELS[field].toLowerCase()}</h2>
+              <h2>Correct the {label}</h2>
             </DialogTitle>
             <p id="cg-proposal-intro">
-              The proposed value is filled from the selected Shipping
-              Instruction. Check that this is the latest agreed instruction.
+              The draft BL does not match the Shipping Instruction.
             </p>
           </div>
-          <button type="button" className="cg-btn" onClick={onClose}>
-            <X size={18} /> Cancel
+          <button
+            type="button"
+            className="cg-proposal-close"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            <X size={20} />
           </button>
         </div>
         <div className="cg-proposal-body">
-          <div className="cg-proposal-values">
-            <section aria-label="Current draft BL value">
-              <h3>Draft BL currently says</h3>
+          <div className="cg-proposal-compare">
+            <section
+              className="cg-proposal-now"
+              aria-label="What the draft BL says now"
+            >
+              <h3>Draft BL says</h3>
               <p>{suggestion.current}</p>
               {blUrl && (
                 <a href={blUrl} target="_blank" rel="noopener noreferrer">
-                  <FileText size={15} /> View original BL
+                  <FileText size={14} aria-hidden="true" /> Open draft BL
                 </a>
               )}
             </section>
+            <span className="cg-proposal-arrow" aria-hidden="true">
+              <ArrowRight size={20} />
+            </span>
             <section
-              className="cg-proposal-suggested"
-              aria-label="Proposed value from the SI"
+              className="cg-proposal-should"
+              aria-label="What it should say, from the SI"
             >
-              <h3>Proposed value · from the SI</h3>
+              <h3>Should be · from the SI</h3>
               <p>{suggestion.value}</p>
               {siUrl && (
                 <a href={siUrl} target="_blank" rel="noopener noreferrer">
-                  <FileText size={15} /> Check SI · {suggestion.evidence}
+                  <FileText size={14} aria-hidden="true" /> Open SI ·{" "}
+                  {suggestion.evidence}
                 </a>
               )}
             </section>
           </div>
-          <p>
-            The correction request already includes the current and proposed
-            values for the known differences. You can review and edit the email
-            before sending.
+          <p className="cg-proposal-check">
+            Before you continue, make sure this SI is the latest agreed version.
           </p>
-          <button type="button" className="cg-btn primary" onClick={onRequest}>
-            Review prefilled correction request <ArrowRight size={18} />
-          </button>
-          <p className="cg-small cg-muted">
-            Nothing is sent or changed here. The discrepancy stays open until a
-            revised document is received and checked.
-          </p>
-          <div className="cg-proposal-reading">
-            <h3>Does the original BL already show the right value?</h3>
-            <p>
-              Then the problem may be how CargoGuard read it. Review the source
-              reading instead.
-            </p>
-            <button type="button" className="cg-btn" onClick={onReading}>
-              <Pencil size={16} /> Correct a reading error
+          <div className="cg-proposal-next">
+            <button
+              type="button"
+              className="cg-btn primary"
+              onClick={onRequest}
+            >
+              Write correction email <ArrowRight size={18} />
             </button>
+            <p>
+              Opens a ready-made email to the sender with every difference
+              listed. You can edit it before sending. Nothing is sent or changed
+              yet.
+            </p>
           </div>
+        </div>
+        <div className="cg-proposal-foot">
+          <span>Does the draft BL already show the right value?</span>
+          <button type="button" className="cg-link-button" onClick={onReading}>
+            <Pencil size={14} aria-hidden="true" /> CargoGuard misread it — fix
+            the reading
+          </button>
         </div>
       </DialogContent>
     </Dialog>
