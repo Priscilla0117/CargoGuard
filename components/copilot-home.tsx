@@ -44,13 +44,11 @@ import { answerPlan } from "@/lib/question-plan-run";
 import { draftReply, suggestedIntent } from "@/lib/reply";
 import { FIELD_LABELS, type CaseResult, type Field } from "@/lib/types";
 
-type AiAnswer = { answer: string; email_ids: string[]; label: string };
 export interface CopilotTurn {
   /** Stable id, so a late AI reply can never land on another question. */
   id: string;
   question: string;
   answer: CopilotAnswer;
-  ai?: AiAnswer | { error: string } | "loading";
   /** AI read only the question; `answer` then comes from its checked plan. */
   understood?: { label: string; by: string; instant: CopilotAnswer };
   understanding?: "loading" | { error: string };
@@ -60,19 +58,17 @@ export interface CopilotTurn {
 export interface CopilotMemory {
   question: string;
   turns: CopilotTurn[];
-  consent: boolean;
   /** Let AI read questions the instant answers do not understand. */
   understand: boolean;
 }
 export const EMPTY_COPILOT: CopilotMemory = {
   question: "",
   turns: [],
-  consent: false,
   understand: true,
 };
 let turnSequence = 0;
 const nextTurnId = () => `turn-${Date.now().toString(36)}-${++turnSequence}`;
-type AiStatus = { available: boolean; label: string; understand: boolean };
+type AiStatus = { label: string; understand: boolean };
 
 export function CopilotHome({
   rows,
@@ -113,34 +109,25 @@ export function CopilotHome({
     })
       .then((data) =>
         setAi({
-          available: !!data.available,
           label: data.label || "AI",
           understand: !!data.understand,
         }),
       )
       .catch(() => {
         if (!controller.signal.aborted)
-          setAi({ available: false, label: "AI", understand: false });
+          setAi({ label: "AI", understand: false });
       });
     return () => controller.abort();
   }, []);
   const understandOn = !!ai?.understand && memory.understand !== false;
-  const subjects = new Map(
-    rows.map(({ row }) => [row.email.email_id, row.email.subject]),
-  );
   const scroll = () =>
     requestAnimationFrame(() =>
       latest.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }),
     );
 
-  const updateTurn = (
-    id: string,
-    change: (turn: CopilotTurn) => CopilotTurn,
-    extra: Partial<CopilotMemory> = {},
-  ) =>
+  const updateTurn = (id: string, change: (turn: CopilotTurn) => CopilotTurn) =>
     setMemory((previous) => ({
       ...previous,
-      ...extra,
       turns: previous.turns.map((item) =>
         item.id === id ? change(item) : item,
       ),
@@ -218,7 +205,6 @@ export function CopilotHome({
       updateTurn(id, (turn) => ({
         ...turn,
         answer,
-        ai: undefined,
         understanding: undefined,
         understood: {
           label: planLabel(plan),
@@ -256,36 +242,10 @@ export function CopilotHome({
             answer: turn.understood.instant,
             understood: undefined,
             understanding: undefined,
-            ai: undefined,
           }
         : turn,
     );
   }
-  async function askAi(id: string) {
-    const turn = turns.find((item) => item.id === id);
-    if (!turn || turn.ai === "loading") return;
-    const set = (value: CopilotTurn["ai"]) =>
-      updateTurn(id, (item) => ({ ...item, ai: value }), { consent: true });
-    set("loading");
-    scroll();
-    try {
-      const data = await requestJson<AiAnswer>("/api/copilot", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: turn.question, consent: true }),
-      });
-      set(data);
-    } catch (failure) {
-      set({
-        error:
-          failure instanceof Error
-            ? failure.message
-            : "AI answers are unavailable right now.",
-      });
-    }
-    scroll();
-  }
-
   return (
     <section
       className="assistant-home cg-copilot"
@@ -495,64 +455,6 @@ export function CopilotHome({
                             ? `Let ${ai?.label ?? "AI"} read the question`
                             : `Not what you meant? Let ${ai?.label ?? "AI"} read the question`}
                         </button>
-                      )}
-                    {ai?.available &&
-                      turn.answer.intent !== "none" &&
-                      !turn.ai &&
-                      turn.understanding !== "loading" && (
-                        <div className="cg-copilot-ai-offer">
-                          {!memory.consent && (
-                            <p className="cg-small cg-muted">
-                              Sends the subjects, senders, statuses and dates of
-                              your open emails (no email text or attachments) to{" "}
-                              {ai.label}.
-                            </p>
-                          )}
-                          <button
-                            type="button"
-                            className="cg-btn small"
-                            onClick={() => void askAi(turn.id)}
-                          >
-                            <Sparkles size={16} /> Ask {ai.label} for advice
-                          </button>
-                        </div>
-                      )}
-                    {turn.ai === "loading" && (
-                      <p className="cg-copilot-ai">
-                        <Loader2 size={16} className="cg-spin" /> Asking{" "}
-                        {ai?.label ?? "AI"}…
-                      </p>
-                    )}
-                    {turn.ai && turn.ai !== "loading" && "error" in turn.ai && (
-                      <p className="cg-copilot-ai error" role="alert">
-                        {turn.ai.error}
-                      </p>
-                    )}
-                    {turn.ai &&
-                      turn.ai !== "loading" &&
-                      "answer" in turn.ai && (
-                        <div className="cg-copilot-ai">
-                          <span className="cg-copilot-ai-label">
-                            <Sparkles size={14} /> {turn.ai.label} advice ·
-                            checked against your inbox
-                          </span>
-                          <p>{turn.ai.answer}</p>
-                          {turn.ai.email_ids.length > 0 && (
-                            <div className="cg-copilot-ai-links">
-                              {turn.ai.email_ids.map((id) => (
-                                <button
-                                  key={id}
-                                  type="button"
-                                  className="cg-btn small"
-                                  onClick={() => onOpen(id)}
-                                >
-                                  {subjects.get(id) ?? id}{" "}
-                                  <ArrowRight size={14} />
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
                       )}
                   </div>
                 )}

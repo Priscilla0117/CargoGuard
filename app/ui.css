@@ -2120,14 +2120,6 @@ body:has(.cg-shell):has(.team-access-banner) .cg-sidebar {
   font-size: var(--fs-xs);
   color: var(--cg-faint);
 }
-.cg-copilot-ai-offer {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--cg-line-strong);
-}
-.cg-copilot-ai-offer p {
-  margin: 0 0 8px;
-}
 .cg-copilot-ai {
   margin: 12px 0 0;
   padding: 12px 14px;
@@ -2152,25 +2144,6 @@ p.cg-copilot-ai {
 .cg-copilot-ai p {
   margin: 0;
   white-space: pre-wrap;
-}
-.cg-copilot-ai-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  color: var(--cg-blue);
-}
-.cg-copilot-ai-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.cg-copilot-ai-links .cg-btn {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .assistant-panel .assistant-composer textarea {
   font-size: var(--fs-md);
