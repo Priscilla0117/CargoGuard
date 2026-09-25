@@ -139,10 +139,11 @@ A custom LLM gives an answer; CargoGuard gives an answer **you can check**:
   "everything about 5RFR-36541 / PO 25_1234 / invoice 5250074586",
   "who am I waiting on?" and "which documents do not match?" instantly from
   the saved inbox, and every answer lists the emails behind it with an
-  *Open* button. When an administrator adds an AI key, *Ask OpenAI for
-  advice* sends only subjects, senders, statuses and dates (never email text
-  or attachments), and the answer is **rejected** if it cites an email or an
-  order/PO/invoice/booking/container number that is not in the inbox.
+  *Open* button. When an administrator adds an AI key and a question is not
+  understood, OpenAI reads **only the typed question** (never an email,
+  subject, sender or status) and returns a checked search plan that runs on
+  the saved inbox in the browser. Any reference or word in the plan must
+  appear in the question, otherwise the plan is **rejected**.
 
 ## 10. What each person needs
 
