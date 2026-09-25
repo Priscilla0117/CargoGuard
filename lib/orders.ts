@@ -1,6 +1,11 @@
 import { planAll, sameShipment, threadsFor } from "./conversation";
-import { receivedTime, type Level, type Plan } from "./priority";
-import type { FollowUp } from "./follow-up";
+import {
+  receivedTime,
+  type Level,
+  type Plan,
+  type PlanContext,
+} from "./priority";
+import { finishBlocker, type FollowUp } from "./follow-up";
 import type { CaseSummary } from "./types";
 
 export type StepState = "done" | "active" | "problem" | "waiting" | "none";
@@ -73,9 +78,10 @@ export function buildOrders(
   cases: CaseSummary[],
   followups: Record<string, FollowUp | undefined>,
   now = Date.now(),
+  shipmentContexts: Map<string, PlanContext> = new Map(),
 ): Order[] {
   const threads = threadsFor(cases);
-  const plans = planAll(cases, followups, now, threads);
+  const plans = planAll(cases, followups, now, threads, shipmentContexts);
   const groups = new Map<string, CaseSummary[]>();
   const refOf = (row: CaseSummary) =>
     row.email.subject.match(SHIPMENT)?.[0] ??
@@ -102,7 +108,7 @@ export function buildOrders(
     groups.set(ref, [...(groups.get(ref) ?? []), row]);
   }
   return [...groups.entries()]
-    .map(([ref, rows]) => orderFrom(ref, rows, plans))
+    .map(([ref, rows]) => orderFrom(ref, rows, plans, followups))
     .sort(
       (a, b) =>
         (a.status === "todo" ? 0 : a.status === "waiting" ? 1 : 2) -
@@ -120,6 +126,7 @@ export function orderFrom(
   ref: string,
   rows: CaseSummary[],
   plans: Map<string, Plan>,
+  followups: Record<string, FollowUp | undefined> = {},
 ): Order {
   const time = (row: CaseSummary) => receivedTime(row) ?? 0;
   const sorted = [...rows].sort(
@@ -128,12 +135,13 @@ export function orderFrom(
   );
   const plan = (row: CaseSummary) => plans.get(row.email.email_id)!;
   const drafts = sorted.filter(
-    (row) =>
-      row.result?.category === "BL_COMPARISON" &&
-      (row.result.workflow === "verified" ||
-        row.result.workflow === "discrepancy"),
+    (row) => row.result?.category === "BL_COMPARISON",
   );
   const latest = drafts[drafts.length - 1];
+  const latestBlocker = latest
+    ? finishBlocker(latest.result!, followups[latest.email.email_id])
+    : null;
+  const latestMatches = !!latest && !latestBlocker;
   const missing = sorted.some(
     (row) =>
       row.result?.workflow === "awaiting_documents" &&
@@ -155,35 +163,33 @@ export function orderFrom(
   const si: OrderStep = {
     key: "si",
     label: "Shipping Instruction",
-    state:
-      drafts.length || (siRequests.length && !siOpen)
+    state: siOpen
+      ? "problem"
+      : latestMatches || (siRequests.length && !siOpen)
         ? "done"
-        : siOpen
-          ? "problem"
-          : "none",
-    // Evidence only: a draft BL can only be issued from an SI.
-    note: drafts.length
-      ? "Draft BL received, so the SI was used"
-      : siOpen
-        ? "Customer is waiting for it"
+        : "none",
+    note: siOpen
+      ? "Confirm that the SI request has been handled"
+      : latestMatches
+        ? "SI present in the checked document pair"
         : siRequests.length
           ? "Request handled"
-          : "No request in the emails",
+          : "Inspect the current source documents",
   };
   const draft: OrderStep = {
     key: "draft",
     label: "Draft BL check",
     state: latest
-      ? latest.result!.workflow === "verified"
+      ? latestMatches
         ? "done"
         : "problem"
       : missing
         ? "problem"
         : "none",
     note: latest
-      ? latest.result!.workflow === "verified"
+      ? latestMatches
         ? `Matches the SI${drafts.length > 1 ? ` (draft ${drafts.length})` : ""}`
-        : `${latest.result!.defect_fields.length} difference${latest.result!.defect_fields.length === 1 ? "" : "s"}${drafts.length > 1 ? ` in draft ${drafts.length}` : ""}`
+        : (latestBlocker ?? "Latest document check needs review")
       : missing
         ? "Documents missing"
         : "Not received",
@@ -192,19 +198,19 @@ export function orderFrom(
     key: "correction",
     label: "Corrections",
     state: !hadMismatch
-      ? latest?.result!.workflow === "verified"
+      ? latestMatches
         ? "done"
         : "none"
-      : latest?.result!.workflow === "verified"
+      : latestMatches
         ? "done"
         : waiting
           ? "waiting"
           : "problem",
     note: !hadMismatch
-      ? latest?.result!.workflow === "verified"
+      ? latestMatches
         ? "None needed"
         : "—"
-      : latest?.result!.workflow === "verified"
+      : latestMatches
         ? "A newer draft matches the SI"
         : waiting
           ? "Waiting for the corrected BL"
@@ -212,12 +218,11 @@ export function orderFrom(
   };
   const final: OrderStep = {
     key: "final",
-    label: "Ready to confirm",
-    state: latest?.result!.workflow === "verified" ? "done" : "none",
-    note:
-      latest?.result!.workflow === "verified"
-        ? "Latest draft matches the SI"
-        : "Not yet",
+    label: "Seven-field check",
+    state: latestMatches ? "done" : latest ? "problem" : "none",
+    note: latestMatches
+      ? "Latest draft matches the SI; shipment completion is a separate decision"
+      : (latestBlocker ?? "Not yet"),
   };
 
   const open = sorted.filter((row) => plan(row).bucket === "todo");
@@ -237,19 +242,20 @@ export function orderFrom(
     : waiting
       ? "waiting"
       : "done";
-  const summary =
-    siOpen && !drafts.length
-      ? "Customer is waiting for the Shipping Instruction."
-      : missing && !latest
-        ? "The SI or the draft BL is missing — ask the sender for it."
-        : latest?.result!.workflow === "discrepancy"
-          ? waiting
-            ? "Correction requested — waiting for the carrier's revised BL."
-            : "The draft BL does not match the SI — ask for a correction."
-          : latest?.result!.workflow === "verified"
-            ? invoiceOpen
-              ? "Draft BL matches. An invoice question is still open."
-              : "Draft BL matches the SI."
+  const summary = siOpen
+    ? "An SI request still needs confirmation that it was handled."
+    : missing && !latest
+      ? "The SI or the draft BL is missing — ask the sender for it."
+      : latest?.result!.workflow === "discrepancy"
+        ? waiting
+          ? "Correction requested — waiting for the carrier's revised BL."
+          : "The draft BL does not match the SI — ask for a correction."
+        : latestMatches
+          ? invoiceOpen
+            ? "Draft BL matches. An invoice question is still open."
+            : "Draft BL matches the SI."
+          : latestBlocker
+            ? latestBlocker
             : invoiceOpen
               ? "An invoice question is open."
               : open.length

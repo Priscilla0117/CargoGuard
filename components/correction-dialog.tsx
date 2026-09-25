@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { previewCorrection } from "@/lib/corrections";
+import { evidenceHasLocation } from "@/lib/source-location";
+import { revisionSourceUrl } from "@/lib/revision-diff";
 import {
   FIELD_LABELS,
   type CaseResult,
@@ -85,8 +87,21 @@ export function CorrectionDialog({
   const row = result.comparison.find((r) => r.field === edit.field)!;
   const original = row[edit.side].raw;
   const other = row[edit.side === "si" ? "bl" : "si"].raw;
+  const source = result.documents.find(
+    (doc) => doc.name === row[edit.side].source,
+  );
+  const originalUrl = source ? revisionSourceUrl(result, source.name) : null;
+  const sourceIndex =
+    source?.lines.findIndex((line) =>
+      evidenceHasLocation(row[edit.side].evidence, line.location),
+    ) ?? -1;
+  const sourceLines =
+    sourceIndex >= 0
+      ? source!.lines.slice(Math.max(0, sourceIndex - 1), sourceIndex + 3)
+      : [];
   const [value, setValue] = useState(edit.value);
-  const [reason, setReason] = useState("Checked against the original document");
+  const [reason, setReason] = useState("");
+  const [sourceChecked, setSourceChecked] = useState(false);
   const [saving, setSaving] = useState<"" | "save" | "next">("");
   const [error, setError] = useState("");
   const input = useRef<HTMLTextAreaElement>(null);
@@ -125,6 +140,7 @@ export function CorrectionDialog({
     !unchanged &&
     name.length >= 2 &&
     reason.trim().length >= 5 &&
+    sourceChecked &&
     !saving;
   const label = FIELD_LABELS[edit.field];
   const sideName = edit.side === "si" ? "Shipping Instruction" : "draft BL";
@@ -161,12 +177,12 @@ export function CorrectionDialog({
         <div className="cg-dialog-head">
           <div>
             <DialogTitle asChild>
-              <h2>Correct {label.toLowerCase()}</h2>
+              <h2>Correct the reading of {label.toLowerCase()}</h2>
             </DialogTitle>
             <p id="cg-fix-intro">
-              Fix what CargoGuard read from the {sideName} after checking the
-              original. The original file never changes — you see the effect on
-              all seven checks before saving.
+              Enter what the {sideName} actually says. The received file stays
+              unchanged. A real document error needs a revised document from its
+              owner.
             </p>
           </div>
           <button
@@ -193,8 +209,33 @@ export function CorrectionDialog({
                 <p>{other || "Not found"}</p>
               </div>
             </div>
+            {sourceLines.length > 0 && (
+              <details className="cg-reading-source" open>
+                <summary>
+                  {source?.transcription
+                    ? "Human-confirmed transcription"
+                    : source?.recovery
+                      ? "Human-confirmed recovered text"
+                      : "Extracted source text"}{" "}
+                  · {source?.name}
+                </summary>
+                <blockquote>
+                  {sourceLines.map((line) => line.text).join("\n")}
+                </blockquote>
+              </details>
+            )}
+            {originalUrl && (
+              <a
+                className="cg-btn"
+                href={originalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open original in a new tab
+              </a>
+            )}
             <label className="cg-field">
-              Confirmed value
+              Value shown in the original
               <textarea
                 ref={input}
                 value={value}
@@ -207,6 +248,16 @@ export function CorrectionDialog({
                 Type exactly what the original document shows — not what it
                 should say.
               </small>
+            </label>
+            <label className="cg-check">
+              <input
+                type="checkbox"
+                checked={sourceChecked}
+                onChange={(e) => setSourceChecked(e.target.checked)}
+                disabled={!!saving}
+              />
+              I checked the original. I am correcting a reading error, not
+              changing the shipping instructions or BL.
             </label>
             <label className="cg-field">
               Your name
@@ -243,7 +294,7 @@ export function CorrectionDialog({
                 ) : (
                   <CheckCircle2 size={18} />
                 )}
-                Save correction &amp; recheck
+                Save reading &amp; recheck
               </button>
               {onSaveNext && (
                 <button
@@ -269,7 +320,9 @@ export function CorrectionDialog({
                       ? "Enter your name (at least 2 letters)."
                       : reason.trim().length < 5
                         ? "Write a short reason (at least 5 characters)."
-                        : ""}
+                        : !sourceChecked
+                          ? "Confirm that you checked the original document."
+                          : ""}
               </p>
             )}
           </div>
@@ -347,7 +400,7 @@ export function CorrectionDialog({
                   ))}
                 </ul>
                 <p className="cg-fix-case">
-                  Whole email:{" "}
+                  Document check:{" "}
                   <b>{STATUS_WORDS[result.status] ?? result.status}</b>{" "}
                   <ArrowRight size={14} aria-hidden="true" />{" "}
                   <b
@@ -363,9 +416,12 @@ export function CorrectionDialog({
             )}
             <p className="cg-fix-safety">
               {edit.side === "si"
-                ? "You are changing the SI — your reference. Only do this if CargoGuard misread it. "
+                ? "You are correcting the reading of the SI, not changing your shipping instructions. "
                 : "If the draft BL really says something wrong, do not change it here — ask the sender to correct the BL (Reply tab). "}
-              This changes what CargoGuard read, never the original file.
+              This changes what CargoGuard read, never the original file. If
+              source evidence cannot support the new value, the case stays in
+              Needs review. Use source transcription or request a clearer
+              document.
             </p>
           </section>
         </form>

@@ -1,5 +1,5 @@
 /**
- * Complete structural mirror of authoritative SQL migrations 0000-0012.
+ * Complete structural mirror of authoritative SQL migrations 0000-0013.
  *
  * IMPORTANT: drizzle/meta currently records only 0000. Do not apply db:generate
  * output to an existing database until metadata is reconciled with ALL
@@ -32,7 +32,12 @@ export const cases = sqliteTable(
     version: integer("version").notNull().default(1),
     updatedAt: text("updated_at").notNull(),
   },
-  (t) => [primaryKey({ columns: [t.workspace, t.emailId] })],
+  (t) => [
+    primaryKey({ columns: [t.workspace, t.emailId] }),
+    uniqueIndex("idx_cases_import_key")
+      .on(t.workspace, sql`json_extract(${t.payload},'$.email.import_key')`)
+      .where(sql`json_extract(${t.payload},'$.email.import_key') IS NOT NULL`),
+  ],
 );
 
 export const events = sqliteTable(
@@ -506,6 +511,9 @@ export const mailConnections = sqliteTable(
     version: integer("version").notNull(),
     lastSyncAt: text("last_sync_at"),
     lastSyncNote: text("last_sync_note"),
+    syncCursor: text("sync_cursor"),
+    syncLease: text("sync_lease"),
+    syncLeaseUntil: text("sync_lease_until"),
     updatedAt: text("updated_at").notNull(),
   },
   (t) => [
@@ -541,12 +549,56 @@ export const mailImports = sqliteTable(
     caseId: text("case_id"),
     note: text("note"),
     createdAt: text("created_at").notNull(),
+    leaseToken: text("lease_token"),
+    leaseUntil: text("lease_until"),
   },
   (t) => [
     primaryKey({ columns: [t.workspace, t.userId, t.messageKey] }),
     check(
       "mail_imports_check_1",
       sql.raw("status IN ('importing','imported','skipped','failed')"),
+    ),
+  ],
+);
+
+export const mailOperations = sqliteTable(
+  "mail_operations",
+  {
+    workspace: text("workspace").notNull(),
+    userId: text("user_id").notNull(),
+    id: text("id").notNull(),
+    caseId: text("case_id").notNull(),
+    caseVersion: integer("case_version").notNull(),
+    provider: text("provider").notNull(),
+    account: text("account").notNull(),
+    mode: text("mode").notNull(),
+    payloadHash: text("payload_hash").notNull(),
+    messageId: text("message_id").notNull(),
+    status: text("status").notNull(),
+    providerId: text("provider_id"),
+    receipt: text("receipt"),
+    followUp: integer("follow_up").notNull().default(0),
+    followUpRecorded: integer("follow_up_recorded").notNull().default(0),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workspace, t.userId, t.id] }),
+    index("idx_mail_operations_case").on(
+      t.workspace,
+      t.userId,
+      t.caseId,
+      t.status,
+    ),
+    uniqueIndex("idx_mail_operations_unresolved")
+      .on(t.workspace, t.userId, t.caseId)
+      .where(sql`status IN ('sending','unknown')`),
+    uniqueIndex("idx_mail_operations_payload")
+      .on(t.workspace, t.userId, t.payloadHash)
+      .where(sql`status != 'cancelled'`),
+    check(
+      "mail_operations_status",
+      sql`status IN ('sending','draft','submitted','unknown','cancelled')`,
     ),
   ],
 );

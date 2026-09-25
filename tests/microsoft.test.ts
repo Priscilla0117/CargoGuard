@@ -642,6 +642,8 @@ test("message preview and file import are bounded, text-only and source-linked",
     return json({
       id: "message-1",
       internetMessageId: "synthetic@example.test",
+      conversationId: "conversation-original",
+      receivedDateTime: "2026-09-20T03:00:00Z",
       subject: "SI",
       lastModifiedDateTime: "2026-09-24T01:00:00Z",
       from: { emailAddress: { address: "sender@example.test" } },
@@ -660,6 +662,14 @@ test("message preview and file import are bounded, text-only and source-linked",
     const form = await microsoftImportForm(fixture.context, preview);
     assert.equal(await (form.get("files") as File).text(), content);
     assert.equal(form.get("from"), "sender@example.test");
+    assert.equal(form.get("source"), "outlook");
+    assert.equal(form.get("message_id"), "synthetic@example.test");
+    assert.equal(form.get("received_at"), "2026-09-20T03:00:00Z");
+    assert.equal(
+      form.get("thread_hint"),
+      `outlook:${await microsoftHash("conversation-original")}`,
+    );
+    assert.equal(form.get("import_key"), `outlook:${preview.message_key}`);
     await assert.rejects(
       microsoftImportForm(fixture.context, {
         ...preview,

@@ -7,6 +7,8 @@ export interface OutgoingMessage {
   body: string;
   in_reply_to?: string;
   references?: string[];
+  /** Stable identity allocated by the durable outbound operation. */
+  message_id?: string;
 }
 
 function encodeWord(value: string) {
@@ -26,7 +28,7 @@ export function buildRawMessage(message: OutgoingMessage, now = new Date()) {
   const domain =
     message.from.split("@")[1]?.replace(/[^a-z0-9.-]/gi, "") ||
     "cargoguard.local";
-  const id = `${crypto.randomUUID()}@${domain}`;
+  const id = message.message_id ?? `${crypto.randomUUID()}@${domain}`;
   const bytes = new TextEncoder().encode(
     message.body.replace(/\r?\n/g, "\r\n"),
   );

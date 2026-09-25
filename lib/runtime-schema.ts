@@ -34,6 +34,7 @@ export const RUNTIME_TABLES = [
   "mail_connections",
   "mail_oauth_states",
   "mail_imports",
+  "mail_operations",
 ] as const;
 
 // SQLite compiles every table reference but returns no customer records. One

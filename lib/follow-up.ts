@@ -6,7 +6,7 @@ import {
   type CaseSummary,
 } from "./types";
 import { recomputeRows } from "./normalization";
-import { selectedDocuments } from "./document-selection";
+import { comparisonDocuments } from "./document-selection";
 import { checkDocumentIntegrity } from "./integrity-checks";
 
 export interface FollowUp {
@@ -24,6 +24,16 @@ export interface FollowUp {
   completed_at: string | null;
   /** Completed although an extra safety check flagged something, after a person looked. */
   integrity_confirmed?: boolean;
+  /** Recorded request, not an inference from a saved reply draft. */
+  request?: {
+    id: string;
+    case_version: number;
+    at: string;
+    channel: "mail" | "external";
+    provider_message_id?: string;
+    purpose?: string;
+    note: string;
+  };
 }
 const singleLine = (max: number) =>
   z
@@ -57,6 +67,8 @@ export const followUpInput = z
     ),
     /** The person looked at the extra safety findings before completing. */
     integrity_confirmed: z.boolean().optional(),
+    /** Staff confirms an actual request made outside CargoGuard. */
+    request_confirmed: z.boolean().optional(),
   })
   .strict();
 export type FollowUpInput = z.infer<typeof followUpInput>;
@@ -67,15 +79,22 @@ export type FollowUpInput = z.infer<typeof followUpInput>;
  * every completion path must see them: batch completion refuses them and an
  * individual completion needs a person to confirm they looked.
  */
-export function integrityNeedsConfirmation(result: CaseResult) {
+type CompletionResult = CaseResult | NonNullable<CaseSummary["result"]>;
+
+export function integrityNeedsConfirmation(result: CompletionResult) {
   return (
     result.category === "BL_COMPARISON" &&
-    checkDocumentIntegrity(result).requires_attention
+    ("documents" in result
+      ? checkDocumentIntegrity(result).requires_attention
+      : !!result.integrity_attention)
   );
 }
 
 /** Why this email cannot be marked finished yet, in plain words (or null). */
-export function finishBlocker(result: CaseResult): string | null {
+export function finishBlocker(
+  result: CompletionResult,
+  followup?: FollowUp,
+): string | null {
   const blocker = completionBlocker(result);
   if (blocker)
     return result.workflow === "discrepancy"
@@ -84,15 +103,27 @@ export function finishBlocker(result: CaseResult): string | null {
           result.review_reason === "missing_attachment"
         ? "The SI or the draft BL is still missing."
         : blocker;
-  if (integrityNeedsConfirmation(result))
+  if (
+    integrityNeedsConfirmation(result) &&
+    !(
+      followup?.state === "completed" &&
+      followup.case_version === result.version &&
+      followup.integrity_confirmed
+    )
+  )
     return "An extra safety check (container numbers, weights) needs a look first — confirm it in the Follow-up tab.";
   return null;
 }
 
 /** Completion is a reviewed document check. It never authorizes cargo release. */
-export function completionBlocker(result: CaseResult): string | null {
+export function completionBlocker(result: CompletionResult): string | null {
   if (result.pipeline_version !== PIPELINE_VERSION)
     return "Recheck this case with the current engine before completing the follow-up.";
+  if (!("comparison" in result))
+    return result.completion_blocker === null
+      ? null
+      : (result.completion_blocker ??
+          "Open and recheck the current source evidence before completing this work.");
   // Requests without documents (SI requests, invoice questions, general mail)
   // are closed once handled. Nothing is verified by closing them.
   if (
@@ -123,9 +154,7 @@ export function completionBlocker(result: CaseResult): string | null {
     return "All seven fields need a complete comparison before completing the follow-up.";
   let pair;
   try {
-    pair = result.document_selection
-      ? selectedDocuments(result.documents, result.document_selection)
-      : result.documents;
+    pair = comparisonDocuments(result.documents, result.document_selection);
   } catch {
     return "Recheck the selected source documents before completing the follow-up.";
   }
@@ -150,7 +179,13 @@ export function completionBlocker(result: CaseResult): string | null {
         !r.si.source ||
         !r.bl.source ||
         !r.si.evidence ||
-        !r.bl.evidence,
+        !r.bl.evidence ||
+        (r.si.correction &&
+          (r.si.correction.state !== "confirmed" ||
+            r.si.correction.source_sha256 !== si[0].sha256)) ||
+        (r.bl.correction &&
+          (r.bl.correction.state !== "confirmed" ||
+            r.bl.correction.source_sha256 !== bl[0].sha256)),
     ) ||
     recomputeRows(result.comparison).some((r) => r.result !== "match")
   )
@@ -163,6 +198,7 @@ export function effectiveFollowUp(
   current: CaseSummary | CaseResult | null,
 ): FollowUp["state"] | "reopened" {
   const result = current && ("result" in current ? current.result : current);
+  if (f.state === "waiting" && !hasRecordedRequest(f)) return "reopened";
   if (
     f.state !== "open" &&
     (!result ||
@@ -170,7 +206,24 @@ export function effectiveFollowUp(
       result.pipeline_version !== PIPELINE_VERSION)
   )
     return "reopened";
+  if (
+    f.state === "completed" &&
+    result &&
+    (completionBlocker(result) ||
+      (integrityNeedsConfirmation(result) && !f.integrity_confirmed))
+  )
+    return "reopened";
   return f.state;
+}
+
+export function hasRecordedRequest(f: FollowUp) {
+  return (
+    !!f.request?.id &&
+    f.request.case_version === f.case_version &&
+    Number.isFinite(Date.parse(f.request.at)) &&
+    (f.request.channel === "external" ||
+      (f.request.channel === "mail" && !!f.request.provider_message_id))
+  );
 }
 
 export function followUpOverdue(
@@ -204,7 +257,7 @@ export function followUpBrief(
     `Snapshot: ${now}. Deadlines below are recorded by staff; all timestamps include UTC offsets.`,
     "Scope: this browser workspace. Names are self-declared, not authenticated team assignments.",
     "A completed follow-up covers the stated document revision only; it is not cargo-release approval.",
-    "Awaiting reply is a staff record, not proof of sending. Nothing is sent by this export.",
+    "An externally recorded wait is not proof of sending. Provider-confirmed requests are identified below. Nothing is sent by this export.",
     "",
     ...rows.flatMap(({ f, row }) => [
       `Case: ${f.email_id}; shipment reference: ${f.shipment_reference || "Not provided"}`,
@@ -212,6 +265,11 @@ export function followUpBrief(
       `Due: ${f.due_at ?? "Not provided"}; recorded case revision: ${f.case_version}; latest: ${row?.result?.version ?? "unavailable"}`,
       `Comparison: ${row?.result?.workflow ?? "unavailable"}; ${row?.result?.summary ?? "Reopen the case to inspect evidence."}`,
       `Note: ${f.note}`,
+      ...(f.request
+        ? [
+            `Request: ${f.request.channel === "mail" ? "Provider-confirmed send" : "Staff-recorded external request"} at ${f.request.at}; case revision ${f.request.case_version}; ${f.request.note}`,
+          ]
+        : []),
       `Recorded by: ${f.actor} at ${f.updated_at}; follow-up version ${f.version}`,
       "",
     ]),

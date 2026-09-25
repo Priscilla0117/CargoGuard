@@ -41,6 +41,7 @@ import { applyTranscript, type Transcript } from "@/lib/transcription";
 import { correctField } from "@/lib/corrections";
 import { selectedDocuments } from "@/lib/document-selection";
 import { requireCurrentEngine } from "@/lib/review-guard";
+import { retainSourceCorrections } from "@/lib/source-corrections";
 const transcriptField = z.object({
   value: z.string().trim().min(1).max(1500),
   page: z.number().int().min(1).max(5),
@@ -337,7 +338,7 @@ export async function POST(request: Request) {
           "This pair is already selected. Existing corrections have been retained.",
           422,
         );
-      const result = {
+      const result = retainSourceCorrections(previous, {
         ...analyze(
           previous.email,
           previous.documents,
@@ -348,7 +349,7 @@ export async function POST(request: Request) {
         ),
         reviewed: true,
         source_replaced: previous.source_replaced,
-      };
+      });
       const updated = await saveCase(
         s.id,
         result,
@@ -361,7 +362,7 @@ export async function POST(request: Request) {
             .filter((d) => ![input.si, input.bl].includes(d.name))
             .map((d) => d.name),
           previousSelection: previous.document_selection,
-          correctionsReset: previous.reviewed === true,
+          retainedCorrections: result.retained_corrections?.length ?? 0,
         }),
       );
       return respond(
@@ -401,18 +402,38 @@ export async function POST(request: Request) {
       );
     }
     if (input.action === "route") {
-      let result: CaseResult = {
-        ...analyze(
-          previous.email,
-          previous.documents,
-          previous.duration_ms,
-          input.category,
-          previous.policy,
-          previous.document_selection,
-        ),
-        reviewed: true,
-        source_replaced: previous.source_replaced,
-      };
+      let result: CaseResult =
+        previous.documents.some((doc) => doc.deferred) &&
+        input.category === "BL_COMPARISON"
+          ? await processEmail(
+              previous.email,
+              async (path) =>
+                bundleBytes(path) ??
+                (await storage()
+                  .BUCKET.get(
+                    `${s.id}/${previous.email.email_id}/${path.split("/").pop()}`,
+                  )
+                  .then(async (object) =>
+                    object ? new Uint8Array(await object.arrayBuffer()) : null,
+                  )),
+              { ...previous, category_override: input.category },
+              true,
+              previous.policy ?? (await getPolicy(s.id)),
+              await loadLabelRules(s.id),
+            )
+          : {
+              ...analyze(
+                previous.email,
+                previous.documents,
+                previous.duration_ms,
+                input.category,
+                previous.policy,
+                previous.document_selection,
+              ),
+              reviewed: true,
+              source_replaced: previous.source_replaced,
+            };
+      result = retainSourceCorrections(previous, { ...result, reviewed: true });
       if (
         input.category === previous.category &&
         previous.comparison.length &&

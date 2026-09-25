@@ -1,4 +1,5 @@
-import { extract, analyze, deriveResult, recomputeRows } from "./compare";
+import { extract, analyze } from "./compare";
+import { retainSourceCorrections } from "./source-corrections";
 import { normalizeValue } from "./normalization";
 import {
   FIELDS,
@@ -99,21 +100,6 @@ export function applyTranscript(
     previous.policy,
     previous.document_selection,
   );
-  if (next.comparison.length && previous.comparison.length) {
-    const rows = structuredClone(next.comparison);
-    for (const row of rows)
-      for (const side of ["si", "bl"] as const) {
-        const old = previous.comparison.find((r) => r.field === row.field)?.[
-          side
-        ];
-        if (
-          old?.method.startsWith("Human correction") &&
-          old.source !== name &&
-          old.source === row[side].source
-        )
-          row[side] = old;
-      }
-    next = deriveResult(next, recomputeRows(rows));
-  }
+  next = retainSourceCorrections(previous, next, { excludeSources: [name] });
   return { ...next, reviewed: true, source_replaced: previous.source_replaced };
 }

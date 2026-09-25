@@ -606,6 +606,7 @@ export function CaseView(props: CaseViewProps) {
             onDone={props.onNotice}
             onError={props.onError}
             onReplied={props.onReplied}
+            onFollowUpRecorded={props.followup.onRefresh}
             status={plan?.bucket}
           />
         )}

@@ -1,5 +1,6 @@
 import { emailInsight, extractReferences } from "./mail-intel";
 import { FIELD_LABELS, type CaseResult, type ComparisonRow } from "./types";
+import { finishBlocker } from "./follow-up";
 
 /**
  * Grounded reply drafts. Every fact in a draft comes from the saved case:
@@ -17,7 +18,7 @@ export type ReplyTone = "formal" | "friendly" | "short";
 
 export const INTENT_LABELS: Record<ReplyIntent, string> = {
   request_correction: "Ask for a corrected BL",
-  confirm_match: "Confirm documents match",
+  confirm_match: "Report checked fields match",
   request_documents: "Ask for missing documents",
   ask_clarification: "Ask to clarify / resend",
   acknowledge: "Acknowledge & follow up",
@@ -40,6 +41,14 @@ export interface ReplyDraft {
   checks: string[];
   in_reply_to?: string;
   references: string[];
+}
+
+/** Reporting a match requires current, resolved evidence; it never authorizes issuance. */
+export function replyIntentBlocker(
+  result: CaseResult,
+  intent: string,
+): string | null {
+  return intent === "confirm_match" ? finishBlocker(result) : null;
 }
 
 export function suggestedIntent(result: CaseResult): ReplyIntent {
@@ -228,20 +237,29 @@ export function draftReply(
         );
       break;
     }
-    case "confirm_match":
+    case "confirm_match": {
+      const blocked = finishBlocker(result);
+      if (blocked) {
+        lines = [
+          thanks,
+          `Our document check${about} is still under review.`,
+          "",
+          "We will confirm the check result once the outstanding issues have been resolved.",
+        ];
+        checks.push(`A matching-fields report is not available: ${blocked}`);
+        break;
+      }
       lines = [
         thanks,
-        `We have checked the draft BL${about} against our Shipping Instruction. Shipper, consignee, notify party, ports, container count and gross weight all match.`,
+        `We have checked the selected draft BL${about} against the selected Shipping Instruction (CargoGuard case revision ${result.version}). The seven checked fields — shipper, consignee, notify party, ports of loading and discharge, container count and gross weight — match.`,
         "",
-        tone === "short"
-          ? "Please proceed to finalise the BL."
-          : "Please proceed to finalise the BL on this basis. This confirms the document details only.",
+        "This reports the document comparison only. It does not approve BL finalisation or cargo release.",
       ];
-      if (result.workflow !== "verified")
-        checks.push(
-          "This case is not marked as matching — confirm before sending.",
-        );
+      checks.push(
+        "Confirm the selected SI and BL are the current versions. Record any required finalisation approval separately through your agreed process.",
+      );
       break;
+    }
     case "request_documents": {
       const missing = missingDocuments(result);
       lines = [

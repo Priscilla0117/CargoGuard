@@ -3,6 +3,7 @@ import { errorSession, requireCapability } from "@/lib/auth";
 import { HttpError, readJson } from "@/lib/http";
 import { polishReply, replyAiConfig, writeReply } from "@/lib/reply-ai";
 import { INTENT_LABELS } from "@/lib/reply";
+import { finishBlocker } from "@/lib/follow-up";
 import { getCase, requireMutation, respond } from "@/lib/storage";
 
 const windowMs = 60 * 60 * 1000;
@@ -67,6 +68,14 @@ export async function POST(request: Request) {
         "This email changed. Reopen it before asking for AI help.",
         409,
       );
+    if (input.intent === "confirm_match") {
+      const blocker = finishBlocker(saved);
+      if (blocker)
+        throw new HttpError(
+          `Resolve this check before reporting a match: ${blocker}`,
+          409,
+        );
+    }
     const body =
       input.mode === "write"
         ? await writeReply({

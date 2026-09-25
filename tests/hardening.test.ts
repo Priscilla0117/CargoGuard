@@ -348,7 +348,9 @@ test("engine upgrade preserves reviewed values when source hashes are unchanged"
     method: "Human correction by Tester",
   };
   const next = await processEmail(email, read, old, true);
-  assert.ok(next.defect_fields.includes("gross_weight_kg"));
+  assert.equal(next.status, "NEEDS_REVIEW");
+  assert.equal(next.comparison.at(-1)!.bl.raw, "43000 KG");
+  assert.equal(next.comparison.at(-1)!.bl.correction?.state, "unresolved");
   assert.equal(next.reviewed, true);
 });
 test("explicit reprocess discards extracted-value edits, not source documents", async () => {

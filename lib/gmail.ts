@@ -16,7 +16,11 @@ export interface GoogleTokens {
   expires_at: number;
 }
 export class MailProviderError extends HttpError {
-  constructor(message: string, status = 502) {
+  constructor(
+    message: string,
+    status = 502,
+    public providerStatus?: number,
+  ) {
     super(message, status);
   }
 }
@@ -195,6 +199,7 @@ export async function gmailApi(
           ? "Gmail is rate-limiting requests. Automatic import will retry later."
           : "Gmail could not complete the request. Try again shortly.",
       response.status === 401 || response.status === 403 ? 409 : 503,
+      response.status,
     );
   }
   return boundedJson(response, options.limit ?? 256 * 1024);
@@ -263,9 +268,11 @@ export async function gmailUnseen(
   isKnown: (keys: string[]) => Promise<Set<string>>,
   fetcher?: Fetcher,
   pageLimit = 10,
+  startPageToken?: string,
 ) {
   const found: { id: string; threadId: string }[] = [];
-  let pageToken: string | undefined;
+  let pageToken = startPageToken;
+  let nextPageToken: string | null = null;
   let more = false;
   for (let page = 0; page < pageLimit; page++) {
     const list = await gmailList(token, query, 100, fetcher, pageToken);
@@ -275,15 +282,50 @@ export async function gmailUnseen(
       if (found.length < max) found.push(item);
       else more = true;
     }
-    if (!list.next) break;
     if (found.length >= max) {
-      more = true;
+      more = more || !!list.next;
+      // Revisit a partly consumed page; knownKeys removes committed imports.
+      nextPageToken = more ? (pageToken ?? "") : null;
       break;
     }
+    if (!list.next) break;
     pageToken = list.next;
-    if (page === pageLimit - 1) more = true;
+    if (page === pageLimit - 1) {
+      more = true;
+      nextPageToken = pageToken;
+    }
   }
-  return { messages: found, more };
+  return { messages: found, more, nextPageToken };
+}
+
+/** Read-only reconciliation after an uncertain send; never sends again. */
+export async function gmailFindSent(
+  token: string,
+  messageId: string,
+  fetcher?: Fetcher,
+) {
+  const found = await gmailList(
+    token,
+    `in:sent rfc822msgid:${messageId}`,
+    2,
+    fetcher,
+  );
+  return found.length === 1 ? found[0].id : null;
+}
+
+/** Provider thread IDs belong to one mailbox, even when cases are shared. */
+export async function gmailReplyThread(
+  token: string,
+  parentMessageId: string,
+  fetcher?: Fetcher,
+) {
+  const found = await gmailList(
+    token,
+    `in:anywhere rfc822msgid:${parentMessageId}`,
+    2,
+    fetcher,
+  );
+  return found.length === 1 ? found[0].threadId : undefined;
 }
 
 export async function gmailRaw(token: string, id: string, fetcher?: Fetcher) {

@@ -192,10 +192,32 @@ test("import, Gmail sign-in, automatic sync and reply drafts work through the re
           saved.result.email.received_at,
           "2026-09-20T00:30:00.000Z",
         );
+        for (const [source, date] of [
+          ["gmail", "invalid-date"],
+          ["eml", "2026-09-20T00:30:00Z"],
+        ]) {
+          const form = new FormData();
+          form.set("eml", new File([eml("ft_02")], "mail.eml"));
+          form.set("source", source);
+          form.set("provider_received_at", date);
+          assert.equal(
+            (
+              await upload(
+                new Request(`${ORIGIN}/api/upload`, {
+                  method: "POST",
+                  headers,
+                  body: form,
+                }),
+              )
+            ).status,
+            400,
+          );
+        }
       },
     );
 
     const gmailIds = ["18c0a1b2c3d4e5f6", "18c0a1b2c3d4e5f7"];
+    const rawOverrides = new Map<string, string>();
     const calls: string[] = [];
     globalThis.fetch = (async (
       input: RequestInfo | URL,
@@ -221,6 +243,10 @@ test("import, Gmail sign-in, automatic sync and reply drafts work through the re
       if (url.pathname === "/gmail/v1/users/me/profile")
         return Response.json({ emailAddress: "Najiha@Gmail.com" });
       if (url.pathname === "/gmail/v1/users/me/messages") {
+        if (url.searchParams.get("q")?.startsWith("in:anywhere rfc822msgid:"))
+          return Response.json({
+            messages: [{ id: gmailIds[0], threadId: "thread-abc" }],
+          });
         assert.match(
           url.searchParams.get("q") ?? "",
           /^in:inbox newer_than:7d/,
@@ -234,7 +260,9 @@ test("import, Gmail sign-in, automatic sync and reply drafts work through the re
         !url.pathname.endsWith("/send")
       ) {
         const id = url.pathname.split("/").pop()!;
-        const source = id === gmailIds[0] ? eml("ft_06") : eml("ft_07");
+        const source =
+          rawOverrides.get(id) ??
+          (id === gmailIds[0] ? eml("ft_06") : eml("ft_07"));
         return Response.json({
           id,
           threadId: "thread-abc",
@@ -330,10 +358,15 @@ test("import, Gmail sign-in, automatic sync and reply drafts work through the re
         const second = await json(await post(sync, "/api/mail/sync", {}));
         assert.equal(second.imported.length, 0);
         const rows = await client.execute(
-          "SELECT json_extract(payload,'$.email.source') AS source, json_extract(payload,'$.email.thread_hint') AS thread FROM cases WHERE json_extract(payload,'$.email.source')='gmail'",
+          "SELECT json_extract(payload,'$.email.source') AS source, json_extract(payload,'$.email.thread_hint') AS thread, json_extract(payload,'$.email.received_at') AS received, json_extract(payload,'$.email.sent_at') AS sent FROM cases WHERE json_extract(payload,'$.email.source')='gmail'",
         );
         assert.equal(rows.rows.length, 2);
         assert.equal(rows.rows[0].thread, "gmail:thread-abc");
+        assert.equal(rows.rows[0].received, "2026-09-21T00:00:00.000Z");
+        assert.ok(
+          rows.rows[0].sent,
+          "Retain the sender Date header separately",
+        );
       },
     );
 
@@ -341,7 +374,7 @@ test("import, Gmail sign-in, automatic sync and reply drafts work through the re
       "a reviewed reply is saved to Gmail drafts in the same thread and logged",
       async () => {
         const row = await client.execute(
-          "SELECT email_id FROM cases WHERE json_extract(payload,'$.email.message_id')='ft_06.fieldtest@cargoguard-demo.invalid'",
+          "SELECT email_id,version FROM cases WHERE json_extract(payload,'$.email.message_id')='ft_06.fieldtest@cargoguard-demo.invalid'",
         );
         const caseId = String(row.rows[0].email_id);
         const bad = await post(reply, "/api/mail/reply", {
@@ -356,6 +389,8 @@ test("import, Gmail sign-in, automatic sync and reply drafts work through the re
         const saved = await json(
           await post(reply, "/api/mail/reply", {
             case_id: caseId,
+            case_version: Number(row.rows[0].version),
+            operation_id: crypto.randomUUID(),
             mode: "draft",
             confirmed: true,
             to: ["ahmed@orientlinks-demo.gn"],
@@ -370,6 +405,53 @@ test("import, Gmail sign-in, automatic sync and reply drafts work through the re
           args: [caseId],
         });
         assert.equal(events.rows.length, 1);
+      },
+    );
+
+    await t.test(
+      "expired import reservations recover without duplicating cases even when Message-ID is missing",
+      async () => {
+        const id = "18c0a1b2c3d4efff";
+        gmailIds.push(id);
+        rawOverrides.set(
+          id,
+          eml("ft_07").replace(/^Message-ID:[^\r\n]*\r?\n/im, ""),
+        );
+        const first = await json(await post(sync, "/api/mail/sync", {}));
+        assert.equal(first.imported.length, 1, JSON.stringify(first));
+        const caseId = first.imported[0];
+        const before = await client.execute({
+          sql: "SELECT payload,version FROM cases WHERE workspace=? AND email_id=?",
+          args: [workspace, caseId],
+        });
+        assert.equal(
+          JSON.parse(String(before.rows[0].payload)).email.message_id,
+          undefined,
+        );
+        assert.ok(JSON.parse(String(before.rows[0].payload)).email.import_key);
+        await client.execute({
+          sql: "UPDATE mail_imports SET status='importing',case_id=NULL,lease_token='crashed-worker',lease_until='2000-01-01T00:00:00Z' WHERE workspace=? AND message_key LIKE ?",
+          args: [workspace, `%:gmail:${id}`],
+        });
+        const repeat = await json(await post(sync, "/api/mail/sync", {}));
+        assert.equal(repeat.imported.length, 0);
+        assert.equal(repeat.duplicates, 1);
+        const ledger = await client.execute({
+          sql: "SELECT status,case_id,lease_token FROM mail_imports WHERE workspace=? AND message_key LIKE ?",
+          args: [workspace, `%:gmail:${id}`],
+        });
+        assert.equal(ledger.rows[0].status, "imported");
+        assert.equal(ledger.rows[0].case_id, caseId);
+        assert.equal(ledger.rows[0].lease_token, null);
+        assert.equal(
+          (
+            await client.execute({
+              sql: "SELECT version FROM cases WHERE workspace=? AND email_id=?",
+              args: [workspace, caseId],
+            })
+          ).rows[0].version,
+          before.rows[0].version,
+        );
       },
     );
 

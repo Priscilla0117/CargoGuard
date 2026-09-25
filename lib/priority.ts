@@ -1,4 +1,11 @@
-import { effectiveFollowUp, followUpOverdue, type FollowUp } from "./follow-up";
+import {
+  effectiveFollowUp,
+  followUpOverdue,
+  completionBlocker,
+  integrityNeedsConfirmation,
+  hasRecordedRequest,
+  type FollowUp,
+} from "./follow-up";
 import { laneFor, type Lane } from "./operations";
 import { FIELD_RISK, byImpact, impactPhrase } from "./field-risk";
 import type { CaseSummary } from "./types";
@@ -18,18 +25,20 @@ export type TodoReason =
   | "invoice"
   | "unprocessed"
   | "follow_up"
-  | "extra_check";
+  | "extra_check"
+  | "shipment_work";
 
 export const BUCKET_LABELS: Record<Bucket, string> = {
   todo: "To do",
   waiting: "Waiting for reply",
-  done: "Done",
+  done: "Checked / handled",
   other: "FYI & spam",
 };
 export const BUCKET_HINTS: Record<Bucket, string> = {
   todo: "Emails that need something from you",
-  waiting: "You asked someone; nothing to do until they answer",
-  done: "Documents match — no action needed",
+  waiting:
+    "A request is recorded; review replies and confirmed follow-up dates",
+  done: "Document check or email handled; shipment work is tracked separately",
   other: "General updates and spam — no reply needed",
 };
 export const TODO_REASON_LABELS: Record<TodoReason, string> = {
@@ -41,6 +50,7 @@ export const TODO_REASON_LABELS: Record<TodoReason, string> = {
   unprocessed: "Not checked yet",
   follow_up: "Follow-up due",
   extra_check: "Extra check",
+  shipment_work: "Shipment work",
 };
 export const LEVEL_LABELS: Record<Level, string> = {
   urgent: "Urgent",
@@ -83,8 +93,13 @@ export interface PlanContext {
   replied_after_waiting?: boolean;
   /** A later draft in this conversation was checked and every detail matches. */
   superseded_by_match?: boolean;
-  /** An SI request whose order already has a later draft BL. */
+  /** A later related draft arrived; staff still confirm the SI request was handled. */
   si_answered?: boolean;
+  /** Current linked shipment work still needs an employee action. */
+  shipment_blocker?: string;
+  /** Latest related incoming message after the recorded request, for review. */
+  response_case_id?: string;
+  response_case_version?: number;
 }
 
 const DAY = 86400000;
@@ -132,12 +147,24 @@ export function planFor(
   let bucket: Bucket;
   let reason: TodoReason | null = null;
   const replied = state === "waiting" && !!context.replied_after_waiting;
-  if (overdue || state === "reopened" || state === "open" || replied) {
+  if (context.shipment_blocker) {
+    bucket = "todo";
+    reason = "shipment_work";
+    note = context.shipment_blocker;
+  } else if (overdue || state === "reopened" || state === "open" || replied) {
     bucket = "todo";
     reason = laneReason[lane] ?? "follow_up";
   } else if (state === "waiting") bucket = "waiting";
   else if (state === "completed") bucket = "done";
-  else if (lane === "handoff" && row.result?.integrity_attention) {
+  else if (lane === "handoff" && row.result && completionBlocker(row.result)) {
+    bucket = "todo";
+    reason = "unclear";
+    note = completionBlocker(row.result);
+  } else if (
+    lane === "handoff" &&
+    row.result &&
+    integrityNeedsConfirmation(row.result)
+  ) {
     // All seven details match, but an independent safety finding is open.
     bucket = "todo";
     reason = "extra_check";
@@ -153,9 +180,10 @@ export function planFor(
     lane === "routed" &&
     category === "SI_REQUEST"
   ) {
-    bucket = "done";
+    bucket = "todo";
+    reason = "si_request";
     note =
-      "A draft BL for this order has arrived — drafts are made from the SI, so this request was answered.";
+      "A related draft BL has arrived. Review it and confirm whether this SI request has been handled.";
   } else if (lane === "routed" && category === "SI_REQUEST") {
     bucket = "todo";
     reason = "si_request";
@@ -169,6 +197,14 @@ export function planFor(
   }
 
   // 1. Impact: what goes wrong if nobody acts.
+  if (
+    !note &&
+    state === "reopened" &&
+    followup?.state === "waiting" &&
+    !hasRecordedRequest(followup)
+  )
+    note =
+      "Confirm whether a request was actually sent. This saved wait has no request record; its deadline is preserved.";
   if (bucket === "todo") {
     if (reason === "differences") {
       const fields = row.result?.defect_fields ?? [];
@@ -187,6 +223,7 @@ export function planFor(
         unprocessed: [15, "Not checked yet"],
         follow_up: [30, "Follow-up is open"],
         extra_check: [28, "A container number or weight looks wrong"],
+        shipment_work: [30, "Linked shipment work is still open"],
       };
       const [points, text] = base[reason!];
       add(points, text);

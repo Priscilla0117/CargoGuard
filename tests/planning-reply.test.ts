@@ -74,6 +74,13 @@ test("buckets: differences are to-do, matches are done, waiting follow-ups are p
     shipment_reference: "",
     due_at: "2026-09-25T00:00:00Z",
     state: "waiting",
+    request: {
+      id: "external-request",
+      case_version: mismatch.result!.version,
+      at: "2026-09-20T01:00:00Z",
+      channel: "external",
+      note: "Asked the carrier for a corrected draft.",
+    },
     note: "Asked carrier",
     actor: "Najiha",
     updated_at: "",
@@ -183,7 +190,11 @@ test("reply drafts quote the SI and BL values and keep references", async () => 
   );
   const confirm = draftReply(await caseWith("42000 KG"));
   assert.equal(confirm.intent, "confirm_match");
-  assert.match(confirm.body, /all match/);
+  assert.match(confirm.body, /seven checked fields .* match\./i);
+  assert.match(
+    confirm.body,
+    /does not approve BL finalisation or cargo release/,
+  );
   assert.match(
     gmailComposeUrl(draft),
     /^https:\/\/mail\.google\.com\/mail\/\?view=cm/,

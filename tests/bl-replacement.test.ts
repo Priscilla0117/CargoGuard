@@ -146,9 +146,12 @@ test("unchanged SI corrections survive; corrections on the replaced BL never do"
     reviewer,
   );
   assert.deepEqual(retainedCorrections, ["shipper"]);
-  assert.equal(result.comparison[0].result, "match");
+  assert.equal(result.comparison[0].result, "uncertain");
+  assert.equal(result.comparison[0].si.raw, "ALPHA VERIFIED LTD");
+  assert.equal(result.comparison[0].si.correction?.state, "unresolved");
   assert.match(result.comparison[0].si.method, /^Human correction/);
-  assert.deepEqual(result.defect_fields, ["gross_weight_kg"]);
+  assert.equal(result.status, "NEEDS_REVIEW");
+  assert.equal(result.comparison.at(-1)!.result, "mismatch");
   assert.equal(result.comparison.at(-1)!.bl.normalized, 44000);
   assert.doesNotMatch(result.comparison.at(-1)!.bl.method, /Human correction/);
 });

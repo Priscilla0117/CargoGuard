@@ -17,6 +17,7 @@ const messageSchema = z.object({
   internetMessageId: z.string().max(1000).optional(),
   conversationId: z.string().max(1000).optional(),
   lastModifiedDateTime: z.string().max(60),
+  receivedDateTime: z.string().datetime({ offset: true }).optional(),
   body: z.object({ contentType: z.string(), content: z.string().max(20000) }),
   from: z.object({
     emailAddress: z.object({ address: z.string().email().max(254) }),
@@ -42,6 +43,9 @@ export interface MicrosoftMessagePreview {
   body: string;
   revision: string;
   message_key: string;
+  message_id?: string;
+  received_at?: string;
+  thread_hint?: string;
   attachments: {
     id: string;
     name: string;
@@ -59,7 +63,7 @@ export async function readMicrosoftMessage(
   const parsed = messageSchema.safeParse(
     await microsoftGraph(
       token,
-      `${graphMessagePath(id)}?$select=id,subject,internetMessageId,conversationId,lastModifiedDateTime,body,from,hasAttachments`,
+      `${graphMessagePath(id)}?$select=id,subject,internetMessageId,conversationId,lastModifiedDateTime,receivedDateTime,body,from,hasAttachments`,
       {},
       context.fetcher,
     ),
@@ -117,6 +121,11 @@ export async function readMicrosoftMessage(
     body: message.body.content || "(Empty email body)",
     revision: message.lastModifiedDateTime,
     message_key: await microsoftHash(message.internetMessageId || message.id),
+    message_id: message.internetMessageId?.replace(/^<|>$/g, ""),
+    received_at: message.receivedDateTime,
+    thread_hint: message.conversationId
+      ? `outlook:${await microsoftHash(message.conversationId)}`
+      : undefined,
     attachments,
   };
 }
@@ -145,6 +154,11 @@ export async function microsoftImportForm(
   form.set("subject", preview.subject);
   form.set("from", preview.from);
   form.set("body", preview.body);
+  form.set("source", "outlook");
+  form.set("import_key", `outlook:${preview.message_key}`);
+  if (preview.message_id) form.set("message_id", preview.message_id);
+  if (preview.received_at) form.set("received_at", preview.received_at);
+  if (preview.thread_hint) form.set("thread_hint", preview.thread_hint);
   for (const attachment of preview.attachments) {
     const result = z
       .object({
