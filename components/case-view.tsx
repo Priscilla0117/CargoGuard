@@ -670,6 +670,13 @@ export function CaseView(props: CaseViewProps) {
               person={props.reviewerName}
               reference={refs.shipment[0] ?? refs.po[0] ?? ""}
               markDone={markDone}
+              onOpenReply={() => {
+                if (result.workflow === "discrepancy")
+                  setCorrectionReplyFor(
+                    `${result.email.email_id}:${result.version}`,
+                  );
+                go("reply");
+              }}
             />
           ) : (
             <div className="cg-notice" role="status">

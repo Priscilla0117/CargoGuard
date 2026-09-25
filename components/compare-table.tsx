@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowRight,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -101,13 +102,19 @@ function plainEvidence(evidence: string) {
     .replace(/^Reviewer confirmed; original source: /, "")
     .replace(/,?\s*y\s*=\s*[\d.]+/gi, "")
     .trim();
-  return text ? `See in document · ${text}` : "See in document";
+  return text || "See in document";
 }
 
 const RESULT_TEXT: Record<ComparisonRow["result"], string> = {
   match: "Matches",
   mismatch: "Different",
   uncertain: "Please check",
+};
+const RESULT_HINT: Record<ComparisonRow["result"], string> = {
+  match: "The SI and the draft BL say the same.",
+  mismatch: "The highlighted words are not in the other document.",
+  uncertain:
+    "Could not be read with certainty. Open the document to confirm the value.",
 };
 const ORDER: Record<ComparisonRow["result"], number> = {
   mismatch: 0,
@@ -234,30 +241,21 @@ export function CompareTable({
           </span>
         </p>
       )}
-      <div className="cg-legend" style={{ marginBottom: 10 }}>
-        <span>
-          <TriangleAlert size={16} color="var(--cg-red)" /> Different — the
-          highlighted words are not in the other document
-        </span>
-        <span>
-          <CircleHelp size={16} color="var(--cg-blue)" /> Please check — could
-          not be read with certainty
-        </span>
-        <span>
-          <CheckCircle2 size={16} color="var(--cg-green)" />{" "}
-          {partial ? "Readable values match" : "Matches"}
-        </span>
-      </div>
+      {shown.some((row) => row.result === "mismatch") && (
+        <p className="cg-compare-hint">
+          <mark>Highlighted</mark> words are not in the other document.
+        </p>
+      )}
       <div className="cg-compare" role="table">
         <div className="cg-compare-head" role="row">
           <div role="columnheader">Detail</div>
           <div role="columnheader">
             Shipping Instruction (SI)
-            <small>Selected reference — confirm the latest revision</small>
+            <small>The reference</small>
           </div>
           <div role="columnheader">
             Draft Bill of Lading (BL)
-            <small>Document being checked</small>
+            <small>The document being checked</small>
           </div>
         </div>
         {shown.map((row) => (
@@ -270,6 +268,7 @@ export function CompareTable({
               {FIELD_LABELS[row.field]}
               <span
                 className={`cg-pill ${row.result === "mismatch" ? "red" : row.result === "uncertain" ? "blue" : "green"}`}
+                title={RESULT_HINT[row.result]}
               >
                 {row.result === "mismatch" ? (
                   <TriangleAlert size={14} />
@@ -326,43 +325,33 @@ export function CompareTable({
                       </span>
                     )}
                     <div className="cg-value-tools">
-                      {canEdit && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (
-                              side === "bl" &&
-                              proposals.has(row.field) &&
-                              onRequestCorrection
-                            ) {
-                              setAmendField(row.field);
-                              return;
-                            }
-                            setEditing({
-                              field: row.field,
-                              side,
-                              value: value.raw,
-                            });
-                          }}
-                          aria-label={`${side === "bl" && proposals.has(row.field) && onRequestCorrection ? "Review correction" : "Correct reading"} of ${FIELD_LABELS[row.field]} in the ${side === "si" ? "SI" : "draft BL"}`}
-                        >
-                          <Pencil size={14} />{" "}
-                          {side === "bl" &&
-                          proposals.has(row.field) &&
-                          onRequestCorrection
-                            ? "Review correction"
-                            : "Correct reading"}
-                        </button>
-                      )}
                       {value.source && (
                         <button
                           type="button"
                           className="cg-source"
                           onClick={() => onSource(value.source, value.evidence)}
                           title={`Show where this value comes from (${value.evidence})`}
+                          aria-label={`See the ${side === "si" ? "SI" : "draft BL"} ${FIELD_LABELS[row.field].toLowerCase()} in the document: ${plainEvidence(value.evidence)}`}
                         >
-                          <FileText size={14} />
+                          <FileText size={14} aria-hidden="true" />
                           {plainEvidence(value.evidence)}
+                        </button>
+                      )}
+                      {canEdit && (
+                        <button
+                          type="button"
+                          className="cg-fix-reading"
+                          onClick={() =>
+                            setEditing({
+                              field: row.field,
+                              side,
+                              value: value.raw,
+                            })
+                          }
+                          aria-label={`Fix how CargoGuard read the ${FIELD_LABELS[row.field].toLowerCase()} in the ${side === "si" ? "SI" : "draft BL"}`}
+                          title="Use this only when CargoGuard misread the document"
+                        >
+                          <Pencil size={13} aria-hidden="true" /> Fix reading
                         </button>
                       )}
                     </div>
@@ -371,13 +360,23 @@ export function CompareTable({
               );
             })}
             {row.result === "mismatch" && (
-              <p className="cg-risk" role="note">
-                <TriangleAlert size={15} aria-hidden="true" />
-                <span>
-                  <strong>If not corrected:</strong>{" "}
+              <div className="cg-row-foot" role="note">
+                <p className="cg-row-risk">
+                  <span className="cg-row-risk-label">Why it matters</span>
                   {FIELD_RISK[row.field].risk}
-                </span>
-              </p>
+                </p>
+                {canEdit && proposals.has(row.field) && onRequestCorrection && (
+                  <button
+                    type="button"
+                    className="cg-btn small cg-row-action"
+                    onClick={() => setAmendField(row.field)}
+                    aria-label={`Review the correction for ${FIELD_LABELS[row.field].toLowerCase()}`}
+                  >
+                    Review correction{" "}
+                    <ArrowRight size={15} aria-hidden="true" />
+                  </button>
+                )}
+              </div>
             )}
           </div>
         ))}
@@ -456,7 +455,7 @@ export function CompareTable({
         {partial
           ? "These are provisional results from readable content only. Unread pages must be reviewed before this document can be verified."
           : problems
-            ? `${problems} of ${rows.length} details need attention. Correct reading fixes a reading error. If the document itself is wrong, request a revised document in Reply.`
+            ? "Draft BL wrong? Review correction asks the sender for a revised BL. CargoGuard misread a value? Use Fix reading."
             : `All ${rows.length} details match. Spaces, punctuation and units are compared sensibly; missing values never count as a match.`}
       </p>
     </section>

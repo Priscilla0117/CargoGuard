@@ -216,8 +216,13 @@ export function GlobalAssistant({
         >
           <header className="assistant-panel-header">
             <div>
-              <span className="eyebrow">YOUR DOCUMENT DESK ASSISTANT</span>
               <DialogTitle>Ask CargoGuard</DialogTitle>
+              <p
+                id="assistant-panel-description"
+                className="assistant-panel-description"
+              >
+                Answers from your saved emails and documents.
+              </p>
             </div>
             <button
               className="icon-button"
@@ -227,14 +232,6 @@ export function GlobalAssistant({
               <X size={22} />
             </button>
           </header>
-          <p
-            id="assistant-panel-description"
-            className="assistant-panel-description"
-          >
-            Plans your day, reads SI and BL values, gets replies ready and
-            explains shipping terms — always showing where the answer comes
-            from.
-          </p>
           <CopilotHome
             rows={planned}
             now={now}

@@ -9,10 +9,15 @@ import {
 import {
   ArrowRight,
   ArrowUp,
+  CalendarClock,
+  Check,
   CheckCircle2,
+  ClipboardList,
+  FileSearch,
+  ListChecks,
+  X,
   CircleHelp,
   Copy,
-  FileText,
   Lightbulb,
   Loader2,
   Paperclip,
@@ -65,6 +70,47 @@ export const EMPTY_COPILOT: CopilotMemory = {
   question: "",
   turns: [],
   understand: true,
+};
+/** Four clear starting points; the order check uses a real order number. */
+function starters(rows: Planned[]) {
+  const lookup = copilotStarterGroups(rows)
+    .flatMap((group) => group.items)
+    .find((text) => /^What do the SI and BL say for /.test(text));
+  const order = lookup?.match(/for (.+)\?$/)?.[1];
+  return [
+    {
+      text: "What should I do first today?",
+      label: "What should I do first?",
+      Icon: ListChecks,
+    },
+    {
+      text: "What is due this week?",
+      label: "What is due this week?",
+      Icon: CalendarClock,
+    },
+    order
+      ? { text: lookup!, label: `Check order ${order}`, Icon: FileSearch }
+      : {
+          text: "Which documents do not match?",
+          label: "Which documents do not match?",
+          Icon: FileSearch,
+        },
+    {
+      text: "Write my end-of-day handover",
+      label: "Write my handover",
+      Icon: ClipboardList,
+    },
+  ];
+}
+const STEP_WORDS: Record<
+  NonNullable<CopilotAnswer["steps"]>[number]["state"],
+  string
+> = {
+  done: "done",
+  active: "in progress",
+  problem: "needs fixing",
+  waiting: "waiting",
+  none: "not started",
 };
 let turnSequence = 0;
 const nextTurnId = () => `turn-${Date.now().toString(36)}-${++turnSequence}`;
@@ -255,31 +301,14 @@ export function CopilotHome({
       <div className="assistant-chat-scroll">
         {!turns.length && (
           <div className="cg-copilot-welcome">
-            <div className="cg-copilot-icon">
-              <ShieldCheck size={28} />
-            </div>
-            <h3>How can I help at the desk?</h3>
-            <p>
-              Plan your day, find an order, see what the SI and BL say, get a
-              correction email ready, write a handover or ask what a shipping
-              term means. Every answer comes from your emails and documents.
-            </p>
-            <div className="cg-copilot-groups">
-              {copilotStarterGroups(rows).map((group) => (
-                <div key={group.label} className="cg-copilot-group">
-                  <span>{group.label}</span>
-                  <div className="cg-copilot-chips">
-                    {group.items.map((text) => (
-                      <button
-                        key={text}
-                        type="button"
-                        onClick={() => ask(text)}
-                      >
-                        {text}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+            <h3>What do you need?</h3>
+            <p>Ask in your own words, or start with one of these.</p>
+            <div className="cg-copilot-starters">
+              {starters(rows).map(({ text, label, Icon }) => (
+                <button key={text} type="button" onClick={() => ask(text)}>
+                  <Icon size={18} aria-hidden="true" />
+                  <span>{label}</span>
+                </button>
               ))}
             </div>
           </div>
@@ -308,20 +337,25 @@ export function CopilotHome({
                 ) : (
                   <div className="cg-copilot-answer">
                     {turn.understood && (
-                      <div className="cg-copilot-understood">
-                        <Sparkles size={15} aria-hidden="true" />
+                      <div
+                        className="cg-copilot-understood"
+                        title="Only your question was sent to AI. The answer comes from your saved emails."
+                      >
+                        <Sparkles size={14} aria-hidden="true" />
                         <span>
-                          {turn.understood.by} read your question as{" "}
-                          <strong>{turn.understood.label}</strong>. Only your
-                          question was sent; the answer comes from your saved
-                          emails.
+                          Read by {turn.understood.by} as{" "}
+                          <strong>{turn.understood.label}</strong>
+                          <span className="cg-sr">
+                            . Only your question was sent; the answer comes from
+                            your saved emails.
+                          </span>
                         </span>
                         <button
                           type="button"
-                          className="text-button"
+                          className="cg-link-button"
                           onClick={() => showInstant(turn.id)}
                         >
-                          Show instant answer
+                          Undo
                         </button>
                       </div>
                     )}
@@ -340,6 +374,32 @@ export function CopilotHome({
                       />
                     )}
                     {turn.answer.copy && <CopyBlock text={turn.answer.copy} />}
+                    {turn.answer.steps && turn.answer.steps.length > 0 && (
+                      <ol
+                        className="cg-copilot-steps"
+                        aria-label="Order progress"
+                      >
+                        {turn.answer.steps.map((step) => (
+                          <li key={step.label} className={step.state}>
+                            {step.state === "done" ? (
+                              <Check size={13} aria-hidden="true" />
+                            ) : step.state === "problem" ? (
+                              <X size={13} aria-hidden="true" />
+                            ) : (
+                              <span
+                                className="cg-step-dot"
+                                aria-hidden="true"
+                              />
+                            )}
+                            <span>{step.label}</span>
+                            <span className="cg-sr">
+                              {" "}
+                              ({STEP_WORDS[step.state]})
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
                     {turn.answer.facts.length > 0 && (
                       <dl className="cg-copilot-facts">
                         {turn.answer.facts.map((fact) => (
@@ -373,52 +433,29 @@ export function CopilotHome({
                                 </span>
                               </span>
                               <span className="cg-copilot-open">
-                                Open <ArrowRight size={16} />
+                                Open <ArrowRight size={15} />
                               </span>
                             </button>
-                            {item.actions.length > 0 && (
-                              <span className="cg-copilot-actions">
-                                {item.actions.includes("reply") && (
-                                  <button
-                                    type="button"
-                                    onClick={() => onOpen(item.id, "reply")}
-                                  >
-                                    <PenLine size={14} /> Write reply
-                                  </button>
-                                )}
-                                {item.actions.includes("documents") && (
-                                  <button
-                                    type="button"
-                                    onClick={() => onOpen(item.id, "documents")}
-                                  >
-                                    <FileText size={14} /> Documents
-                                  </button>
-                                )}
-                              </span>
-                            )}
                           </li>
                         ))}
                       </ol>
                     )}
                     {turn.answer.more > 0 && (
-                      <p className="cg-small cg-muted">
-                        …and {turn.answer.more} more in the inbox.
+                      <p className="cg-copilot-more">
+                        +{turn.answer.more} more in the inbox
                       </p>
                     )}
                     {!turn.blocked && (
                       <p className="cg-copilot-source">
-                        From your {rows.length} saved emails ·{" "}
-                        {turn.understood
-                          ? `question read by ${turn.understood.by}, no email sent`
-                          : "no AI used"}
+                        <ShieldCheck size={13} aria-hidden="true" />
+                        From your {rows.length} saved emails
                       </p>
                     )}
                     {turn.understanding === "loading" && (
                       <p className="cg-copilot-understanding" role="status">
                         <Loader2 size={16} className="cg-spin" />
                         <span>
-                          Reading your question with {ai?.label ?? "AI"}… Only
-                          your question is sent.
+                          Reading your question with {ai?.label ?? "AI"}…
                         </span>
                       </p>
                     )}
@@ -450,21 +487,24 @@ export function CopilotHome({
                             void understand(turn.id, turn.question)
                           }
                         >
-                          <Sparkles size={14} />
+                          <Sparkles size={14} aria-hidden="true" />
                           {turn.answer.intent === "none"
-                            ? `Let ${ai?.label ?? "AI"} read the question`
-                            : `Not what you meant? Let ${ai?.label ?? "AI"} read the question`}
+                            ? `Try with ${ai?.label ?? "AI"}`
+                            : `Not what you meant? Try with ${ai?.label ?? "AI"}`}
                         </button>
                       )}
                   </div>
                 )}
                 {index === turns.length - 1 &&
                   !reading &&
+                  !turn.blocked &&
+                  (turn.answer.intent === "none" ||
+                    turn.answer.intent === "help") &&
                   turn.answer.suggestions.length > 0 && (
                     <div className="cg-copilot-next">
-                      <span>You can also ask</span>
+                      <span>Try</span>
                       <div className="cg-copilot-chips">
-                        {turn.answer.suggestions.map((text) => (
+                        {turn.answer.suggestions.slice(0, 3).map((text) => (
                           <button
                             key={text}
                             type="button"
@@ -490,13 +530,15 @@ export function CopilotHome({
             ask(question);
           }}
         >
-          <label htmlFor="copilot-question">Your question</label>
+          <label htmlFor="copilot-question" className="cg-sr">
+            Your question
+          </label>
           <textarea
             id="copilot-question"
             rows={2}
             value={question}
             maxLength={800}
-            placeholder="For example: what does the SI say for 5RFR-36541? · write my handover · what is VGM?"
+            placeholder="Ask about an order, a PO, due dates or a shipping term…"
             onChange={(event) =>
               setMemory((previous) => ({
                 ...previous,
@@ -557,8 +599,8 @@ export function CopilotHome({
             <ShieldCheck size={14} aria-hidden="true" />
             <span>
               {understandOn
-                ? `Instant answers use only your saved emails. When I do not understand, ${ai.label} reads only your question, never your emails.`
-                : "AI question reading is off. Only instant answers are used."}
+                ? `If I don't understand, ${ai.label} reads only your question, never your emails.`
+                : "AI help is off. Only instant answers are used."}
             </span>
             <button
               type="button"

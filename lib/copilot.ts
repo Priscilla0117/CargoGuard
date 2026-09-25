@@ -7,7 +7,7 @@ import {
   type TodoReason,
 } from "./priority";
 import { displayStatus, type StatusTone } from "./case-status";
-import { orderFrom } from "./orders";
+import { orderFrom, type StepState } from "./orders";
 import { senderScores } from "./sender-insights";
 import { byImpact } from "./field-risk";
 import { FIELDS, FIELD_LABELS, type CaseSummary, type Field } from "./types";
@@ -65,6 +65,8 @@ export interface CopilotAnswer {
   copy?: string;
   /** Extra advice shown under the answer. */
   tip?: string;
+  /** Where an order stands, step by step (order-number answers only). */
+  steps?: { label: string; state: StepState }[];
 }
 
 export const COPILOT_STARTERS = [
@@ -418,34 +420,31 @@ export function copilotAnswer(
         row.result?.workflow === "discrepancy" ? row.result.defect_fields : [],
       ),
     );
+    // Short on purpose: counts, dates and subjects are shown as tiles and
+    // email rows under the text, so the sentence does not repeat them.
     const parts = [
-      `${plural(related.length, "email")} mention${related.length === 1 ? "s" : ""} ${ref.label.toLowerCase()} ${ref.value}.`,
       todo.length
-        ? `${plural(todo.length, "email")} still need${todo.length === 1 ? "s" : ""} you — start with “${todo[0].row.email.subject}”.`
+        ? `${plural(todo.length, "email")} still need${todo.length === 1 ? "s" : ""} you — start with the first one below.`
         : "Nothing is waiting for you on it.",
-      `Latest: ${displayStatus(latest.row, latest.plan).text.toLowerCase()} (“${latest.row.email.subject}”).`,
     ];
+    if (ref.label !== "Order")
+      parts.push(
+        `Latest: ${displayStatus(latest.row, latest.plan).text.toLowerCase()}.`,
+      );
     // For an order number: where the documents stand and what the newest
     // draft fixed compared with the one before.
-    let progress: CopilotAnswer["facts"] = [];
+    let steps: CopilotAnswer["steps"];
     if (ref.label === "Order") {
       const order = orderFrom(
         ref.value,
         related.map(({ row }) => row),
         new Map(related.map(({ row, plan }) => [row.email.email_id, plan])),
       );
-      parts.splice(1, 0, order.summary);
-      progress = [
-        {
-          label: "Progress",
-          value: order.steps
-            .map(
-              (step) =>
-                `${step.state === "done" ? "✓" : step.state === "problem" ? "✗" : step.state === "waiting" ? "…" : "○"} ${step.label}`,
-            )
-            .join("  "),
-        },
-      ];
+      parts.unshift(order.summary);
+      steps = order.steps.map((step) => ({
+        label: step.label,
+        state: step.state,
+      }));
       const drafts = related.filter(
         ({ row }) =>
           row.result?.category === "BL_COMPARISON" &&
@@ -477,10 +476,6 @@ export function copilotAnswer(
         );
       }
     }
-    if (upcoming)
-      parts.push(
-        `Next date mentioned: ${upcoming.kind.toLowerCase()} ${friendlyDate(upcoming.date)}.`,
-      );
     return {
       ...base,
       intent: "reference",
@@ -490,8 +485,8 @@ export function copilotAnswer(
         [...todo, ...related.filter((r) => !todo.includes(r)).reverse()],
         8,
       ),
+      ...(steps ? { steps } : {}),
       facts: [
-        ...progress,
         { label: "Emails", value: String(related.length) },
         { label: "Still to do", value: String(todo.length) },
         ...(differences.size
